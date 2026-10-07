@@ -8,7 +8,7 @@
         <version>3.5.6</version>
         <relativePath/>
     </parent>
-    <groupId>vn.happyprogramming</groupId>
+    <groupId>com.happyprogramming</groupId>
     <artifactId>happyprogramming-backend</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>HappyProgramming Backend</name>

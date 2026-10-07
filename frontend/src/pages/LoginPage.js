@@ -46,9 +46,8 @@ export function mountLogin(root) {
   const destination = params.get('return') === 'mentor' ? '#/apply/mentor'
     : params.get('return') === 'review' || staffPortal ? '#/staff/mentor-applications' : '#/';
   if (staffPortal) {
-    const inputs = form.querySelectorAll('input[name="role"]');
-    inputs[0].value = 'STAFF'; inputs[0].nextElementSibling.textContent = 'Staff';
-    inputs[1].value = 'ADMIN'; inputs[1].nextElementSibling.textContent = 'Admin';
+    const staffInput = form.querySelector('input[name="role"][value="STAFF"]');
+    if (staffInput) staffInput.checked = true;
   }
   const feedback = form.querySelector('#login-feedback');
   const submit = form.querySelector('#login-submit');
@@ -85,7 +84,13 @@ export function mountLogin(root) {
     try {
       const result = await authService.login({ email: fields.get('email').trim(), password: fields.get('password'), role: fields.get('role') });
       form.querySelector('#login-password').value = '';
-      if (form.isConnected) location.hash = result.mentorVerificationRequired ? '#/apply/mentor' : destination;
+      if (form.isConnected) {
+        if (result && (result.role_code === 'STAFF' || result.role_code === 'ADMIN')) {
+          location.hash = '#/staff/mentor-applications';
+        } else {
+          location.hash = result.mentorVerificationRequired ? '#/apply/mentor' : destination;
+        }
+      }
     } catch (error) {
       if (form.isConnected) showError(error instanceof TypeError ? 'Unable to connect. Please check your connection and try again.' : error.message);
     } finally { if (form.isConnected) setBusy(false); }

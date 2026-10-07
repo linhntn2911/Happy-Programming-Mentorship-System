@@ -194,7 +194,7 @@
 /* Tabs: Underlined tabs matching the reference */
 .auth-roles {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
   border: 0;
   border-bottom: 1px solid var(--color-line);
   padding: 0;
