@@ -87,7 +87,7 @@ public class MentorApplicationService {
     /** Restore only the draft capability; OTP is still required for account authentication. */
     @Transactional
     public Long resumeDraft(LoginRequest request) {
-        if (!"MENTEE".equals(request.role()) || request.password().getBytes(java.nio.charset.StandardCharsets.UTF_8).length>72) return null;
+        if ((request.role() != null && !"MENTEE".equalsIgnoreCase(request.role())) || request.password().getBytes(java.nio.charset.StandardCharsets.UTF_8).length>72) return null;
         var user=users.findForLogin(request.email().trim().toLowerCase(Locale.ROOT)).orElse(null);
         var now=LocalDateTime.now(clock);
         if (user==null || !"INACTIVE".equals(user.getStatus()) || user.getEmailVerifiedAt()!=null

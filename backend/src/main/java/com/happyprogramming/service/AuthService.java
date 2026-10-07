@@ -131,7 +131,10 @@ public class AuthService {
         if (request.password().getBytes(StandardCharsets.UTF_8).length > 72) return Optional.empty();
         var user = users.findForLogin(request.email().trim().toLowerCase(Locale.ROOT)).orElse(null);
         var now = LocalDateTime.now(clock);
-        if (user == null || !eligible(user, request.role(), now)) {
+        String effectiveRole = (request.role() != null && !request.role().isBlank())
+            ? request.role().trim().toUpperCase(Locale.ROOT)
+            : (user != null ? user.getRoleCode() : null);
+        if (user == null || effectiveRole == null || !eligible(user, effectiveRole, now)) {
             passwords.matches(request.password(), dummyHash);
             return Optional.empty();
         }
@@ -145,7 +148,7 @@ public class AuthService {
             return Optional.empty(); // commit failure counters instead of rolling back an exception
         }
         user.recordLogin(now);
-        return Optional.of(AuthenticatedUser.from(user, request.role()));
+        return Optional.of(AuthenticatedUser.from(user, effectiveRole));
     }
 
     @Transactional(readOnly = true)

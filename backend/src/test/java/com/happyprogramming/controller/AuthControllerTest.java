@@ -58,6 +58,15 @@ class AuthControllerTest {
         mvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
     }
 
+    @Test void loginWithoutRoleAutoDetectsRole() throws Exception {
+        mvc.perform(post("/api/auth/login").with(csrf())
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"email\":\"" + email + "\",\"password\":\"" + password + "\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.email").value(email))
+            .andExpect(jsonPath("$.data.role").value("MENTEE"));
+    }
+
     @Test void sessionCsrfTokenWorksButMissingTokenCannotLogIn() throws Exception {
         mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(body(password, "MENTEE")))
             .andExpect(status().isForbidden());

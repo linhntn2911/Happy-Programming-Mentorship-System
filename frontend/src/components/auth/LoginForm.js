@@ -4,22 +4,6 @@ import { TextInput } from '../ui/Input.js';
 export function LoginForm({ preview = false } = {}) {
   return `
   <form id="login-form" class="auth-form" aria-describedby="login-feedback">
-    <fieldset class="auth-roles" aria-label="Account type">
-      <legend class="sr-only">Account type</legend>
-      <label class="auth-tab">
-        <input type="radio" name="role" value="MENTEE" checked>
-        <span>I'm a mentee</span>
-      </label>
-      <label class="auth-tab">
-        <input type="radio" name="role" value="MENTOR">
-        <span>I'm a mentor</span>
-      </label>
-      <label class="auth-tab">
-        <input type="radio" name="role" value="STAFF">
-        <span>Staff</span>
-      </label>
-    </fieldset>
-
     ${TextInput({
       id: 'login-email',
       name: 'email',

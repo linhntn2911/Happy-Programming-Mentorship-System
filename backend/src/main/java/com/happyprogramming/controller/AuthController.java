@@ -66,7 +66,7 @@ public class AuthController {
             }
         }
         if (user.isEmpty()) return ResponseEntity.status(401).body(ApiResponse.error(
-            "Unable to log in. Check your email, password and account type. If you have tried repeatedly, wait 15 minutes."));
+            "Unable to log in. Check your email and password. If you have tried repeatedly, wait 15 minutes."));
         SessionLogin.establish(user.get(), req, res);
         return ResponseEntity.ok(ApiResponse.ok(user.get()));
     }

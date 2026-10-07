@@ -42,13 +42,8 @@ export function mountLogin(root) {
   root.innerHTML = AuthShell(`<h1 class="font-display auth-title">Log in</h1>${LoginForm()}`);
   const form = root.querySelector('#login-form');
   const params = new URLSearchParams(location.hash.split('?')[1] || '');
-  const staffPortal = params.get('portal') === 'staff';
   const destination = params.get('return') === 'mentor' ? '#/apply/mentor'
-    : params.get('return') === 'review' || staffPortal ? '#/staff/mentor-applications' : '#/';
-  if (staffPortal) {
-    const staffInput = form.querySelector('input[name="role"][value="STAFF"]');
-    if (staffInput) staffInput.checked = true;
-  }
+    : params.get('return') === 'review' ? '#/staff/mentor-applications' : '#/';
   const feedback = form.querySelector('#login-feedback');
   const submit = form.querySelector('#login-submit');
   const google = form.querySelector('#google-login');
@@ -64,11 +59,11 @@ export function mountLogin(root) {
     submit.textContent = value ? 'Logging in…' : 'Log in';
     form.querySelectorAll('input').forEach(input => { input.disabled = value; });
   };
-  if (location.hash.includes('error=google')) showError('Google login could not be completed. Use the Google account already linked to your account and select the correct account type.');
+  if (location.hash.includes('error=google')) showError('Google login could not be completed. Use the Google account already linked to your account.');
   bindAuthInfo(root);
   authService.options().then(options => {
     if (!form.isConnected) return;
-    googleEnabled = options.googleEnabled && !staffPortal;
+    googleEnabled = Boolean(options.googleEnabled);
     google.disabled = !googleEnabled || busy;
     google.setAttribute('aria-disabled', String(google.disabled));
     form.querySelector('#google-status').textContent = googleEnabled ? '' : 'Google login is not available yet. Please use email and password.';
@@ -82,13 +77,16 @@ export function mountLogin(root) {
     feedback.hidden = true;
     setBusy(true);
     try {
-      const result = await authService.login({ email: fields.get('email').trim(), password: fields.get('password'), role: fields.get('role') });
+      const result = await authService.login({ email: fields.get('email').trim(), password: fields.get('password') });
       form.querySelector('#login-password').value = '';
       if (form.isConnected) {
-        if (result && (result.role_code === 'STAFF' || result.role_code === 'ADMIN')) {
+        const userRole = result?.role || result?.role_code || (result?.roles && result.roles[0]);
+        if (['STAFF', 'ADMIN'].includes(userRole)) {
           location.hash = '#/staff/mentor-applications';
+        } else if (result?.mentorVerificationRequired) {
+          location.hash = '#/apply/mentor';
         } else {
-          location.hash = result.mentorVerificationRequired ? '#/apply/mentor' : destination;
+          location.hash = destination;
         }
       }
     } catch (error) {
@@ -97,10 +95,9 @@ export function mountLogin(root) {
   });
   google.addEventListener('click', async () => {
     if (busy || !googleEnabled) return;
-    const role = new FormData(form).get('role');
     setBusy(true);
     try {
-      const result = await authService.google(role, destination === '#/apply/mentor' ? 'mentor' : null);
+      const result = await authService.google('MENTEE', destination === '#/apply/mentor' ? 'mentor' : null);
       if (form.isConnected && result.url === '/oauth2/authorization/google') location.assign(result.url);
     } catch (error) { if (form.isConnected) { showError(error.message); setBusy(false); } }
   });

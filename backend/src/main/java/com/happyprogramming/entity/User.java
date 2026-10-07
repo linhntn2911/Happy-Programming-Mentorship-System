@@ -107,6 +107,7 @@ public class User {
     public String getFirstName() { return firstName; }
     public String getLastName() { return lastName; }
     public String getRole() { return role; }
+    public String getRoleCode() { return role; }
     public String getStatus() { return status; }
     public String getPasswordHash() { return passwordHash; }
     public int getFailedLoginCount() { return failedLoginCount; }
