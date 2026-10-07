@@ -1,6 +1,8 @@
 import './app.css';
 import { HomePage } from './pages/HomePage.js';
 import { ComponentShowcasePage } from './pages/ComponentShowcasePage.js';
+import { initializeMentorProfilePage, MentorProfilePage } from './pages/MentorProfilePage.js';
+import { initializeMentorDashboardPage, MentorDashboardPage } from './pages/MentorDashboardPage.js';
 import { mentorService } from './services/mentorService.js';
 
 const INITIAL_MENTORS = [
@@ -86,6 +88,7 @@ const INITIAL_MENTORS = [
 
 let currentMentors = [...INITIAL_MENTORS];
 const appEl = document.querySelector('#app');
+let cleanupCurrentPage = () => {};
 
 function renderApp(mentors) {
   currentMentors = mentors;
@@ -389,10 +392,20 @@ function initInteractions() {
 }
 
 function router() {
+  cleanupCurrentPage();
+  cleanupCurrentPage = () => {};
   const hash = window.location.hash;
   if (hash === '#/components' || hash === '#/showcase') {
     appEl.innerHTML = ComponentShowcasePage();
     window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/mentor/profile') {
+    appEl.innerHTML = MentorProfilePage();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    cleanupCurrentPage = initializeMentorProfilePage() || (() => {});
+  } else if (hash === '#/mentor/dashboard') {
+    appEl.innerHTML = MentorDashboardPage();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    cleanupCurrentPage = initializeMentorDashboardPage();
   } else {
     renderApp(currentMentors);
   }
@@ -409,7 +422,10 @@ mentorService
   .then(res => {
     if (res && res.data && Array.isArray(res.data) && res.data.length > 0) {
       currentMentors = res.data;
-      if (!window.location.hash.startsWith('#/components') && !window.location.hash.startsWith('#/showcase')) {
+      if (!window.location.hash.startsWith('#/components')
+          && !window.location.hash.startsWith('#/showcase')
+          && window.location.hash !== '#/mentor/profile'
+          && window.location.hash !== '#/mentor/dashboard') {
         renderApp(currentMentors);
       }
     }

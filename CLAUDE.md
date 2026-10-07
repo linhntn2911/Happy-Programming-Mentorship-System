@@ -48,7 +48,7 @@ All active feature work, API endpoints, and client modules must target `backend/
 
 ## Backend Expectations
 
-- Use Java 17 and Spring Boot 3.5.x.
+- Use Java 25 and Spring Boot 3.5.x.
 - Prefer capability-based packages over global controller/service/repository folders.
 - Keep controllers thin and business rules in services.
 - Use DTOs at API boundaries; do not serialize JPA entities directly.
@@ -95,4 +95,3 @@ Do not claim a command passed unless it was run successfully. If a tool or envir
 - Do not leave placeholder logic presented as a completed feature.
 - Explain material tradeoffs in `plan.md`, not only in chat.
 - Finish with the behavior changed, files affected, verification performed, and any remaining limitation.
-

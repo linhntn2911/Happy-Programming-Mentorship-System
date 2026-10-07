@@ -85,7 +85,7 @@ For bugs, preserve separate evidence for observed behavior, assessed cause, scop
 
 ### Backend
 
-The target backend is Java 17 and Spring Boot 3.5.x. It exposes versioned REST endpoints under `/api` and does not render frontend pages after the frontend split is complete.
+The target backend is Java 25 and Spring Boot 3.5.x. It exposes versioned REST endpoints under `/api` and does not render frontend pages after the frontend split is complete.
 
 Organize backend code by business capability:
 

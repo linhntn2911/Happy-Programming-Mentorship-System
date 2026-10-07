@@ -12,7 +12,7 @@ HappyProgramming/
 ```
 
 ## Backend Architecture
-- **Language & Runtime:** Java 17, Spring Boot 3.5.x
+- **Language & Runtime:** Java 25, Spring Boot 3.5.x
 - **Communication:** RESTful APIs under `/api/`
 - **Package Convention:** Business capabilities under `vn.happyprogramming`
   - `mentor/`: Mentor profiles, catalog, search

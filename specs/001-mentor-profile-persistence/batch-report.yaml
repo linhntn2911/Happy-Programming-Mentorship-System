@@ -1,0 +1,302 @@
+batch_id: "B01"
+required_endpoints: []
+completed_tasks:
+  - T001
+  - T002
+  - T003
+  - T004
+  - T005
+  - T006
+  - T007
+  - T008
+  - T009
+  - T010
+  - T011
+  - T012
+  - T013
+  - T014
+  - T015
+  - T016
+blocked_tasks: []
+files_changed:
+  T002:
+    - file: "backend/src/main/resources/application.properties"
+      change_type: "modified"
+      description: "Requires DB_PASSWORD; keeps the local SQL Server URL and sa username defaults."
+  T003:
+    - file: "backend/src/test/java/vn/happyprogramming/mentor/MentorPersistenceMappingTest.java"
+      change_type: "created"
+      description: "Covers profile key mapping, association key/relationships, and profile DTO validation."
+  T004:
+    - file: "backend/src/main/java/vn/happyprogramming/mentor/MentorProfile.java"
+      change_type: "created"
+      description: "Maps dbo.mentor_profiles and UTC timestamps."
+  T005:
+    - file: "backend/src/main/java/vn/happyprogramming/mentor/MentorProfileRequest.java"
+      change_type: "created"
+      description: "Validates mutable profile fields without exposing approval controls."
+  T006:
+    - file: "backend/src/main/java/vn/happyprogramming/mentor/MentorProfileResponse.java"
+      change_type: "created"
+      description: "Defines the profile response projection."
+  T007:
+    - file: "backend/src/main/java/vn/happyprogramming/mentor/MentorProfileRepository.java"
+      change_type: "created"
+      description: "Provides profile persistence by user ID."
+  T008:
+    - file: "backend/src/test/java/vn/happyprogramming/mentor/MentorSkillRepositoryTest.java"
+      change_type: "created"
+      description: "Verifies active-only query declaration and eager skill fetch."
+  T009:
+    - file: "backend/src/main/java/vn/happyprogramming/mentor/Skill.java"
+      change_type: "created"
+      description: "Maps dbo.skills and its active catalog state."
+  T010:
+    - file: "backend/src/main/java/vn/happyprogramming/mentor/MentorSkillId.java"
+      change_type: "created"
+      description: "Defines the mentor_id/skill_id composite key."
+  T011:
+    - file: "backend/src/main/java/vn/happyprogramming/mentor/MentorSkill.java"
+      change_type: "created"
+      description: "Maps dbo.mentor_skills and its profile/skill associations."
+  T012:
+    - file: "backend/src/main/java/vn/happyprogramming/mentor/SkillTagResponse.java"
+      change_type: "created"
+      description: "Defines safe skill catalog response fields."
+    - file: "backend/src/main/java/vn/happyprogramming/mentor/MentorSkillResponse.java"
+      change_type: "created"
+      description: "Defines safe mentor-skill link response fields."
+  T013:
+    - file: "backend/src/main/java/vn/happyprogramming/mentor/SkillRepository.java"
+      change_type: "created"
+      description: "Lists active skills ordered by name."
+  T014:
+    - file: "backend/src/main/java/vn/happyprogramming/mentor/MentorSkillRepository.java"
+      change_type: "created"
+      description: "Fetches one mentor's skill links while filtering inactive skills."
+  T015:
+    - file: "specs/001-mentor-profile-persistence/quickstart.md"
+      change_type: "created"
+      description: "Documents safe local DB environment setup and validation commands."
+upstream_artifacts_consumed:
+  T004:
+    - artifact: "docs/database/init/schema_31_tables.sql"
+      used_for: "mentor_profiles field definitions and constraints"
+  T009:
+    - artifact: "docs/database/init/schema_31_tables.sql"
+      used_for: "skills field definitions, keys, and active flag"
+  T011:
+    - artifact: "docs/database/init/schema_31_tables.sql"
+      used_for: "mentor_skills composite key, foreign keys, and metadata"
+evidence_mapping:
+  T004:
+    - upstream: "data-model.md#MentorProfile"
+      output: "backend/src/main/java/vn/happyprogramming/mentor/MentorProfile.java"
+      evidence: "MentorPersistenceMappingTest profile primary-key assertion"
+  T008:
+    - upstream: "spec.md#FR-004"
+      output: "backend/src/main/java/vn/happyprogramming/mentor/MentorSkillRepository.java"
+      evidence: "MentorSkillRepositoryTest active predicate and fetch assertion"
+  T005:
+    - upstream: "data-model.md#DTOs"
+      output: "backend/src/main/java/vn/happyprogramming/mentor/MentorProfileRequest.java"
+      evidence: "MentorPersistenceMappingTest passes valid DTO and rejects invalid values"
+traceability:
+  - requirement: "FR-001, FR-002, FR-003"
+    plan_item: "Design Decisions 1-2"
+    task: "T004, T009-T011"
+    files:
+      - "backend/src/main/java/vn/happyprogramming/mentor/MentorProfile.java"
+      - "backend/src/main/java/vn/happyprogramming/mentor/Skill.java"
+      - "backend/src/main/java/vn/happyprogramming/mentor/MentorSkill.java"
+      - "backend/src/main/java/vn/happyprogramming/mentor/MentorSkillId.java"
+    status: "completed"
+  - requirement: "FR-004"
+    plan_item: "Design Decision 3"
+    task: "T013-T014"
+    files:
+      - "backend/src/main/java/vn/happyprogramming/mentor/SkillRepository.java"
+      - "backend/src/main/java/vn/happyprogramming/mentor/MentorSkillRepository.java"
+    status: "completed"
+  - requirement: "FR-005"
+    plan_item: "Design Decision 1"
+    task: "T003, T005-T006, T012"
+    files:
+      - "backend/src/main/java/vn/happyprogramming/mentor/MentorProfileRequest.java"
+      - "backend/src/main/java/vn/happyprogramming/mentor/MentorProfileResponse.java"
+      - "backend/src/main/java/vn/happyprogramming/mentor/SkillTagResponse.java"
+      - "backend/src/main/java/vn/happyprogramming/mentor/MentorSkillResponse.java"
+    status: "completed"
+  - requirement: "FR-006"
+    plan_item: "Design Decision 4"
+    task: "T002, T015"
+    files:
+      - "backend/src/main/resources/application.properties"
+      - "specs/001-mentor-profile-persistence/quickstart.md"
+    status: "completed"
+  - requirement: "FR-007, FR-008"
+    plan_item: "Design Decision 5"
+    task: "T016"
+    files:
+      - "backend/src/main/java/vn/happyprogramming/mentor/MentorController.java"
+      - "backend/src/test/java/vn/happyprogramming/mentor/MentorControllerTest.java"
+    status: "completed"
+protocol_violation: false
+errors: []
+warnings:
+  - severity: MEDIUM
+    message: "The full application-context/controller suite was not run because DB_PASSWORD was not set in the current process. Focused persistence tests do not require SQL Server."
+test_results:
+  T003:
+    command: "mvn -f backend/pom.xml -Dtest=MentorPersistenceMappingTest,MentorSkillRepositoryTest test"
+    passed: 9
+    failed: 0
+    skipped: 0
+    failures: []
+
+phase2_batch:
+  batch_id: "B02"
+  required_endpoints:
+    - method: "GET"
+      path: "/api/mentors/me/profile"
+      source: "specs/001-mentor-profile-persistence/contracts/mentor-profile-api.md"
+      status: "contract-tested; SQL Server runtime probe unavailable"
+    - method: "PUT"
+      path: "/api/mentors/me/profile"
+      source: "specs/001-mentor-profile-persistence/contracts/mentor-profile-api.md"
+      status: "contract-tested; SQL Server runtime probe unavailable"
+    - method: "GET"
+      path: "/api/skills?active=true"
+      source: "specs/001-mentor-profile-persistence/contracts/mentor-profile-api.md"
+      status: "contract-tested; SQL Server runtime probe unavailable"
+  completed_tasks:
+    - T017
+    - T018
+    - T019
+    - T020
+    - T021
+    - T022
+    - T023
+    - T024
+    - T025
+    - T026
+    - T027
+    - T028
+    - T029
+    - T030
+    - T031
+    - T032
+    - T033
+    - T034
+    - T035
+  blocked_tasks:
+    - task_id: "T036"
+      reason: "SQL Server rollback integration test requires DB_PASSWORD, HPMS_MENTOR_TEST_USER_ID, and a reachable local SQL Server."
+      required_task_ids: []
+  files_changed:
+    T017-T025:
+      - file: "backend/src/main/java/vn/happyprogramming/mentor/MentorService.java"
+        change_type: "created"
+        description: "Composes safe profile responses and transactionally synchronizes active skill selections using a fixed, guarded demo identity."
+      - file: "backend/src/main/java/vn/happyprogramming/mentor/MentorAccount.java"
+        change_type: "created"
+        description: "Maps only profile and read-only active-mentor eligibility columns from dbo.users."
+      - file: "backend/src/main/java/vn/happyprogramming/mentor/MentorController.java"
+        change_type: "modified"
+        description: "Adds profile GET/PUT routes while retaining the featured mentor route."
+      - file: "backend/src/main/java/vn/happyprogramming/mentor/MentorProfileRequest.java"
+        change_type: "modified"
+        description: "Validates profile details, optional HTTP(S) links, and skill IDs."
+    T026-T032:
+      - file: "frontend/src/pages/MentorProfilePage.js"
+        change_type: "created"
+        description: "Adds accessible profile editor and safe DOM-based rendering of API data."
+      - file: "frontend/src/services/mentorService.js"
+        change_type: "modified"
+        description: "Adds profile GET/PUT and active skill catalog calls."
+      - file: "frontend/src/main.js"
+        change_type: "modified"
+        description: "Adds the isolated mentor profile hash route."
+      - file: "frontend/src/components/layout/Header.js"
+        change_type: "modified"
+        description: "Adds discoverable desktop and mobile profile navigation."
+    T033-T036:
+      - file: "specs/001-mentor-profile-persistence/contracts/mentor-profile-api.md"
+        change_type: "created"
+        description: "Documents profile, active-skill and local demo identity contracts."
+      - file: "backend/src/test/java/vn/happyprogramming/mentor/MentorProfileTransactionIntegrationTest.java"
+        change_type: "created"
+        description: "Adds a DB-gated rollback test; execution is blocked until local SQL Server credentials and test user are configured."
+  upstream_artifacts_consumed:
+    T019-T025:
+      - artifact: "specs/001-mentor-profile-persistence/spec.md#FR-009-FR-013"
+        used_for: "Profile field scope, atomic skill updates, DTO boundaries, and fixed local-demo identity."
+      - artifact: "specs/001-mentor-profile-persistence/data-model.md#MentorAccount"
+        used_for: "Mapped users columns and active mentor eligibility checks."
+      - artifact: "docs/database/init/schema_31_tables.sql"
+        used_for: "Existing users, mentor_profiles, mentor_skills, and skills definitions."
+    T026-T032:
+      - artifact: "specs/001-mentor-profile-persistence/contracts/mentor-profile-api.md"
+        used_for: "Route names, request/response fields, validation and error behavior."
+      - artifact: "frontend/src/pages/ComponentShowcasePage.js"
+        used_for: "Existing design token and reusable UI component conventions."
+  evidence_mapping:
+    T017-T018:
+      - upstream: "specs/001-mentor-profile-persistence/spec.md#FR-009-FR-013"
+        output: "backend/src/test/java/vn/happyprogramming/mentor/MentorServiceTest.java"
+        evidence: "Service tests cover profile composition, validation, disabled demo identity, role/status eligibility, and skill synchronization."
+      - upstream: "specs/001-mentor-profile-persistence/contracts/mentor-profile-api.md"
+        output: "backend/src/test/java/vn/happyprogramming/mentor/MentorControllerTest.java"
+        evidence: "MockMvc tests exercise route response envelopes and validation/status handling."
+    T028-T032:
+      - upstream: "specs/001-mentor-profile-persistence/spec.md#FR-014-FR-015"
+        output: "frontend/src/pages/MentorProfilePage.js"
+        evidence: "Browser validation used mocked API responses, confirmed success/error states, safe rendering (no injected elements), keyboard focus, and no horizontal overflow at 320/768/1440 viewport widths."
+  traceability:
+    - requirement: "FR-009, FR-010, FR-012, FR-013"
+      plan_item: "Design Decisions 1-3"
+      task: "T017-T025"
+      files:
+        - "backend/src/main/java/vn/happyprogramming/mentor/MentorService.java"
+        - "backend/src/main/java/vn/happyprogramming/mentor/MentorController.java"
+        - "backend/src/test/java/vn/happyprogramming/mentor/MentorServiceTest.java"
+      status: "completed; DB rollback execution blocked"
+    - requirement: "FR-011, FR-014, FR-015"
+      plan_item: "Design Decisions 5-8"
+      task: "T026-T035"
+      files:
+        - "backend/src/main/java/vn/happyprogramming/mentor/MentorController.java"
+        - "frontend/src/pages/MentorProfilePage.js"
+        - "frontend/src/services/mentorService.js"
+      status: "completed"
+  protocol_violation: false
+  errors: []
+  warnings:
+    - severity: "HIGH"
+      message: "The project's Java 25 toolchain is unavailable; focused backend checks passed using the installed Java 17 compiler override. Re-run with Java 25."
+    - severity: "HIGH"
+      message: "SQL Server is unavailable in this session; the DB rollback integration test was skipped and the full application-context suite fails during database dialect discovery."
+    - severity: "MEDIUM"
+      message: "The frontend npm test script is an echo-only placeholder, so UI behavior was validated manually in the browser instead of by an automated frontend test suite."
+    - severity: "MEDIUM"
+      message: "npm ci reported one high-severity package advisory; no dependency changes or audit fixes were requested or applied."
+  test_results:
+    backend:
+      command: "mvn -f backend/pom.xml -Djava.version=17 -Dtest=MentorPersistenceMappingTest,MentorSkillRepositoryTest,MentorServiceTest,MentorControllerTest,MentorProfileTransactionIntegrationTest clean test"
+      passed: 26
+      failed: 0
+      skipped: 1
+      failures: []
+    frontend_build:
+      command: "npm run build"
+      passed: 1
+      failed: 0
+      skipped: 0
+      failures: []
+    frontend_test_script:
+      command: "npm test"
+      passed: 0
+      failed: 0
+      skipped: 0
+      failures: []
+      notes: "Script exits successfully but only echoes 'Frontend tests pass'; it contains no automated test cases."

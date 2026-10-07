@@ -9,8 +9,11 @@ export function Header() {
     <nav class="hidden items-center gap-6 lg:flex" aria-label="Main navigation">
       <a class="nav-link" href="#how-it-works">How it works</a>
       <button class="nav-link" id="login-nav-btn">Log in</button>
+      <a class="nav-link" href="#/mentor/dashboard">Mentor dashboard</a>
+      <a class="nav-link" href="#/mentor/profile">Mentor profile</a>
       <a href="#mentors" class="btn btn-light !min-h-10 !px-5 !py-2.5">Browse all mentors <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></a>
     </nav>
+    <a href="#/mentor/dashboard" class="btn btn-outline btn-sm lg:hidden">Mentor dashboard</a>
     <button id="menu-toggle" class="grid h-10 w-10 place-items-center rounded-lg border border-brand/20 bg-white text-brand lg:hidden" aria-label="Open menu"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
   </div>
 

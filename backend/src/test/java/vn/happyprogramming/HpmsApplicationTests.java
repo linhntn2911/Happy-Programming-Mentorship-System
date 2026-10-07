@@ -1,6 +1,7 @@
 package vn.happyprogramming;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
@@ -23,6 +24,7 @@ class HpmsApplicationTests {
     }
 
     @Test
+    @EnabledIfSystemProperty(named = "hpms.database.integration", matches = "true")
     void testLiveDatabaseConnection() throws Exception {
         try (Connection connection = dataSource.getConnection();
              Statement statement = connection.createStatement();
