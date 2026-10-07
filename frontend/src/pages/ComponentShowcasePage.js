@@ -1,4 +1,5 @@
 import { Button } from '../components/ui/Button.js';
+import { StatCard, StatusBadge, DataTable, Notice } from '../components/ui/AdminPrimitives.js';
 import { LoginForm } from '../components/auth/LoginForm.js';
 import { MenteeSignupForm } from '../components/auth/MenteeSignupForm.js';
 import { Badge, TopicPill } from '../components/ui/Badge.js';
@@ -44,6 +45,12 @@ export function ComponentShowcasePage() {
   </section>
 
   <div class="container space-y-16 py-14">
+    <section aria-label="Administration components">
+      <h2 class="section-title">Administration</h2>
+      ${Notice({ message: 'Sample administration components' })}
+      ${StatCard({ label: 'Accounts', value: 0, note: 'Sample metric' })}
+      ${DataTable({ caption: 'Account states', headings: ['Status'], rows: [[StatusBadge('ACTIVE')]] })}
+    </section>
     <!-- 1. Color Palette Tokens -->
     <section aria-labelledby="colors-title">
       <p class="eyebrow">TOKENS</p>

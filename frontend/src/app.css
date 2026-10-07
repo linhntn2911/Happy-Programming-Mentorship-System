@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./styles/admin.css";
 
 /* Split Authentication Layout: image on the left, clean form on the right */
 .auth-split-layout {

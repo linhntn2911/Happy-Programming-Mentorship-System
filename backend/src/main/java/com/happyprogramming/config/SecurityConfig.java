@@ -30,6 +30,7 @@ public class SecurityConfig {
             .requestMatchers("/api/auth/login", "/api/auth/signup/**", "/api/auth/verify-otp", "/api/auth/resend-otp", "/api/auth/google", "/oauth2/**", "/login/oauth2/**").permitAll()
             .requestMatchers("/api/mentor-applications", "/api/mentor-applications/check-email",
                 "/api/mentor-applications/mine", "/api/mentor-applications/verify", "/api/mentor-applications/resend").permitAll()
+            .requestMatchers("/api/admin/**").hasRole("ADMIN")
             .anyRequest().authenticated());
         http.formLogin(f -> f.disable()).httpBasic(b -> b.disable());
         http.requestCache(c -> c.disable());

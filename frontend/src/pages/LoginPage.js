@@ -81,7 +81,9 @@ export function mountLogin(root) {
       form.querySelector('#login-password').value = '';
       if (form.isConnected) {
         const userRole = result?.role || result?.role_code || (result?.roles && result.roles[0]);
-        if (['STAFF', 'ADMIN'].includes(userRole)) {
+        if (userRole === 'ADMIN') {
+          location.hash = '#/admin';
+        } else if (userRole === 'STAFF') {
           location.hash = '#/staff/mentor-applications';
         } else if (result?.mentorVerificationRequired) {
           location.hash = '#/apply/mentor';

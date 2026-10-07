@@ -1,5 +1,6 @@
 import { mountMentorProfile } from './pages/MentorProfilePage.js';
 import { mountLogin } from './pages/LoginPage.js';
+import { mountAdmin } from './pages/AdminPage.js';
 import { mountMenteeSignup } from './pages/MenteeSignupPage.js';
 import { mountAccount } from './pages/AccountPage.js';
 import { mountMentorApplication } from './pages/MentorApplicationPage.js';
@@ -418,9 +419,15 @@ function initInteractions() {
   });
 }
 
+let disposeAdmin;
 function router() {
+  disposeAdmin?.();
+  disposeAdmin = undefined;
   const hash = window.location.hash;
-  if (hash === '#/login' || hash.startsWith('#/login?')) {
+  if (hash === '#/admin' || hash.startsWith('#/admin/')) {
+    disposeAdmin = mountAdmin(appEl, hash.split('/')[2] || 'overview');
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/login' || hash.startsWith('#/login?')) {
     mountLogin(appEl);
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash === '#/staff/mentor-applications') {
@@ -660,7 +667,7 @@ mentorService
   .then(res => {
     if (Array.isArray(res) && res.length > 0) {
       currentMentors = res;
-      if (['#/mentors/', '#/login', '#/signup', '#/apply/', '#/staff/'].some(prefix => window.location.hash.startsWith(prefix)) || window.location.hash === '#/account' || window.location.hash === '#/wishlist') {
+      if (['#/admin', '#/mentors/', '#/login', '#/signup', '#/apply/', '#/staff/'].some(prefix => window.location.hash.startsWith(prefix)) || window.location.hash === '#/account' || window.location.hash === '#/wishlist') {
         if (window.location.hash === '#/wishlist') mountWishlist(appEl, currentMentors);
         return;
       }

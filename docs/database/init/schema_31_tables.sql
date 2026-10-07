@@ -884,13 +884,6 @@ INSERT INTO dbo.system_configs(config_key, config_value, value_type, description
 ('notification.email_enabled', N'{"value":true}', 'BOOLEAN', N'Bật email'),
 ('audit.technical_retention_days', N'{"value":90}', 'NUMBER', N'Chỉ áp dụng log kỹ thuật');
 
--- Seed Initial Admin & Staff Accounts
-INSERT INTO dbo.users (
-    email, role_code, password_hash, full_name, phone, bio, timezone, status, email_verified_at, created_at, updated_at
-) VALUES 
-('admin@happyprogramming.vn', 'ADMIN', '$2a$12$e0MYzXyjpJS7Pd0RVvHwHe1v5s1tQ/XkQpQk9Q.Nq7JgV8vY5Z6aK', N'System Administrator', '0900000000', N'System Admin Account', 'Asia/Ho_Chi_Minh', 'ACTIVE', SYSUTCDATETIME(), SYSUTCDATETIME(), SYSUTCDATETIME()),
-('staff@happyprogramming.vn', 'STAFF', '$2a$12$e0MYzXyjpJS7Pd0RVvHwHe1v5s1tQ/XkQpQk9Q.Nq7JgV8vY5Z6aK', N'Operational Staff', '0911111111', N'Operational Staff Account', 'Asia/Ho_Chi_Minh', 'ACTIVE', SYSUTCDATETIME(), SYSUTCDATETIME(), SYSUTCDATETIME());
-
 -- Triggers
 EXEC(N'CREATE TRIGGER dbo.trg_escrow_immutable
 ON dbo.escrow_ledger_entries INSTEAD OF UPDATE, DELETE
@@ -1019,21 +1012,6 @@ BEGIN
     IF EXISTS (SELECT 1 FROM inserted i JOIN dbo.user_permissions p ON p.user_id=i.id WHERE i.role_code <> ''STAFF'')
         THROW 51011, ''Revoke staff grants before changing the staff role.'', 1;
 END;');
-
--- Seed Staff Permissions (Assigned by active ADMIN user)
-INSERT INTO dbo.user_permissions (user_id, permission_code, assigned_by, assigned_at)
-SELECT u_staff.id, p.code, u_admin.id, SYSUTCDATETIME()
-FROM dbo.users u_staff
-CROSS JOIN dbo.users u_admin
-CROSS JOIN (VALUES 
-    ('MENTOR_APPLICATION_MANAGE'),
-    ('MENTEE_MANAGE'),
-    ('MENTORSHIP_REQUEST_MANAGE'),
-    ('SKILL_MANAGE')
-) AS p(code)
-WHERE u_staff.email_normalized = 'staff@happyprogramming.vn'
-  AND u_admin.email_normalized = 'admin@happyprogramming.vn';
-
 
 
 EXEC(N'CREATE TRIGGER dbo.trg_subscription_funded_activation
