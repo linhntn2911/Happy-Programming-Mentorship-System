@@ -46,6 +46,8 @@ export function MentorDashboardPage() {
   <nav class="mb-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm" aria-label="Mentor navigation">
     <a href="#/" class="font-medium text-brand underline-offset-4 hover:underline">← Home</a>
     <a href="#/mentor/profile" class="font-medium text-brand underline-offset-4 hover:underline">Edit profile</a>
+    <a href="#/mentor/availability" class="font-medium text-brand underline-offset-4 hover:underline">Availability</a>
+    <a href="#/mentor/packages" class="font-medium text-brand underline-offset-4 hover:underline">Packages</a>
   </nav>
   <header class="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
     <div>

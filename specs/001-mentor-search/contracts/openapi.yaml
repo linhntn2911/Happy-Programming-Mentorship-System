@@ -1,0 +1,49 @@
+openapi: 3.0.3
+info:
+  title: HappyProgramming Mentor Discovery API
+  version: 1.0.0
+paths:
+  /api/mentors:
+    get:
+      summary: Search public mentors
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 100 } }
+        - { name: skills, in: query, schema: { type: array, items: { type: string } }, style: form, explode: true }
+        - { name: jobTitles, in: query, schema: { type: array, items: { type: string } }, style: form, explode: true }
+        - { name: companies, in: query, schema: { type: array, items: { type: string } }, style: form, explode: true }
+        - { name: languages, in: query, schema: { type: array, items: { type: string } }, style: form, explode: true }
+        - { name: countries, in: query, schema: { type: array, items: { type: string } }, style: form, explode: true }
+        - { name: minExperience, in: query, schema: { type: integer, minimum: 0, maximum: 80 } }
+        - { name: minPrice, in: query, schema: { type: integer, minimum: 0 } }
+        - { name: maxPrice, in: query, schema: { type: integer, minimum: 0 } }
+        - { name: minRating, in: query, schema: { type: number, minimum: 1, maximum: 5 } }
+        - { name: available, in: query, schema: { type: boolean } }
+        - { name: sort, in: query, schema: { type: string, enum: [recommended, rating, experience, price-low, price-high] } }
+      responses:
+        '200':
+          description: Matching mentors wrapped in the canonical API response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/MentorCard' }
+components:
+  schemas:
+    MentorCard:
+      type: object
+      required: [id, name, role, company, skills, yearsExperience, monthlyPrice, rating]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        role: { type: string }
+        company: { type: string }
+        skills: { type: array, items: { type: string } }
+        yearsExperience: { type: integer }
+        monthlyPrice: { type: integer, format: int64 }
+        rating: { type: number, format: double }
+        reviewCount: { type: integer }
+        acceptingMentees: { type: boolean }

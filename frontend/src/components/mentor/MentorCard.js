@@ -28,6 +28,7 @@ export function MentorCard(mentor) {
       <p class="font-semibold text-ink">${mentor.session} VND</p>
     </div>
   </div>
+<a class="btn btn-outline btn-sm mt-4" href="#/mentors/${encodeURIComponent(mentor.id)}">View profile</a>
 </article>
   `;
 }

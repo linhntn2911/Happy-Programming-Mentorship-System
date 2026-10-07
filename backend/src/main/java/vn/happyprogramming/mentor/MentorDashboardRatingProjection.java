@@ -1,9 +1,0 @@
-package vn.happyprogramming.mentor;
-
-import java.math.BigDecimal;
-
-public interface MentorDashboardRatingProjection {
-    BigDecimal getAverageRating();
-
-    long getReviewCount();
-}

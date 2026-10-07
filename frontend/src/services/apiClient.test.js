@@ -18,6 +18,7 @@ test('apiClient preserves default JSON headers while adding an authorization hea
       headers: { Authorization: 'Bearer dev-session-token' },
     });
     assert.deepEqual(result, { id: 42 });
+    assert.equal(requestOptions.credentials, 'same-origin');
     assert.equal(requestOptions.headers['Content-Type'], 'application/json');
     assert.equal(requestOptions.headers.Authorization, 'Bearer dev-session-token');
   } finally {

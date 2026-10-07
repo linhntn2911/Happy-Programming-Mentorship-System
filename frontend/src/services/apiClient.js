@@ -32,6 +32,7 @@ export async function apiClient(endpoint, options = {}) {
 
   try {
     const response = await fetch(endpoint, {
+      credentials: 'same-origin',
       ...requestOptions,
       headers: {
         'Content-Type': 'application/json',

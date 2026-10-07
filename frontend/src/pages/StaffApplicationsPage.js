@@ -1,0 +1,186 @@
+/**
+ * Staff Mentor Applications Review Page - HappyProgramming
+ * UC17, UC18, Section 9.1 & 5.1 in SRS
+ * Enables Staff to inspect applicant PDF CV documents (max 10MB) and approve or reject candidates.
+ */
+
+export function StaffApplicationsPage(applications = [], activeTab = 'PENDING') {
+  const filteredApps = applications.filter(app => {
+    if (activeTab === 'ALL') return true;
+    return app.status === activeTab;
+  });
+
+  const pendingCount = applications.filter(a => a.status === 'PENDING').length;
+  const approvedCount = applications.filter(a => a.status === 'APPROVED').length;
+  const rejectedCount = applications.filter(a => a.status === 'REJECTED').length;
+
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'PENDING':
+        return '<span class="px-2.5 py-1 text-xs font-bold rounded-full bg-amber-100 text-amber-800">PENDING (48h SLA)</span>';
+      case 'APPROVED':
+        return '<span class="px-2.5 py-1 text-xs font-bold rounded-full bg-emerald-100 text-emerald-800">APPROVED ✓</span>';
+      case 'REJECTED':
+        return '<span class="px-2.5 py-1 text-xs font-bold rounded-full bg-rose-100 text-rose-800">REJECTED ✕</span>';
+      default:
+        return '<span class="px-2.5 py-1 text-xs font-bold rounded-full bg-slate-100 text-slate-700">' + status + '</span>';
+    }
+  };
+
+  const appRowsHtml = filteredApps.length > 0 ? filteredApps.map((app, index) => `
+    <tr class="hover:bg-[#fbf9ff] transition-colors border-b border-[#e8e0f1]">
+      <td class="px-4 py-3.5 text-xs font-bold text-slate-400">${index + 1}</td>
+      <td class="px-4 py-3.5">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-full bg-[#f1e8ff] text-[#8b46e8] flex items-center justify-center font-bold text-sm">
+            ${app.applicantName ? app.applicantName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'A'}
+          </div>
+          <div>
+            <div class="font-bold text-sm text-[#25143f]">${app.applicantName}</div>
+            <div class="text-xs text-slate-500">${app.email}</div>
+          </div>
+        </div>
+      </td>
+      <td class="px-4 py-3.5 text-xs text-slate-700 font-semibold">${app.specialty}</td>
+      <td class="px-4 py-3.5 text-xs font-bold text-slate-700">${app.experienceYears} yrs</td>
+      <td class="px-4 py-3.5 text-xs text-slate-500 font-semibold">${app.submittedDate}</td>
+      <td class="px-4 py-3.5">${getStatusBadge(app.status)}</td>
+      <td class="px-4 py-3.5">
+        <button data-review-app="${app.id}" class="px-3.5 py-1.5 text-xs font-bold rounded-xl bg-[#8b46e8] text-white hover:bg-[#7431d0] shadow-xs transition-colors">
+          ${app.status === 'PENDING' ? 'Review & Approve CV' : 'View Application'}
+        </button>
+      </td>
+    </tr>
+  `).join('') : `
+    <tr>
+      <td colspan="7" class="py-12 text-center text-sm text-slate-500">
+        No mentor applications matching filter "${activeTab}".
+      </td>
+    </tr>
+  `;
+
+  return `
+    <div class="min-h-screen bg-[#fbf9ff] text-[#25143f] font-sans antialiased">
+      <!-- Staff Header -->
+      <header class="bg-white border-b border-[#e8e0f1] sticky top-0 z-30 shadow-xs">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex items-center justify-between h-16">
+            <div class="flex items-center gap-3">
+              <a href="#" class="flex items-center gap-2 group">
+                <div class="w-9 h-9 rounded-xl bg-[#8b46e8] text-white flex items-center justify-center font-bold text-lg shadow-sm group-hover:bg-[#7431d0] transition-colors">HP</div>
+                <span class="font-extrabold text-xl tracking-tight text-[#25143f]">Happy<span class="text-[#8b46e8]">Programming</span></span>
+              </a>
+              <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-[#f1e8ff] text-[#8b46e8] border border-[#8b46e8]/20">Staff Portal</span>
+            </div>
+
+            <div class="flex items-center gap-3">
+              <a href="#/staff/dashboard" class="text-xs font-bold text-slate-600 hover:text-[#8b46e8]">Back to Dashboard &rarr;</a>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Main Container -->
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          
+          <!-- Sidebar -->
+          <aside class="lg:col-span-3">
+            <nav class="bg-white rounded-2xl p-4 border border-[#e8e0f1] shadow-xs space-y-1">
+              <a href="#/staff/dashboard" class="flex items-center gap-3 px-4 py-3 text-sm font-semibold rounded-xl text-slate-700 hover:bg-[#fbf9ff] hover:text-[#8b46e8] transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+                Staff Dashboard
+              </a>
+              <a href="#/staff/mentors" class="flex items-center justify-between px-4 py-3 text-sm font-semibold rounded-xl text-slate-700 hover:bg-[#fbf9ff] hover:text-[#8b46e8] transition-colors">
+                <div class="flex items-center gap-3">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                  Manager Mentors
+                </div>
+              </a>
+              <a href="#/staff/mentees" class="flex items-center justify-between px-4 py-3 text-sm font-semibold rounded-xl text-slate-700 hover:bg-[#fbf9ff] hover:text-[#8b46e8] transition-colors">
+                <div class="flex items-center gap-3">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                  Manager Mentees
+                </div>
+              </a>
+              <a href="#/staff/skills" class="flex items-center justify-between px-4 py-3 text-sm font-semibold rounded-xl text-slate-700 hover:bg-[#fbf9ff] hover:text-[#8b46e8] transition-colors">
+                <div class="flex items-center gap-3">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 11h.01M7 15h.01M13 7h7M13 11h7M13 15h7M3 19h18a2 2 0 002-2V5a2 2 0 00-2-2H3a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                  Skills List
+                </div>
+              </a>
+              <a href="#/staff/mentor-applications" class="flex items-center justify-between px-4 py-3 text-sm font-bold rounded-xl bg-[#f1e8ff] text-[#8b46e8] transition-colors">
+                <div class="flex items-center gap-3">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                  Mentor Applications
+                </div>
+                <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">${pendingCount}</span>
+              </a>
+            </nav>
+
+            <!-- SLA Guidelines Notice -->
+            <div class="bg-[#f1e8ff]/50 rounded-2xl p-4 border border-[#8b46e8]/20 text-xs text-slate-600">
+              <div class="font-bold text-[#25143f] mb-1">📄 Mentor CV Review Guidelines (GB-25)</div>
+              Verify applicant professional background, credentials, and uploaded PDF CV (max 10MB). Approved applicants will automatically gain Mentor role privileges.
+            </div>
+          </aside>
+
+          <!-- Main Content -->
+          <main class="lg:col-span-9 space-y-6">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h1 class="text-2xl font-extrabold text-[#25143f] tracking-tight">Duyệt Hồ Sơ CV Mentor (Mentor Applications)</h1>
+                <p class="text-sm text-slate-500 mt-1">Review applicant qualifications, verify PDF CV documents, and issue approval decision (UC17, UC18)</p>
+              </div>
+            </div>
+
+            <!-- Status Filter Tabs -->
+            <div class="bg-white rounded-2xl p-2 border border-[#e8e0f1] shadow-xs flex flex-wrap gap-2">
+              <button data-app-tab="PENDING" class="px-4 py-2 text-xs font-bold rounded-xl transition-colors ${activeTab === 'PENDING' ? 'bg-[#8b46e8] text-white shadow-xs' : 'text-slate-600 hover:bg-[#fbf9ff]'}">
+                Pending Applications (${pendingCount})
+              </button>
+              <button data-app-tab="APPROVED" class="px-4 py-2 text-xs font-bold rounded-xl transition-colors ${activeTab === 'APPROVED' ? 'bg-[#8b46e8] text-white shadow-xs' : 'text-slate-600 hover:bg-[#fbf9ff]'}">
+                Approved (${approvedCount})
+              </button>
+              <button data-app-tab="REJECTED" class="px-4 py-2 text-xs font-bold rounded-xl transition-colors ${activeTab === 'REJECTED' ? 'bg-[#8b46e8] text-white shadow-xs' : 'text-slate-600 hover:bg-[#fbf9ff]'}">
+                Rejected (${rejectedCount})
+              </button>
+              <button data-app-tab="ALL" class="px-4 py-2 text-xs font-bold rounded-xl transition-colors ${activeTab === 'ALL' ? 'bg-[#8b46e8] text-white shadow-xs' : 'text-slate-600 hover:bg-[#fbf9ff]'}">
+                All Applications (${applications.length})
+              </button>
+            </div>
+
+            <!-- Applications Queue Table Card -->
+            <div class="bg-white rounded-2xl border border-[#e8e0f1] shadow-xs overflow-hidden">
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                  <thead>
+                    <tr class="bg-[#fbf9ff] border-b border-[#e8e0f1] text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                      <th class="px-4 py-3">No</th>
+                      <th class="px-4 py-3">Applicant Name</th>
+                      <th class="px-4 py-3">Specialty Track</th>
+                      <th class="px-4 py-3">Experience</th>
+                      <th class="px-4 py-3">Submitted Date</th>
+                      <th class="px-4 py-3">Status</th>
+                      <th class="px-4 py-3">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${appRowsHtml}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+
+      <!-- Application Review Modal Overlay -->
+      <dialog id="app-review-dialog" class="w-full max-w-3xl rounded-3xl p-0 border-0 shadow-2xl backdrop:bg-slate-900/60">
+        <div id="app-review-dialog-content">
+          <!-- Dynamically populated via JS -->
+        </div>
+      </dialog>
+    </div>
+  `;
+}

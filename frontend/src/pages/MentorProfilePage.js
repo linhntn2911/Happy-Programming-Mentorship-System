@@ -1,14 +1,37 @@
 import { mentorService } from '../services/mentorService.js';
+import { BrowseAllMentorsLink } from '../components/ui/BrowseAllMentorsLink.js';
+import { Footer } from '../components/layout/Footer.js';
+import { MentorPricingCard, bindMentorPricingCardEvents } from '../components/mentor/MentorPricingCard.js';
+import { wishlistService } from '../services/wishlistService.js';
+import { authService } from '../services/authService.js';
+import { bindUserDropdown, getInitials, renderUserDropdown } from '../components/layout/Header.js';
+
+function mentorProfileHeader() {
+  const user = authService.getCurrentUser();
+  const displayName = user?.name || user?.email || '';
+  const accountNavigation = user
+    ? renderUserDropdown({ currentUser: user, displayName, initials: getInitials(displayName) })
+    : '<a href="#/login" class="btn btn-outline btn-sm">Log in</a>';
+
+  return `<header class="directory-header"><div class="container flex h-[76px] items-center justify-between gap-4"><a href="#/" class="flex shrink-0 items-center gap-2.5" aria-label="HappyProgramming home"><span class="grid h-9 w-9 place-items-center rounded-[10px] bg-brand font-mono text-xl font-bold text-white">{h}</span><span class="text-[16px] font-semibold tracking-tight text-ink">Happy<span class="text-brand">Programming</span></span></a><nav class="flex items-center gap-6" aria-label="Main navigation">${BrowseAllMentorsLink()}${accountNavigation}</nav></div></header>`;
+}
 
 export function MentorProfilePage() {
-  return `
-<main class="container max-w-4xl py-10 sm:py-14">
-  <a href="#/" class="btn btn-ghost mb-6 !px-0" aria-label="Back to mentor discovery">← Back to mentors</a>
-  <header class="mb-8">
+  return `${mentorProfileHeader()}
+<main class="min-h-screen bg-cream">
+  <div class="container max-w-5xl py-12">
     <p class="eyebrow">MENTOR SPACE</p>
-    <h1 class="section-title mt-2">Your mentor profile</h1>
-    <p class="section-copy mt-3">Keep your background and teaching skills up to date for mentees.</p>
-  </header>
+    <h1 class="mt-3 font-display text-4xl text-ink">Your mentor profile</h1>
+    <p class="mt-3 text-sm text-muted">Keep your background and teaching skills up to date for mentees.</p>
+
+    <div class="mt-8 grid items-start gap-7 lg:grid-cols-[260px_minmax(0,1fr)]">
+      <aside class="rounded-2xl border border-line bg-white p-6 shadow-sm">
+        <div id="profile-avatar" class="mx-auto grid h-28 w-28 place-items-center overflow-hidden rounded-full bg-lilac text-3xl font-semibold text-brand" aria-hidden="true">M</div>
+        <h2 id="profile-display-name" class="mt-4 break-words text-center font-semibold text-ink">Mentor profile</h2>
+        <p class="mt-1 text-center text-xs text-muted">Mentor account</p>
+        <a href="#/mentor/dashboard" class="btn btn-outline btn-sm mt-6 w-full">Mentor dashboard</a>
+      </aside>
+      <div class="min-w-0">
 
   <div id="profile-demo-notice" class="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" role="status" hidden>
     Development preview: sample profile data is read-only and has not been saved to the backend.
@@ -74,11 +97,14 @@ export function MentorProfilePage() {
       <button id="profile-save" type="submit" class="btn btn-primary" disabled>Save profile</button>
     </div>
   </form>
-</main>
-  `;
+      </div>
+    </div>
+  </div>
+</main>${Footer()}`;
 }
 
 export function initializeMentorProfilePage() {
+  const pageRoot = document.querySelector('#app');
   const loading = document.querySelector('#profile-loading');
   const form = document.querySelector('#mentor-profile-form');
   const error = document.querySelector('#profile-error');
@@ -91,6 +117,7 @@ export function initializeMentorProfilePage() {
   let disposed = false;
 
   if (!form) return;
+  bindUserDropdown(pageRoot);
 
   function showError(message) {
     error.textContent = message;
@@ -196,6 +223,9 @@ export function initializeMentorProfilePage() {
       form.elements.githubUrl.value = profile.githubUrl || '';
       form.elements.linkedinUrl.value = profile.linkedinUrl || '';
       form.elements.portfolioUrl.value = profile.portfolioUrl || '';
+      const displayName = profile.fullName || 'Mentor profile';
+      document.querySelector('#profile-display-name').textContent = displayName;
+      document.querySelector('#profile-avatar').textContent = getInitials(displayName);
       renderAvailableSkills();
       updateSelection();
       if (readOnly) {
@@ -269,4 +299,70 @@ export function initializeMentorProfilePage() {
     retry.removeEventListener('click', handleRetry);
     form.removeEventListener('submit', handleSubmit);
   };
+}
+
+const esc = v => String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
+const profileHeader = () => {
+  const user = authService.getCurrentUser();
+  const displayName = user?.name || user?.email || '';
+  return `<header class="directory-header"><div class="container flex h-[76px] items-center justify-between gap-4"><a href="#/" class="flex shrink-0 items-center gap-2.5" aria-label="HappyProgramming home"><span class="grid h-9 w-9 place-items-center rounded-[10px] bg-brand font-mono text-xl font-bold text-white">{h}</span><span class="text-[16px] font-semibold tracking-tight text-ink">Happy<span class="text-brand">Programming</span></span></a><nav class="flex items-center gap-6" aria-label="Main navigation">${BrowseAllMentorsLink()}${user ? renderUserDropdown({ currentUser: user, displayName, initials: getInitials(displayName) }) : '<a href="#/login" class="btn btn-outline btn-sm">Log in</a>'}</nav></div></header>`;
+};
+const layout = body => `${profileHeader()}<main class="profile-page"><div class="container py-8 sm:py-12">${body}</div></main>${Footer()}`;
+export function ProfilePage(m) {
+  return layout(`<nav class="mb-8 text-xs text-muted" aria-label="Breadcrumb"><a href="#/">Home</a> / <a href="?#/mentors" data-browse-all-mentors>Browse all mentors</a> / <span aria-current="page">${esc(m.name)}</span></nav>
+    <div class="profile-columns"><div class="min-w-0">
+      <section class="profile-intro"><img class="profile-photo" src="/images/${esc(m.portrait)}" alt="${esc(m.name)}" width="168" height="184"><div><p class="eyebrow">PROGRAMMING MENTOR</p><h1 class="mt-3 font-display text-4xl sm:text-5xl">${esc(m.name)}</h1><p class="mt-3 text-base">${esc(m.role)}${m.company ? ` at <strong>${esc(m.company)}</strong>` : ''}</p><div class="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted"><span>${esc(m.country)}</span><span>${esc(m.experience)}</span></div><p class="mt-4 text-sm text-brand">${m.acceptingMentees ? 'Accepting new mentees' : 'Not accepting new mentees'}</p><button type="button" class="save-btn profile-save-btn mt-5" data-profile-save data-mentor-id="${esc(m.id)}" aria-pressed="false" aria-label="Save ${esc(m.name)} to wishlist"><svg class="icon h-4 w-4" viewBox="0 0 24 24"><path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg><span>Save to wishlist</span></button></div></section>
+      <nav class="profile-nav" aria-label="Profile sections"><a href="#profile-about">About</a><a href="#profile-experience">Experience</a><a href="#profile-skills">Skills</a><a href="#profile-reviews">Reviews</a></nav>
+      <section class="profile-block" id="profile-about"><p class="eyebrow">MEET YOUR MENTOR</p><h2 class="mt-2">About ${esc(m.name)}</h2><p class="profile-copy">${esc(m.description)}</p></section>
+      <section class="profile-block" id="profile-experience"><h2>Experience</h2><div class="profile-experience"><span class="profile-monogram" aria-hidden="true">${esc(m.initials)}</span><div><h3 class="font-semibold">${esc(m.role)}</h3><p class="mt-1 text-sm text-muted">${esc(m.company)}</p><p class="mt-2 text-sm text-brand">${esc(m.experience)}</p></div></div>${m.languages?.length ? `<p class="mt-5 text-sm text-muted">Languages: ${m.languages.map(esc).join(', ')}</p>` : ''}</section>
+      <section class="profile-block" id="profile-skills"><h2>Skills</h2><div class="mt-5 flex flex-wrap gap-2">${(m.skills || []).map(s => `<a class="directory-skill" href="?${esc(new URLSearchParams({skills:s}).toString())}#/mentors">${esc(s)}</a>`).join('') || '<p class="text-sm text-muted">No skills shared yet.</p>'}</div></section>
+      <section class="profile-block" id="profile-reviews"><h2>What mentees say</h2><div class="profile-empty"><span aria-hidden="true">☆</span><h3 class="font-semibold">Reviews are not available yet</h3><p class="mt-2 text-sm text-muted">Moderated learner reviews will appear here when available.</p></div></section>
+    </div><aside class="profile-sidebar" aria-label="Mentorship services">
+      ${MentorPricingCard({
+        mentorName: m.name,
+        mentorSlug: m.id,
+        oneOffPrice: m.session || "500,000",
+        currencyMode: "VND",
+        onApplyClick: `window.location.hash = '#/apply/monthly?mentor=${encodeURIComponent(m.id)}&name=${encodeURIComponent(m.name)}'`
+      })}
+      <div class="profile-note mt-6"><h3 class="text-sm font-semibold">A thoughtful match comes first</h3><p class="mt-2 text-xs leading-6 text-muted">Monthly mentorship follows mentor approval before payment.</p></div>
+    </aside></div>`);
+}
+export function ServiceDetail(m, type) {
+  const monthly = type === 'MONTHLY';
+  const price = monthly ? m.monthly : m.session;
+  return `<p class="text-xs font-semibold uppercase tracking-wider text-muted">${monthly ? 'Monthly mentorship' : 'One-off session'}</p><p class="profile-price">${esc(price || 'Not available')} ${price ? '<span>VND</span>' : ''}</p><p class="text-xs text-muted">${monthly ? 'per month' : 'per session'}</p><div class="profile-service-description"><h3 class="font-semibold">${monthly ? 'Ongoing guidance' : 'A focused conversation'}</h3><p class="mt-2 text-sm leading-7 text-muted">${monthly ? 'Explore monthly support for your programming and learning goals.' : 'Explore individual guidance on a specific programming topic.'}</p></div>`;
+}
+export async function mountMentorProfile(app, id) {
+  const state = (title, copy, retry=false) => layout(`<section class="profile-block text-center" role="status"><h1 class="font-display text-3xl">${title}</h1><p class="mt-4 text-muted">${copy}</p>${retry ? '<button id="profile-retry" class="btn btn-primary mt-6">Try again</button>' : '<a href="?#/mentors" data-browse-all-mentors class="btn btn-outline mt-6">Browse all mentors</a>'}</section>`);
+  app.innerHTML = state('Loading mentor profile…','Getting the profile details.');
+  const marker = app.firstElementChild;
+  try {
+    const m = await mentorService.getProfile(id);
+    if (app.firstElementChild !== marker) return;
+    if (!m) { app.innerHTML = state('Mentor not found','This profile is not available.'); return; }
+    app.innerHTML = ProfilePage(m);
+    bindMentorPricingCardEvents(app);
+    bindUserDropdown(app, () => { location.hash = '#/'; location.reload(); });
+    const saveButton = app.querySelector('[data-profile-save]');
+    if (saveButton) {
+      try { saveButton.setAttribute('aria-pressed', String((await wishlistService.list()).includes(String(m.id)))); } catch { /* guest or unavailable API */ }
+      saveButton.addEventListener('click', async () => {
+        if (!authService.getCurrentUser()) { location.hash = '#/login'; return; }
+        const saved = saveButton.getAttribute('aria-pressed') === 'true';
+        saveButton.disabled = true;
+        try {
+          if (saved) await wishlistService.remove(m.id); else await wishlistService.save(m.id);
+          saveButton.setAttribute('aria-pressed', String(!saved));
+          saveButton.querySelector('span').textContent = saved ? 'Save to wishlist' : 'Saved to wishlist';
+        } catch (error) { saveButton.querySelector('span').textContent = error.message || 'Unable to update wishlist'; }
+        finally { saveButton.disabled = false; }
+      });
+    }
+    app.querySelectorAll('.profile-nav a').forEach(a => a.addEventListener('click', e => { e.preventDefault(); app.querySelector(a.getAttribute('href')).scrollIntoView({behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'}); }));
+  } catch {
+    if (app.firstElementChild !== marker) return;
+    app.innerHTML = state('Unable to load this profile','Please check your connection and try again.',true);
+    app.querySelector('#profile-retry').addEventListener('click',() => mountMentorProfile(app,id));
+  }
 }
