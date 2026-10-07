@@ -1,4 +1,4 @@
-package vn.happyprogramming.staff;
+package com.happyprogramming.dto;
 
 public class StaffMenteeDto {
     private String id;

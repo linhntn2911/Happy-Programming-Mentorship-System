@@ -14,6 +14,10 @@ export function LoginForm({ preview = false } = {}) {
         <input type="radio" name="role" value="MENTOR">
         <span>I'm a mentor</span>
       </label>
+      <label class="auth-tab">
+        <input type="radio" name="role" value="STAFF">
+        <span>Staff</span>
+      </label>
     </fieldset>
 
     ${TextInput({
