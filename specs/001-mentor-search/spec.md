@@ -38,3 +38,4 @@ As a guest or mentee, I want to search and filter public mentors so that I can f
 - Skills contains every skill displayed on catalog cards, including Java, System Design, and SQL. All skill options are visible by default.
 - Filtering must not shrink the full catalog used to build sidebar options or homepage cards. Selected options remain visible when lists are collapsed.
 - Reloading a category URL restores its selection; Clear all clears the keyword and every filter.
+- Browse all mentors navigation opens the complete directory with no keyword, filters, or custom sort, including after returning home and when already on the directory. Skill links continue to open filtered results.

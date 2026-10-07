@@ -22,7 +22,7 @@ public class User {
     private Long id;
     @Column(name = "email", updatable = false) private String email;
     @Column(name = "email_normalized", insertable = false, updatable = false) private String emailNormalized;
-    @Column(name = "full_name", updatable = false) private String fullName;
+    @Column(name = "full_name") private String fullName;
     @Column(name = "first_name") private String firstName;
     @Column(name = "last_name") private String lastName;
     @Column(name = "role_code", updatable = false) private String role;
@@ -81,6 +81,24 @@ public class User {
         user.createdAt = now;
         user.updatedAt = now;
         return user;
+    }
+
+    @Column(name="bio") private String bio;
+    @Column(name="experience_level") private String experienceLevel;
+    @Column(name="learning_goals") private String learningGoals;
+    @Column(name="github_url") private String githubUrl;
+    @Column(name="portfolio_url") private String portfolioUrl;
+    @Column(name="avatar_file_id") private Long avatarFileId;
+    public String getBio() { return bio; }
+    public String getExperienceLevel() { return experienceLevel; }
+    public String getLearningGoals() { return learningGoals; }
+    public String getGithubUrl() { return githubUrl; }
+    public String getPortfolioUrl() { return portfolioUrl; }
+    public Long getAvatarFileId() { return avatarFileId; }
+    public void setAvatarFileId(Long id, LocalDateTime now) { avatarFileId=id; updatedAt=now; }
+    public void updateProfile(String first, String last, String bio, String level, String goals, String github, String portfolio, LocalDateTime now) {
+        firstName=first; lastName=last; fullName=first+" "+last;
+        this.bio=bio; experienceLevel=level; learningGoals=goals; githubUrl=github; portfolioUrl=portfolio; updatedAt=now;
     }
 
     public Long getId() { return id; }

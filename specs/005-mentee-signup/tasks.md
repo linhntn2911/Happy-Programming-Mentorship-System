@@ -1,6 +1,6 @@
 # Tasks: Mentee Self-Registration
 
-- [x] Create database migration script `20261006_add_user_first_last_name.sql`.
+- [x] Create database migration script `001_20261006_add_user_first_last_name.sql`.
 - [x] Document feature spec, plan, and API contracts.
 - [x] Implement backend `MenteeSignupRequest` DTO and password policy validation.
 - [x] Update `User` entity and `UserRepository` to support saving new users with first/last names.

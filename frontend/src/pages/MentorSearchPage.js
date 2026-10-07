@@ -1,3 +1,4 @@
+import { BrowseAllMentorsLink } from '../components/ui/BrowseAllMentorsLink.js';
 import { DirectoryMentorCard } from '../components/mentor/DirectoryMentorCard.js';
 import { MENTOR_CATEGORIES, mentorMatchesCategory, mentorSkillOptions } from '../constants/mentorDiscovery.js';
 import { Footer } from '../components/layout/Footer.js';
@@ -54,7 +55,7 @@ export function MentorSearchPage(mentors = [], state = {}) {
         <span class="hidden text-[16px] font-semibold tracking-tight sm:block">Happy<span class="text-brand">Programming</span></span>
       </a>
       <nav class="flex items-center gap-3" aria-label="Main navigation">
-        <a href="#/mentors" class="nav-link text-brand" aria-current="page">Find a mentor</a>
+        ${BrowseAllMentorsLink({ current: true })}
         ${currentUser
           ? renderUserDropdown({ currentUser, displayName, initials, isMobile: false })
           : `

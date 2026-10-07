@@ -1,3 +1,4 @@
+import { BrowseAllMentorsLink } from '../ui/BrowseAllMentorsLink.js';
 import { mentorSkillOptions } from '../../constants/mentorDiscovery.js';
 import { authService } from '../../services/authService.js';
 
@@ -28,6 +29,7 @@ export function renderUserDropdown({ currentUser, displayName, initials, isMobil
         </svg>
       </button>
       <div class="user-dropdown-menu absolute right-0 mt-2 w-44 origin-top-right rounded-xl border border-line bg-white p-1.5 shadow-xl ring-1 ring-black/5 z-50 hidden transition-all" role="menu">
+        ${currentUser?.roles?.includes('MENTEE') || currentUser?.role === 'MENTEE' ? '<a href="#/account" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">My profile</a>' : ''}
         <a href="#/apply/mentor" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Mentor application</a>
         <a href="#/wishlist" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Wishlist</a>
         ${currentUser?.roles?.some(role => ['STAFF','ADMIN'].includes(role)) ? '<a href="#/staff/mentor-applications" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Review applications</a>' : ''}
@@ -67,7 +69,7 @@ export function Header(mentors = [], user = null) {
     <nav class="hidden items-center gap-6 lg:flex" aria-label="Main navigation">
       <a class="nav-link" href="#how-it-works">How it works</a>
       ${authDesktopNav}
-      <a href="#/mentors" class="btn btn-light !min-h-10 !px-5 !py-2.5">Browse all mentors <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></a>
+      ${BrowseAllMentorsLink()}
     </nav>
     ${authMobileNav}
   </div>

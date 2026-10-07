@@ -440,7 +440,7 @@ function router() {
     mountMonthlyMentorshipApplication(appEl, query.get('mentor') || '', query.get('name') || 'your mentor');
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash === '#/account') {
-    location.hash = '#/';
+    mountAccount(appEl);
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash.startsWith('#/mentors/')) {
     let id;
@@ -632,6 +632,14 @@ function initMentorDirectory() {
   bindUserDropdown(appEl, () => router());
   if (filterLabels(getFilters()).length > 0 || getFilters().sort !== 'recommended') search();
 }
+
+// Browse-all navigation must clear query filters even on the current directory route.
+document.addEventListener('click', event => {
+  const link = event.target.closest?.('a[data-browse-all-mentors]');
+  if (!link || event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || link.hasAttribute('download') || (link.target && link.target !== '_self')) return;
+  event.preventDefault();
+  openMentorDirectory();
+});
 
 window.addEventListener('hashchange', router);
 window.addEventListener('popstate', router);

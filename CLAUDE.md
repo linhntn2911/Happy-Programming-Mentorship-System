@@ -58,7 +58,7 @@ All active feature work, API endpoints, and client modules must target `backend/
 - Use Flyway for persistent schema changes. Never rely on manual database edits.
 - Database Schema (`docs/database/`):
   - `docs/database/init/`: Contains baseline `schema_31_tables.sql`; never edit, overwrite, or append to this file.
-  - `docs/database/migration/`: For every database change made during development, create a separate script named `YYYYMMDD_<description>.sql` and apply changes through that migration.
+  - `docs/database/migration/`: For every database change made during development, create a separate script named `NNN_YYYYMMDD_<description>.sql` with a zero-padded 3-digit sequence number, 8-digit date, and snake_case description (e.g. `001_20261006_add_user_first_last_name.sql`, `002_20261007_add_fresher_profile_level.sql`) to guarantee unambiguous execution order, and apply changes through that migration.
 - Temporary development seed records may be added through a versioned migration for development only. Read them through Repository/API code, never through a hardcoded frontend array; remove the seed records and seed mechanism once the real create/update flow is available, while preserving real data, official catalog data, and schema.
 - Apply authorization and ownership checks in the backend.
 - Make VNPay and other callback-driven operations idempotent and verifiable.

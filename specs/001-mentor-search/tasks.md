@@ -14,3 +14,4 @@
 - [x] Keep the full catalog independent from filtered results; expose every catalog skill in Skills.
 - [x] Preserve selected options when collapsing lists; clear keyword and categories through Clear all.
 - [x] Verify category matching and skill option coverage with a focused Node check; frontend production build passed.
+- [x] Clear stale URL filters on Browse all mentors navigation and unify navigation labels; verify home-to-directory and same-route reset behavior.

@@ -2,7 +2,7 @@
 
 ## Architecture & Boundaries
 1. **Database**:
-   - Versioned migration: `docs/database/migration/20261006_add_user_first_last_name.sql` adds `first_name NVARCHAR(75) NULL` and `last_name NVARCHAR(75) NULL` to `dbo.users`.
+   - Versioned migration: `docs/database/migration/001_20261006_add_user_first_last_name.sql` adds `first_name NVARCHAR(75) NULL` and `last_name NVARCHAR(75) NULL` to `dbo.users`.
    - `full_name` is set to `(firstName + " " + lastName).trim()`, satisfying `CK_users_name`.
    - `role_code` is set to `'MENTEE'`, `status` to `'ACTIVE'`.
    - `password_hash` stores BCrypt hash with cost factor 12.
