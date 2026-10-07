@@ -34,6 +34,8 @@ backend/target/
 *.log
 backend/.env
 backend/.env.local
+*application-local.properties
+**/application-local.properties
 
 # Temp & scratch
 scratch/

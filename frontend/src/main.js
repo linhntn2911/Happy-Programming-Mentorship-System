@@ -4,6 +4,8 @@ import { mountMenteeSignup } from './pages/MenteeSignupPage.js';
 import { mountAccount } from './pages/AccountPage.js';
 import { mountMentorApplication } from './pages/MentorApplicationPage.js';
 import { mountStaffMentorApplications } from './pages/StaffMentorApplicationsPage.js';
+import { mountMonthlyMentorshipApplication } from './pages/MonthlyMentorshipApplicationPage.js';
+import { mountWishlist } from './pages/WishlistPage.js';
 import { bindAuthInfo } from './components/auth/LoginForm.js';
 import './app.css';
 import { HomePage } from './pages/HomePage.js';
@@ -13,6 +15,7 @@ import { DirectoryMentorCard } from './components/mentor/DirectoryMentorCard.js'
 import { bindMentorPricingCardEvents } from './components/mentor/MentorPricingCard.js';
 import { mentorService } from './services/mentorService.js';
 import { authService } from './services/authService.js';
+import { wishlistService } from './services/wishlistService.js';
 import { bindUserDropdown } from './components/layout/Header.js';
 
 const INITIAL_MENTORS = [
@@ -129,7 +132,6 @@ function renderApp(mentors) {
 function initInteractions() {
   const cards = [...document.querySelectorAll('.mentor-card')];
   const searchInputs = [...document.querySelectorAll('[data-search-input]')];
-  const storageKey = 'hpms.homepage.saved-mentors.v1';
   let saved = new Set();
   let activeFilter = 'all';
   let query = '';
@@ -147,14 +149,14 @@ function initInteractions() {
   const scrollBehavior = () =>
     window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth';
 
-  function validSaved(value) {
-    return Array.isArray(value) ? value.filter(id => cards.some(card => card.dataset.id === id)) : [];
-  }
-
-  try {
-    saved = new Set(validSaved(JSON.parse(localStorage.getItem(storageKey) || '[]')));
-  } catch {
-    /* fallback to memory */
+  async function hydrateSaved() {
+    try {
+      saved = new Set(await wishlistService.list());
+      updateSavedButtons();
+      filterCards();
+    } catch (error) {
+      if (error.status !== 401) toast(error.message || 'Unable to load your wishlist.');
+    }
   }
 
   function toast(message) {
@@ -261,23 +263,23 @@ function initInteractions() {
   cards.forEach(card => {
     const saveBtn = card.querySelector('[data-save]');
     if (saveBtn) {
-      saveBtn.addEventListener('click', () => {
+      saveBtn.addEventListener('click', async () => {
+        if (!authService.getCurrentUser()) { toast('Please log in to save mentors to your wishlist.'); return; }
         const id = card.dataset.id;
         const removing = saved.has(id);
-        if (removing) saved.delete(id);
-        else saved.add(id);
-        let persistent = true;
+        saveBtn.disabled = true;
         try {
-          localStorage.setItem(storageKey, JSON.stringify([...saved]));
-        } catch {
-          persistent = false;
-        }
+          if (removing) await wishlistService.remove(id); else await wishlistService.save(id);
+          if (removing) saved.delete(id); else saved.add(id);
+        } catch (error) { toast(error.message || 'Unable to update your wishlist.'); return; }
+        finally { saveBtn.disabled = false; }
         updateSavedButtons();
         filterCards();
-        toast((removing ? 'Mentor removed from your saved list.' : 'Mentor saved to your favorites.') + (persistent ? '' : ' Saved for this visit only.'));
+        toast(removing ? 'Mentor removed from your wishlist.' : 'Mentor saved to your wishlist.');
       });
     }
   });
+  hydrateSaved();
 
   // Modal dialog handling
   function openDialog(id) {
@@ -424,11 +426,18 @@ function router() {
   } else if (hash === '#/staff/mentor-applications') {
     mountStaffMentorApplications(appEl);
     window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/wishlist') {
+    mountWishlist(appEl, currentMentors);
+    window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash === '#/signup' || hash.startsWith('#/signup?') || hash === '#/signup/mentee') {
     mountMenteeSignup(appEl);
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash === '#/apply/mentor' || hash.startsWith('#/apply/mentor') || hash === '#/signup/mentor') {
     mountMentorApplication(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash.startsWith('#/apply/monthly')) {
+    const query = new URLSearchParams(hash.split('?')[1] || '');
+    mountMonthlyMentorshipApplication(appEl, query.get('mentor') || '', query.get('name') || 'your mentor');
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash === '#/account') {
     location.hash = '#/';
@@ -523,18 +532,24 @@ function initMentorDirectory() {
     history.replaceState(null, '', `${url.pathname}${url.search}#/mentors`);
   }
 
-  function wireCards() {
-    let saved;
-    try { saved = new Set(JSON.parse(localStorage.getItem('hpms.saved-mentors.v1') || '[]')); }
-    catch { saved = new Set(); }
+  async function wireCards() {
+    let saved = new Set();
+    try { saved = new Set(await wishlistService.list()); } catch (error) { if (error.status !== 401) console.info('Wishlist unavailable:', error.message); }
     document.querySelectorAll('[data-mentor-id]').forEach(card => {
       const id = card.dataset.mentorId;
       const button = card.querySelector('[data-save]');
       button?.setAttribute('aria-pressed', String(saved.has(id)));
-      button?.addEventListener('click', () => {
-        saved.has(id) ? saved.delete(id) : saved.add(id);
+      button?.addEventListener('click', async () => {
+        const user = authService.getCurrentUser();
+        if (!user) { toast('Please log in to save mentors to your wishlist.'); return; }
+        const removing = saved.has(id);
+        button.disabled = true;
+        try {
+          if (removing) await wishlistService.remove(id); else await wishlistService.save(id);
+          removing ? saved.delete(id) : saved.add(id);
+        } catch (error) { toast(error.message || 'Unable to update your wishlist.'); return; }
+        finally { button.disabled = false; }
         button.setAttribute('aria-pressed', String(saved.has(id)));
-        try { localStorage.setItem('hpms.saved-mentors.v1', JSON.stringify([...saved])); } catch { /* use session state */ }
         const toast = document.querySelector('#toast');
         if (toast) {
           clearTimeout(toastTimer);
@@ -637,7 +652,10 @@ mentorService
   .then(res => {
     if (Array.isArray(res) && res.length > 0) {
       currentMentors = res;
-      if (['#/mentors/', '#/login', '#/signup', '#/apply/', '#/staff/'].some(prefix => window.location.hash.startsWith(prefix)) || window.location.hash === '#/account') return;
+      if (['#/mentors/', '#/login', '#/signup', '#/apply/', '#/staff/'].some(prefix => window.location.hash.startsWith(prefix)) || window.location.hash === '#/account' || window.location.hash === '#/wishlist') {
+        if (window.location.hash === '#/wishlist') mountWishlist(appEl, currentMentors);
+        return;
+      }
       if (window.location.hash.startsWith('#/mentors')) {
         const params = new URLSearchParams(window.location.search);
         appEl.innerHTML = MentorSearchPage(currentMentors.map(toDirectoryMentor), {

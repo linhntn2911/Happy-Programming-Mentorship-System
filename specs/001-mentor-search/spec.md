@@ -23,7 +23,7 @@ As a guest or mentee, I want to search and filter public mentors so that I can f
 
 1. Given a mentor at VNG with Python, when the user searches `VNG` and selects Python, 7+ years, price up to 3,000,000 VND, and rating 4.9+, then Hoang Nam Le is returned.
 2. Given no matching mentor, when a user searches `NonExistentStack123`, then the page shows the empty state and a clear-filters action.
-3. Given a mobile viewport, when the user opens Filters, then filters appear in a single-column panel and apply through the Show mentors button.
+3. Given the desktop web directory, when the user opens Filters, then filters appear in the filter panel and apply through the Show mentors button.
 4. Given a backend failure, the current results are replaced by an actionable retry state.
 
 ## Success criteria

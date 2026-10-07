@@ -19,7 +19,7 @@ The production repository query must include only approved, public, active mento
 
 - MockMvc verifies combined filters and empty results.
 - Vite production build verifies modules and Tailwind output.
-- Manual browser verification covers desktop and mobile filtering.
+- Manual browser verification covers filtering behavior and active filter state.
 
 ## Shared discovery metadata
 

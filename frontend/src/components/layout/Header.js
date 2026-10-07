@@ -29,6 +29,7 @@ export function renderUserDropdown({ currentUser, displayName, initials, isMobil
       </button>
       <div class="user-dropdown-menu absolute right-0 mt-2 w-44 origin-top-right rounded-xl border border-line bg-white p-1.5 shadow-xl ring-1 ring-black/5 z-50 hidden transition-all" role="menu">
         <a href="#/apply/mentor" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Mentor application</a>
+        <a href="#/wishlist" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Wishlist</a>
         ${currentUser?.roles?.some(role => ['STAFF','ADMIN'].includes(role)) ? '<a href="#/staff/mentor-applications" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Review applications</a>' : ''}
         <button type="button" class="user-logout-btn flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer text-left" role="menuitem">
           <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

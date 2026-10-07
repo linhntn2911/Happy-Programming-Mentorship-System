@@ -159,7 +159,7 @@ export function HomePage(mentors = [], user = null) {
           <p class="mt-2 text-sm text-muted">Try another skill or clear your filters to explore again.</p>
           <button id="reset-search" class="btn btn-outline mt-5">Clear filters</button>
         </div>
-        <p id="saved-note" class="mt-4 text-xs text-muted" hidden>Your saved mentors stay in this browser and are not linked to an account yet.</p>
+        <p id="saved-note" class="mt-4 text-xs text-muted" hidden>Your saved mentors are linked to your account and available from the Wishlist page.</p>
       </div>
     </section>
 

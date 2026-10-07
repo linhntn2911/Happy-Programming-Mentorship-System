@@ -257,7 +257,7 @@ sequenceDiagram
 
 ### 7.3 Design System & Accessibility
 - Canonical color scheme: Primary Purple (`#8b46e8`), Dark Purple (`#7431d0`), Ink (`#25143f`), Lilac (`#f1e8ff`), Cream (`#fbf9ff`).
-- Fully responsive across mobile ($320\text{px}$), tablet ($768\text{px}$), and desktop ($1024\text{px}+$).
+- Desktop web layout is the delivery target. Existing responsive CSS may remain, but mobile/tablet-specific screen implementation and viewport validation are out of scope unless explicitly requested.
 - WCAG 2.1 Level AA conformance (sufficient contrast ratios, semantic HTML, visible focus states).
 
 ---

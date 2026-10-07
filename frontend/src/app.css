@@ -778,6 +778,20 @@
   .save-btn[aria-pressed="true"] svg {
     fill: currentColor;
   }
+  .profile-save-btn {
+    width: auto;
+    min-width: 9.5rem;
+    min-height: 2.25rem;
+    height: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding: 0.5rem 0.85rem;
+    white-space: nowrap;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
 
   .hero-shell {
     color: var(--color-ink);
@@ -1359,3 +1373,13 @@
 @media(max-width:1000px) { .profile-columns { grid-template-columns:minmax(0,1fr) 310px; gap:24px; } .profile-intro { align-items:flex-start; flex-direction:column; } }
 @media(max-width:760px) { .profile-columns { grid-template-columns:minmax(0,1fr); } .profile-sidebar { position:static; } .profile-block { padding:24px; } .profile-intro h1 { font-size:36px; } }
 @media(max-width:380px) { .profile-nav { gap:18px; } .profile-block { padding:20px; } .profile-price { font-size:28px; } }
+/* Monthly mentorship application draft */
+.monthly-application-card { max-width: 640px; margin: 0 auto; padding: 2rem 0; color: var(--color-ink, #25143f); }
+.monthly-choice { width: fit-content; max-width: 100%; border: 1px solid var(--color-line, #e8e0f1); border-radius: 999px; background: #fff; padding: .7rem 1rem; color: var(--color-ink, #25143f); text-align: left; font-size: .875rem; line-height: 1.35; transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease; }
+.monthly-choice:hover, .monthly-choice:focus-visible { border-color: var(--color-brand, #8b46e8); outline: none; box-shadow: 0 0 0 3px rgb(139 70 232 / .12); }
+.monthly-choice.is-selected { border-color: #129b85; background: #f2fffc; }
+.monthly-message { width: 100%; min-height: 160px; resize: vertical; border: 1px solid var(--color-line, #e8e0f1); border-radius: .75rem; background: #fff; padding: .9rem; color: var(--color-ink, #25143f); font-size: .875rem; line-height: 1.6; }
+.monthly-message:focus { border-color: var(--color-brand, #8b46e8); outline: 3px solid rgb(139 70 232 / .12); }
+.monthly-help-box { border-radius: 1rem; background: #eff9ff; padding: 1rem 1.15rem; color: #16456b; font-size: .8125rem; line-height: 1.55; }
+.monthly-success-icon { display: grid; width: 3.5rem; height: 3.5rem; margin: 0 auto; place-items: center; border-radius: 999px; background: var(--color-lilac, #f1e8ff); color: var(--color-brand, #8b46e8); font-size: 1.75rem; font-weight: 700; }
+@media (max-width: 480px) { .monthly-application-card { padding-top: 1rem; } .monthly-choice { width: 100%; } }

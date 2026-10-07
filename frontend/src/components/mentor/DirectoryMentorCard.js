@@ -10,7 +10,7 @@ export function DirectoryMentorCard(mentor) {
     : '<span class="availability-dot is-waitlist"></span> Waitlist';
 
   return `
-    <article class="directory-card" data-mentor-id="${escapeHtml(mentor.id)}">
+    <article class="directory-card" data-mentor-id="${escapeHtml(mentor.id)}" data-name="${escapeHtml(mentor.name)}">
       <div class="directory-card-media">
         <img src="/images/${escapeHtml(mentor.portrait)}" alt="Portrait of ${escapeHtml(mentor.name)}" width="176" height="176">
         <span class="availability-badge">${availability}</span>

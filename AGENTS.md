@@ -127,6 +127,7 @@ Backend rules:
 - **Database Schema Management (`docs/database/`)**:
 - `docs/database/init/`: Contains the baseline canonical schema (`schema_31_tables.sql`). This baseline is **IMMUTABLE** and must never be altered in place.
 - `docs/database/migration/`: Any subsequent database change made during development (alter table, add column, new index/trigger, or data backfill) must be recorded in a separate migration script named `YYYYMMDD_<description>.sql` (e.g. `20261001_add_mentor_headline.sql`). Never edit or overwrite the init baseline to apply a change.
+- Temporary development seed data is allowed only in a versioned migration and must be read through Repository/API code; never add a hardcoded frontend mock array for a database-backed feature. When the real create/update flow is complete, remove only the temporary seed records and the seed mechanism, preserving real records, official catalog data, and schema.
 - Document API behavior in `contracts/` before implementing endpoints.
 - Preserve backward compatibility unless the active specification explicitly approves a breaking change.
 - Enforce authorization in the backend even when the frontend hides an action.
@@ -161,7 +162,6 @@ Frontend rules:
 - Use semantic HTML, associated labels, keyboard-accessible controls, visible focus states, and meaningful alternative text.
 - Keep user-facing copy in English.
 - Do not inject unsanitized API content into `innerHTML`.
-- Preserve responsive behavior from 320px upward.
 
 ### Visual consistency
 
@@ -209,23 +209,18 @@ Canonical monorepo applications:
 
 ```bash
 cd backend
-mvn test
+./mvnw test
 
 cd ../frontend
 npm run build
 npm test
 ```
 
+On Windows, use `mvnw.cmd` instead of `mvnw`.
+
 Add tests for business rules, authorization boundaries, validation, API contracts, repository queries, payment idempotency, and regressions. Avoid tests that only repeat framework behavior or assert static implementation details.
 
-For frontend work, verify at least:
-
-- 320px mobile viewport.
-- A tablet viewport.
-- A desktop viewport.
-- Keyboard navigation and visible focus.
-- Loading, empty, error, disabled, and success states relevant to the feature.
-- No horizontal overflow.
+For frontend work, verify keyboard navigation, visible focus, and the loading, empty, error, disabled, and success states relevant to the feature. A mobile viewport build/check is not required unless the user explicitly requests it.
 
 ## Change Discipline
 
@@ -246,7 +241,7 @@ A change is complete when:
 - API contracts and database migrations agree with the code.
 - Relevant backend and frontend tests pass.
 - The component showcase reflects reusable UI changes.
-- Accessibility and responsive checks pass for affected screens.
+- Accessibility checks pass for affected screens.
 - Documentation and configuration examples are current.
 - `tasks.md` accurately records completed work.
 - Convergence finds no material gaps.

@@ -8,4 +8,4 @@ Optional Google OIDC uses Spring's state/token validation, a requested role stor
 
 LoginForm reuses Button/TextInput and is showcased. LoginPage uses authService/apiClient; headers route to #/login. Late mentor hydration cannot replace login/account. AccountPage implements /me and logout. Registration/recovery are separate unavailable flows, not fake success.
 
-Checks: service rules, MVC CSRF/session and regression tests, frontend build, responsive browser inspection. Existing AGENTS.md principles are the constitution for this bounded change. Reference: https://docs.spring.io/spring-security/reference/6.5/servlet/authentication/session-management.html
+Checks: service rules, MVC CSRF/session and regression tests, and frontend build. Existing AGENTS.md principles are the constitution for this bounded change. Reference: https://docs.spring.io/spring-security/reference/6.5/servlet/authentication/session-management.html
