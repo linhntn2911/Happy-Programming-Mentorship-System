@@ -3,17 +3,20 @@
  */
 export async function apiClient(endpoint, options = {}) {
   const config = {
+    credentials: 'same-origin',
+    ...options,
     headers: {
       'Content-Type': 'application/json',
       ...options.headers,
     },
-    ...options,
   };
 
   const response = await fetch(endpoint, config);
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({}));
-    throw new Error(errorBody.message || `HTTP error! status: ${response.status}`);
+    const error = new Error(errorBody.message || 'Something went wrong. Please try again.');
+    error.status = response.status;
+    throw error;
   }
 
   const result = await response.json();

@@ -1,8 +1,9 @@
+import { MENTOR_CATEGORIES } from '../constants/mentorDiscovery.js';
 import { Header } from '../components/layout/Header.js';
 import { Footer } from '../components/layout/Footer.js';
 import { MentorCard } from '../components/mentor/MentorCard.js';
 
-export function HomePage(mentors = []) {
+export function HomePage(mentors = [], user = null) {
   const mentorCardsHtml = mentors.length > 0
     ? mentors.map(m => MentorCard(m)).join('')
     : '<div class="col-span-full py-12 text-center text-muted">Loading mentors...</div>';
@@ -21,8 +22,8 @@ export function HomePage(mentors = []) {
 
   return `
 <a href="#main" class="sr-only z-50 rounded-lg bg-brand p-3 text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Skip to main content</a>
-<div class="hero-shell relative overflow-hidden">
-  ${Header()}
+<div class="hero-shell relative z-20">
+  ${Header(mentors, user)}
 </div>
 <main id="main">
   <div class="hero-shell relative overflow-hidden">
@@ -31,18 +32,14 @@ export function HomePage(mentors = []) {
         <p class="mb-5 text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">A HUMAN CONNECTION. A BETTER WAY TO LEARN.</p>
         <h1 id="hero-title" class="hero-title">1-on-1 mentorship for<br><em>your next chapter in code.</em></h1>
         <p class="mx-auto mt-6 max-w-xl text-[14px] leading-7 text-muted">Build your skills. Get unstuck. Bring your ideas to life.<br class="hidden sm:block"> Find a programming mentor who gets where you want to go.</p>
-        <form id="mentor-search" data-search-form class="search-form mx-auto mt-7 max-w-[640px] border-brand/20 bg-white text-ink shadow-lg shadow-brand/10" role="search" action="#mentors">
+        <form id="mentor-search" data-search-form class="search-form mx-auto mt-7 max-w-[640px] border-brand/20 bg-white text-ink shadow-lg shadow-brand/10" role="search" action="#/mentors">
           <span class="ml-3 text-muted"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg></span>
           <label class="sr-only" for="search-input">Search by skill, name or role</label>
           <input id="search-input" data-search-input name="q" type="search" placeholder="Try Java, React, or a mentor's name" class="placeholder:text-muted" maxlength="100" autocomplete="off">
           <button class="btn btn-light shrink-0 !px-4 sm:!px-6" type="submit">Find mentors <span class="hidden sm:inline-flex"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></span></button>
         </form>
         <div class="mx-auto mt-5 flex max-w-2xl flex-wrap justify-center gap-2">
-          <button class="topic-pill" data-quick-search="Java">Java & Spring Boot</button>
-          <button class="topic-pill" data-quick-search="React">Frontend Development</button>
-          <button class="topic-pill" data-quick-search="Python">Python & Data</button>
-          <button class="topic-pill" data-quick-search="System Design">System Design</button>
-          <button class="topic-pill" data-quick-search="Full-stack">Full-stack Development</button>
+          ${MENTOR_CATEGORIES.map(({ label }) => `<a class="topic-pill" href="?${new URLSearchParams({ categories: label })}#/mentors">${label.replaceAll('&', '&amp;')}</a>`).join('') }
         </div>
       </div>
       <div class="mt-6 sm:mt-9">
@@ -162,7 +159,7 @@ export function HomePage(mentors = []) {
           <p class="mt-2 text-sm text-muted">Try another skill or clear your filters to explore again.</p>
           <button id="reset-search" class="btn btn-outline mt-5">Clear filters</button>
         </div>
-        <p id="saved-note" class="mt-4 text-xs text-muted" hidden>Your saved mentors stay in this browser and are not linked to an account yet.</p>
+        <p id="saved-note" class="mt-4 text-xs text-muted" hidden>Your saved mentors are linked to your account and available from the Wishlist page.</p>
       </div>
     </section>
 
@@ -237,7 +234,7 @@ export function HomePage(mentors = []) {
           <h2 id="become-title" class="section-title mt-4">Someone's next step<br>could start with your experience.</h2>
           <p class="mt-5 max-w-xl text-[13px] leading-7 text-white/65">Help another developer find their footing. Share what you know, give meaningful feedback, and grow alongside the people you mentor.</p>
         </div>
-        <button class="btn btn-light shrink-0" data-dialog="become-dialog">Become a mentor <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg></button>
+        <a href="#/apply/mentor" class="btn btn-light shrink-0">Become a mentor <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg></a>
       </div>
     </section>
 
@@ -289,65 +286,6 @@ ${Footer()}
   </div>
   <p class="mt-5 text-xs leading-6 text-muted">This is a sample profile. Applications and session bookings will be available in a future release.</p>
   <button class="btn btn-primary mt-5" data-close>Keep exploring <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></button>
-</dialog>
-
-<dialog id="login-dialog" class="modal w-full max-w-md p-6 rounded-3xl" aria-labelledby="login-dialog-title">
-  <button class="modal-close" data-close aria-label="Close"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button>
-  
-  <div class="text-left">
-    <div class="flex items-center gap-2 mb-1">
-      <span class="w-8 h-8 rounded-xl bg-lilac text-brand font-bold flex items-center justify-center text-sm">HP</span>
-      <h2 id="login-dialog-title" class="font-display text-2xl text-ink">Sign in</h2>
-    </div>
-    <p class="text-xs text-muted">Enter your account credentials to access your workspace.</p>
-
-    <!-- Login Form -->
-    <form id="login-form" class="mt-4 space-y-3.5">
-      <div>
-        <label class="block text-xs font-bold text-ink mb-1" for="login-email">Email or username</label>
-        <input id="login-email" type="email" required placeholder="name@example.com" class="w-full px-3.5 py-2 text-sm bg-white border border-line rounded-xl focus:outline-none focus:border-brand">
-      </div>
-
-      <div>
-        <div class="flex justify-between items-center mb-1">
-          <label class="block text-xs font-bold text-ink" for="login-password">Password</label>
-          <a href="#" onclick="alert('Password reset link has been dispatched to your email.'); return false;" class="text-xs text-brand font-semibold hover:underline">Forgot password?</a>
-        </div>
-        <div class="relative">
-          <input id="login-password" type="password" required placeholder="••••••••" class="w-full px-3.5 py-2 text-sm bg-white border border-line rounded-xl focus:outline-none focus:border-brand pr-10">
-          <button type="button" id="toggle-password-btn" class="absolute right-3 top-2.5 text-xs text-muted hover:text-ink">Show</button>
-        </div>
-      </div>
-
-      <button type="submit" class="btn btn-primary w-full py-2.5 text-sm font-bold mt-2">
-        Sign in to HappyProgramming
-      </button>
-
-      <button type="button" onclick="alert('Redirecting to Google OAuth2...');" class="w-full py-2.5 px-4 rounded-xl border border-line bg-white text-ink text-xs font-semibold hover:bg-lilac/40 flex items-center justify-center gap-2 transition-colors">
-        <svg class="w-4 h-4" viewBox="0 0 24 24"><path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/><path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.24v3.15C3.26 21.36 7.37 24 12 24z"/><path fill="#FBBC05" d="M5.28 14.24c-.25-.72-.38-1.49-.38-2.24s.13-1.52.38-2.24V6.61H1.24C.45 8.18 0 9.99 0 12s.45 3.82 1.24 5.39l4.04-3.15z"/><path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.37 0 3.26 2.64 1.24 6.61l4.04 3.15c.95-2.85 3.6-4.96 6.72-4.96z"/></svg>
-        Continue with Google
-      </button>
-    </form>
-
-    <!-- Demo Quick Login Options -->
-    <div class="mt-4 pt-3 border-t border-line text-left">
-      <span class="text-[11px] font-bold text-muted uppercase tracking-wider block mb-2">Demo Quick Login Shortcuts:</span>
-      <div class="grid grid-cols-1 gap-1.5">
-        <button type="button" id="quick-staff-btn" class="text-left px-3 py-1.5 rounded-lg bg-lilac/60 border border-brand/20 text-xs font-semibold text-brand hover:bg-lilac transition-colors flex items-center justify-between">
-          <span>🛡️ Staff Login (staff@happyprogramming.vn)</span>
-          <span class="font-bold text-[10px] bg-white px-1.5 py-0.5 rounded">STAFF</span>
-        </button>
-        <button type="button" id="quick-mentor-btn" class="text-left px-3 py-1.5 rounded-lg bg-[#f7f5fa] border border-line text-xs font-semibold text-ink hover:bg-lilac/30 transition-colors flex items-center justify-between">
-          <span>🎓 Mentor Login (an.nguyen@example.com)</span>
-          <span class="font-bold text-[10px] bg-white px-1.5 py-0.5 rounded">MENTOR</span>
-        </button>
-        <button type="button" id="quick-mentee-btn" class="text-left px-3 py-1.5 rounded-lg bg-[#f7f5fa] border border-line text-xs font-semibold text-ink hover:bg-lilac/30 transition-colors flex items-center justify-between">
-          <span>👨‍💻 Mentee Login (khoa.pham@example.com)</span>
-          <span class="font-bold text-[10px] bg-white px-1.5 py-0.5 rounded">MENTEE</span>
-        </button>
-      </div>
-    </div>
-  </div>
 </dialog>
 
 <dialog id="become-dialog" class="modal" aria-labelledby="become-dialog-title">

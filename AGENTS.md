@@ -85,27 +85,35 @@ For bugs, preserve separate evidence for observed behavior, assessed cause, scop
 
 ### Backend
 
-The target backend is Java 17 and Spring Boot 3.5.x. It exposes versioned REST endpoints under `/api` and does not render frontend pages after the frontend split is complete.
+The backend uses Java 17 and Spring Boot 3.5.x. It exposes REST endpoints under `/api`; the current API has no version prefix.
 
-Organize backend code by business capability:
+Follow `Package Diagram1.docx`: organize backend code by layer under `com.happyprogramming`. This is the single canonical Java package layout:
 
 ```text
-backend/src/main/java/vn/happyprogramming/
-├── common/
-├── auth/
-├── user/
-├── mentor/
-├── skill/
-├── mentorship/
-├── session/
-├── payment/
-├── chat/
-├── review/
-├── notification/
-└── admin/
+backend/src/main/java/com/happyprogramming/
+├── HpmsApplication.java
+├── config/
+├── constant/
+├── controller/
+├── dto/
+├── entity/
+├── repository/
+├── service/
+├── security/
+├── integration/
+├── scheduler/
+└── utils/
 ```
 
-Within a capability, use controller, service, repository, DTO, mapper, and domain/entity types only when needed. Avoid empty abstraction layers.
+Create packages only when they contain implemented code; the diagram also describes planned capabilities. Do not add a competing capability-first root layout. Tests mirror production packages under `backend/src/test/java/com/happyprogramming/`. Keep the Spring Boot entry point in the root package so component, entity, and repository scanning covers its descendants.
+
+- `controller` handles HTTP and delegates to `service`; never call repositories or external providers directly from controllers.
+- `dto` contains API request/response types; `entity` contains persistence models; `repository` contains persistence queries.
+- `service` owns business rules and transactions, and coordinates repositories and integration adapters.
+- `config` wires application infrastructure; `security` enforces authentication, authorization, and ownership.
+- `integration` wraps external services; `scheduler` invokes services for timed work; `constant` holds shared constants/enums; `utils` contains helpers without business orchestration.
+- Use names such as `MentorController`, `MentorService`, `MentorRepository`, `CreateMentorshipRequest`, `MentorResponse`, `PaymentStatus`, and `VnPayClient`. Existing DTO/catalog names may remain when moving packages to preserve scope.
+- The package diagram defines placement, not permission to implement all listed integrations. Implement only the active feature scope, and distinguish planned components from working code in documentation.
 
 Backend rules:
 
@@ -115,7 +123,11 @@ Backend rules:
 - Never expose JPA entities as public API responses.
 - Use request and response DTOs with Bean Validation.
 - Return a consistent API response and error format.
-- Use Flyway migrations for schema changes. Never rely on manual database edits.
+- Use Flyway/versioned migrations for schema changes. Never rely on manual database edits.
+- **Database Schema Management (`docs/database/`)**:
+- `docs/database/init/`: Contains the baseline canonical schema (`schema_31_tables.sql`). This baseline is **IMMUTABLE** and must never be altered in place.
+- `docs/database/migration/`: Any subsequent database change made during development (alter table, add column, new index/trigger, or data backfill) must be recorded in a separate migration script named `YYYYMMDD_<description>.sql` (e.g. `20261001_add_mentor_headline.sql`). Never edit or overwrite the init baseline to apply a change.
+- Temporary development seed data is allowed only in a versioned migration and must be read through Repository/API code; never add a hardcoded frontend mock array for a database-backed feature. When the real create/update flow is complete, remove only the temporary seed records and the seed mechanism, preserving real records, official catalog data, and schema.
 - Document API behavior in `contracts/` before implementing endpoints.
 - Preserve backward compatibility unless the active specification explicitly approves a breaking change.
 - Enforce authorization in the backend even when the frontend hides an action.
@@ -150,7 +162,13 @@ Frontend rules:
 - Use semantic HTML, associated labels, keyboard-accessible controls, visible focus states, and meaningful alternative text.
 - Keep user-facing copy in English.
 - Do not inject unsanitized API content into `innerHTML`.
-- Preserve responsive behavior from 320px upward.
+
+### Visual consistency
+
+- Follow the existing web font stack and typography classes from `frontend/src/app.css` and the component showcase. Do not introduce a new font family, arbitrary font imports, or page-specific typography without an approved design-system change.
+- Use the existing color tokens and component classes: brand purple `#8b46e8`, dark purple `#7431d0`, ink `#25143f`, lavender `#f1e8ff`, cream `#fbf9ff`, and border `#e8e0f1`. Do not introduce another palette or hardcoded colors when an existing token applies.
+- New pages and components must reuse the current buttons, inputs, cards, badges, spacing, borders, radii, shadows, and states so the interface remains visually synchronized across homepage, directory, profile, and future modules.
+- When a new visual treatment is genuinely needed, add it to the shared design system and component showcase before using it in a feature page.
 
 ## Design System
 
@@ -191,23 +209,18 @@ Canonical monorepo applications:
 
 ```bash
 cd backend
-mvn test
+./mvnw test
 
 cd ../frontend
 npm run build
 npm test
 ```
 
+On Windows, use `mvnw.cmd` instead of `mvnw`.
+
 Add tests for business rules, authorization boundaries, validation, API contracts, repository queries, payment idempotency, and regressions. Avoid tests that only repeat framework behavior or assert static implementation details.
 
-For frontend work, verify at least:
-
-- 320px mobile viewport.
-- A tablet viewport.
-- A desktop viewport.
-- Keyboard navigation and visible focus.
-- Loading, empty, error, disabled, and success states relevant to the feature.
-- No horizontal overflow.
+For frontend work, verify keyboard navigation, visible focus, and the loading, empty, error, disabled, and success states relevant to the feature. A mobile viewport build/check is not required unless the user explicitly requests it.
 
 ## Change Discipline
 
@@ -228,7 +241,7 @@ A change is complete when:
 - API contracts and database migrations agree with the code.
 - Relevant backend and frontend tests pass.
 - The component showcase reflects reusable UI changes.
-- Accessibility and responsive checks pass for affected screens.
+- Accessibility checks pass for affected screens.
 - Documentation and configuration examples are current.
 - `tasks.md` accurately records completed work.
 - Convergence finds no material gaps.

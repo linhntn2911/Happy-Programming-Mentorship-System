@@ -13,7 +13,7 @@ export function Footer() {
       <div>
         <h2 class="text-xs font-semibold">Find your direction</h2>
         <div class="mt-5 flex flex-col gap-3 text-[11px] text-muted">
-          <a href="#mentors" class="hover:text-brand">Browse mentors</a>
+          <a href="#/mentors" class="hover:text-brand">Browse mentors</a>
           <a href="#services" class="hover:text-brand">Monthly mentorship</a>
           <a href="#sessions" class="hover:text-brand">One-off sessions</a>
         </div>

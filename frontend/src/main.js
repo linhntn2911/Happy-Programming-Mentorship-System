@@ -1,14 +1,22 @@
+import { mountMentorProfile } from './pages/MentorProfilePage.js';
+import { mountLogin } from './pages/LoginPage.js';
+import { mountMenteeSignup } from './pages/MenteeSignupPage.js';
+import { mountAccount } from './pages/AccountPage.js';
+import { mountMentorApplication } from './pages/MentorApplicationPage.js';
+import { mountStaffMentorApplications } from './pages/StaffMentorApplicationsPage.js';
+import { mountMonthlyMentorshipApplication } from './pages/MonthlyMentorshipApplicationPage.js';
+import { mountWishlist } from './pages/WishlistPage.js';
+import { bindAuthInfo } from './components/auth/LoginForm.js';
 import './app.css';
 import { HomePage } from './pages/HomePage.js';
 import { ComponentShowcasePage } from './pages/ComponentShowcasePage.js';
-import { StaffDashboardPage } from './pages/StaffDashboardPage.js';
-import { StaffMentorsPage } from './pages/StaffMentorsPage.js';
-import { StaffMenteesPage } from './pages/StaffMenteesPage.js';
-import { StaffApplicationsPage } from './pages/StaffApplicationsPage.js';
-import { StaffAccessDeniedPage } from './pages/StaffAccessDeniedPage.js';
+import { MentorSearchPage } from './pages/MentorSearchPage.js';
+import { DirectoryMentorCard } from './components/mentor/DirectoryMentorCard.js';
+import { bindMentorPricingCardEvents } from './components/mentor/MentorPricingCard.js';
 import { mentorService } from './services/mentorService.js';
-import { staffService } from './services/staffService.js';
 import { authService } from './services/authService.js';
+import { wishlistService } from './services/wishlistService.js';
+import { bindUserDropdown } from './components/layout/Header.js';
 
 const INITIAL_MENTORS = [
   {
@@ -94,16 +102,36 @@ const INITIAL_MENTORS = [
 let currentMentors = [...INITIAL_MENTORS];
 const appEl = document.querySelector('#app');
 
+function openMentorDirectory(keyword = '') {
+  const url = new URL(window.location.href);
+  url.search = '';
+  const query = keyword.trim();
+  if (query) url.searchParams.set('q', query);
+  history.pushState(null, '', `${url.pathname}${url.search}#/mentors`);
+  router();
+}
+
+const toDirectoryMentor = (mentor, index) => ({
+  company: ['FPT Software', 'NashTech', 'VNG', 'Grab', 'KMS Technology', 'Tiki'][index] || 'Technology company',
+  languages: ['Vietnamese', 'English'],
+  country: index === 3 ? 'Singapore' : index === 4 ? 'United States' : 'Vietnam',
+  yearsExperience: Number.parseInt(mentor.experience, 10) || 5,
+  monthlyPrice: Number(String(mentor.monthly).replaceAll(',', '')) || 0,
+  rating: [4.9, 4.8, 5, 4.7, 4.9, 4.6][index] || 4.8,
+  reviewCount: [38, 24, 31, 19, 27, 16][index] || 12,
+  acceptingMentees: index !== 3,
+  ...mentor
+});
+
 function renderApp(mentors) {
   currentMentors = mentors;
-  appEl.innerHTML = HomePage(mentors);
+  appEl.innerHTML = HomePage(mentors, authService.getCurrentUser());
   initInteractions();
 }
 
 function initInteractions() {
   const cards = [...document.querySelectorAll('.mentor-card')];
   const searchInputs = [...document.querySelectorAll('[data-search-input]')];
-  const storageKey = 'hpms.homepage.saved-mentors.v1';
   let saved = new Set();
   let activeFilter = 'all';
   let query = '';
@@ -121,14 +149,14 @@ function initInteractions() {
   const scrollBehavior = () =>
     window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth';
 
-  function validSaved(value) {
-    return Array.isArray(value) ? value.filter(id => cards.some(card => card.dataset.id === id)) : [];
-  }
-
-  try {
-    saved = new Set(validSaved(JSON.parse(localStorage.getItem(storageKey) || '[]')));
-  } catch {
-    /* fallback to memory */
+  async function hydrateSaved() {
+    try {
+      saved = new Set(await wishlistService.list());
+      updateSavedButtons();
+      filterCards();
+    } catch (error) {
+      if (error.status !== 401) toast(error.message || 'Unable to load your wishlist.');
+    }
   }
 
   function toast(message) {
@@ -201,11 +229,7 @@ function initInteractions() {
     form.addEventListener('submit', event => {
       event.preventDefault();
       const input = form.querySelector('[data-search-input]');
-      query = input ? input.value.trim() : '';
-      activeFilter = 'all';
-      syncInputs();
-      filterCards();
-      showDiscovery();
+      openMentorDirectory(input ? input.value : '');
     })
   );
 
@@ -239,23 +263,23 @@ function initInteractions() {
   cards.forEach(card => {
     const saveBtn = card.querySelector('[data-save]');
     if (saveBtn) {
-      saveBtn.addEventListener('click', () => {
+      saveBtn.addEventListener('click', async () => {
+        if (!authService.getCurrentUser()) { toast('Please log in to save mentors to your wishlist.'); return; }
         const id = card.dataset.id;
         const removing = saved.has(id);
-        if (removing) saved.delete(id);
-        else saved.add(id);
-        let persistent = true;
+        saveBtn.disabled = true;
         try {
-          localStorage.setItem(storageKey, JSON.stringify([...saved]));
-        } catch {
-          persistent = false;
-        }
+          if (removing) await wishlistService.remove(id); else await wishlistService.save(id);
+          if (removing) saved.delete(id); else saved.add(id);
+        } catch (error) { toast(error.message || 'Unable to update your wishlist.'); return; }
+        finally { saveBtn.disabled = false; }
         updateSavedButtons();
         filterCards();
-        toast((removing ? 'Mentor removed from your saved list.' : 'Mentor saved to your favorites.') + (persistent ? '' : ' Saved for this visit only.'));
+        toast(removing ? 'Mentor removed from your wishlist.' : 'Mentor saved to your wishlist.');
       });
     }
   });
+  hydrateSaved();
 
   // Modal dialog handling
   function openDialog(id) {
@@ -270,88 +294,6 @@ function initInteractions() {
     button.addEventListener('click', () => openDialog(button.dataset.dialog))
   );
 
-  const loginNavBtn = document.querySelector('#login-nav-btn');
-  if (loginNavBtn) {
-    loginNavBtn.addEventListener('click', () => openDialog('login-dialog'));
-  }
-
-  const logoutBtn = document.querySelector('#logout-btn');
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', () => {
-      authService.logout();
-      toast('Signed out successfully.');
-      if (window.location.hash.startsWith('#/staff')) {
-        window.location.hash = '#/';
-      } else {
-        router();
-      }
-    });
-  }
-
-  // Real Login Modal Event Handlers
-  const loginDialog = document.getElementById('login-dialog');
-  if (loginDialog) {
-    const loginForm = loginDialog.querySelector('#login-form');
-    const togglePassBtn = loginDialog.querySelector('#toggle-password-btn');
-    const passInput = loginDialog.querySelector('#login-password');
-    const emailInput = loginDialog.querySelector('#login-email');
-
-    if (togglePassBtn && passInput) {
-      togglePassBtn.addEventListener('click', () => {
-        const isPassword = passInput.type === 'password';
-        passInput.type = isPassword ? 'text' : 'password';
-        togglePassBtn.textContent = isPassword ? 'Hide' : 'Show';
-      });
-    }
-
-    if (loginForm) {
-      loginForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const email = emailInput ? emailInput.value : '';
-        const password = passInput ? passInput.value : '';
-
-        const user = authService.login(email, password);
-        loginDialog.close();
-        toast(`Signed in successfully as ${user.full_name} (${user.role_code}).`);
-        window.location.hash = '#/';
-        router();
-      });
-    }
-
-    // Quick Login Demo Shortcuts
-    const quickStaffBtn = loginDialog.querySelector('#quick-staff-btn');
-    if (quickStaffBtn) {
-      quickStaffBtn.addEventListener('click', () => {
-        const user = authService.login('staff@happyprogramming.vn', 'Staff@123');
-        loginDialog.close();
-        toast(`Signed in as ${user.full_name} (${user.role_code}). Click 'Staff Portal' in header to access dashboard.`);
-        window.location.hash = '#/';
-        router();
-      });
-    }
-
-    const quickMentorBtn = loginDialog.querySelector('#quick-mentor-btn');
-    if (quickMentorBtn) {
-      quickMentorBtn.addEventListener('click', () => {
-        const user = authService.login('an.nguyen@example.com', 'Mentor@123');
-        loginDialog.close();
-        toast(`Signed in as ${user.full_name} (${user.role_code}).`);
-        window.location.hash = '#/';
-        router();
-      });
-    }
-
-    const quickMenteeBtn = loginDialog.querySelector('#quick-mentee-btn');
-    if (quickMenteeBtn) {
-      quickMenteeBtn.addEventListener('click', () => {
-        const user = authService.login('khoa.pham@example.com', 'Mentee@123');
-        loginDialog.close();
-        toast(`Signed in as ${user.full_name} (${user.role_code}).`);
-        window.location.hash = '#/';
-        router();
-      });
-    }
-  }
 
   document.querySelectorAll('dialog').forEach(dialog => {
     dialog.querySelectorAll('[data-close]').forEach(button =>
@@ -408,7 +350,7 @@ function initInteractions() {
   document.querySelectorAll('[data-mentor-id]').forEach(button =>
     button.addEventListener('click', () => {
       const mentor = currentMentors.find(m => m.id === button.dataset.mentorId);
-      if (mentor) showMentorModal(mentor);
+      if (mentor) window.location.hash = `/mentors/${encodeURIComponent(mentor.id)}`;
     })
   );
 
@@ -471,212 +413,259 @@ function initInteractions() {
 
   updateSavedButtons();
   filterCards();
-}
-
-let currentAppTab = 'PENDING';
-let cachedApplications = [];
-
-function renderApplicationModal(app) {
-  const content = document.getElementById('app-review-dialog-content');
-  const dialog = document.getElementById('app-review-dialog');
-  if (!content || !dialog) return;
-
-  content.innerHTML = `
-    <div class="p-6 bg-white text-[#25143f]">
-      <div class="flex items-center justify-between border-b border-[#e8e0f1] pb-4 mb-4">
-        <div>
-          <div class="flex items-center gap-2">
-            <h2 class="text-xl font-extrabold">${app.applicantName}</h2>
-            <span class="px-2.5 py-0.5 text-xs font-bold rounded-full bg-[#f1e8ff] text-[#8b46e8]">${app.specialty}</span>
-          </div>
-          <p class="text-xs text-slate-500 mt-1">Application ID: ${app.id} · Submitted on ${app.submittedDate}</p>
-        </div>
-        <button id="close-app-dialog" class="text-slate-400 hover:text-slate-600 font-bold text-lg px-2 py-1">✕</button>
-      </div>
-
-      <div class="space-y-4 text-sm">
-        <div class="grid grid-cols-2 gap-4 bg-[#fbf9ff] p-4 rounded-xl border border-[#e8e0f1]">
-          <div><span class="text-xs text-slate-400 font-bold block">EMAIL</span><span class="font-semibold">${app.email}</span></div>
-          <div><span class="text-xs text-slate-400 font-bold block">PHONE</span><span class="font-semibold">${app.phone || 'N/A'}</span></div>
-          <div><span class="text-xs text-slate-400 font-bold block">EXPERIENCE</span><span class="font-semibold">${app.experienceYears} Years</span></div>
-          <div><span class="text-xs text-slate-400 font-bold block">STATUS</span><span class="font-bold text-amber-600">${app.status}</span></div>
-        </div>
-
-        <div>
-          <span class="text-xs text-slate-400 font-bold block mb-1">BIOGRAPHY & PHILOSOPHY</span>
-          <p class="text-xs leading-relaxed text-slate-700 bg-white p-3 rounded-xl border border-[#e8e0f1]">${app.bio || 'N/A'}</p>
-        </div>
-
-        <div>
-          <span class="text-xs text-slate-400 font-bold block mb-1">TARGET TEACHING SKILLS</span>
-          <div class="flex flex-wrap gap-1.5">
-            ${(app.skills || []).map(s => `<span class="px-2.5 py-1 text-xs font-bold rounded-lg bg-[#f1e8ff] text-[#8b46e8]">${s}</span>`).join('')}
-          </div>
-        </div>
-
-        <div class="bg-[#f1e8ff]/50 border border-[#8b46e8]/30 rounded-2xl p-4">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-xl bg-[#8b46e8] text-white flex items-center justify-center text-xs font-bold">PDF</div>
-              <div>
-                <div class="font-bold text-sm text-[#25143f]">${app.cvFileName || 'Mentor_CV.pdf'}</div>
-                <div class="text-xs text-slate-500">${app.cvFileSize || '3.4 MB'} · Validated PDF Document (GB-25)</div>
-              </div>
-            </div>
-            <a href="#" onclick="alert('Viewing PDF document: ${app.cvFileName || 'Mentor_CV.pdf'}'); return false;" class="px-3.5 py-1.5 text-xs font-bold rounded-xl bg-white text-[#8b46e8] border border-[#8b46e8]/30 hover:bg-[#8b46e8] hover:text-white transition-colors">
-              Preview / Download PDF
-            </a>
-          </div>
-        </div>
-
-        ${app.reviewNote ? `
-          <div class="bg-amber-50 border border-amber-200 p-3 rounded-xl text-xs text-amber-800">
-            <strong>Review Note:</strong> ${app.reviewNote}
-          </div>
-        ` : ''}
-      </div>
-
-      <div class="mt-6 pt-4 border-t border-[#e8e0f1] flex items-center justify-between">
-        <button id="close-app-dialog-btn" class="px-4 py-2 text-xs font-bold rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200">
-          Close
-        </button>
-        ${app.status === 'PENDING' ? `
-          <div class="flex items-center gap-3">
-            <button id="reject-app-btn" class="px-4 py-2 text-xs font-bold rounded-xl bg-rose-600 text-white hover:bg-rose-700 shadow-sm transition-colors">
-              Reject Application
-            </button>
-            <button id="approve-app-btn" class="px-5 py-2 text-xs font-bold rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition-colors">
-              Approve & Promote to Mentor ✓
-            </button>
-          </div>
-        ` : `
-          <div class="text-xs font-bold text-slate-500">Status: ${app.status}</div>
-        `}
-      </div>
-    </div>
-  `;
-
-  if (typeof dialog.showModal === 'function') dialog.showModal();
-
-  document.getElementById('close-app-dialog')?.addEventListener('click', () => dialog.close());
-  document.getElementById('close-app-dialog-btn')?.addEventListener('click', () => dialog.close());
-
-  document.getElementById('approve-app-btn')?.addEventListener('click', async () => {
-    await staffService.approveApplication(app.id);
-    dialog.close();
-    alert(`Mentor application ${app.id} (${app.applicantName}) has been APPROVED! User promoted to MENTOR role.`);
-    router();
-  });
-
-  document.getElementById('reject-app-btn')?.addEventListener('click', async () => {
-    const reason = prompt('Enter rejection reason for applicant:', 'Uploaded CV does not meet required practical experience.');
-    if (reason !== null) {
-      await staffService.rejectApplication(app.id, reason);
-      dialog.close();
-      alert(`Mentor application ${app.id} (${app.applicantName}) has been REJECTED.`);
-      router();
-    }
-  });
-}
-
-function bindApplicationEvents() {
-  document.querySelectorAll('[data-app-tab]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      currentAppTab = btn.dataset.appTab;
-      router();
-    });
-  });
-
-  document.querySelectorAll('[data-review-app]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const app = cachedApplications.find(a => a.id === btn.dataset.reviewApp);
-      if (app) renderApplicationModal(app);
-    });
+  bindUserDropdown(appEl, () => {
+    renderApp(currentMentors);
   });
 }
 
 function router() {
   const hash = window.location.hash;
-  const currentUser = authService.getCurrentUser();
-
-  // Guard for /staff/* routes: Only STAFF and ADMIN roles permitted
-  if (hash.startsWith('#/staff')) {
-    if (!authService.isStaff()) {
-      appEl.innerHTML = StaffAccessDeniedPage(currentUser);
-      window.scrollTo({ top: 0, behavior: 'instant' });
-
-      document.getElementById('open-staff-login-btn')?.addEventListener('click', () => {
-        const dialog = document.getElementById('login-dialog');
-        if (dialog && typeof dialog.showModal === 'function') {
-          dialog.showModal();
-          const emailInput = dialog.querySelector('#login-email');
-          if (emailInput) emailInput.value = 'staff@happyprogramming.vn';
-          const passInput = dialog.querySelector('#login-password');
-          if (passInput) passInput.value = 'Staff@123';
-        }
-      });
-      return;
-    }
-  }
-
-  if (hash === '#/components' || hash === '#/showcase') {
-    appEl.innerHTML = ComponentShowcasePage();
+  if (hash === '#/login' || hash.startsWith('#/login?')) {
+    mountLogin(appEl);
     window.scrollTo({ top: 0, behavior: 'instant' });
-  } else if (hash === '#/staff/mentors') {
-    appEl.innerHTML = StaffMentorsPage([]);
-    window.scrollTo({ top: 0, behavior: 'instant' });
-    staffService.getMentors().then(data => {
-      if (window.location.hash === '#/staff/mentors') {
-        appEl.innerHTML = StaffMentorsPage(data);
-      }
-    });
-  } else if (hash === '#/staff/mentees') {
-    appEl.innerHTML = StaffMenteesPage([]);
-    window.scrollTo({ top: 0, behavior: 'instant' });
-    staffService.getMentees().then(data => {
-      if (window.location.hash === '#/staff/mentees') {
-        appEl.innerHTML = StaffMenteesPage(data);
-      }
-    });
   } else if (hash === '#/staff/mentor-applications') {
-    appEl.innerHTML = StaffApplicationsPage(cachedApplications, currentAppTab);
+    mountStaffMentorApplications(appEl);
     window.scrollTo({ top: 0, behavior: 'instant' });
-    bindApplicationEvents();
-
-    staffService.getApplications().then(apps => {
-      cachedApplications = apps;
-      if (window.location.hash === '#/staff/mentor-applications') {
-        appEl.innerHTML = StaffApplicationsPage(cachedApplications, currentAppTab);
-        bindApplicationEvents();
-      }
-    });
-  } else if (hash.startsWith('#/staff')) {
-    appEl.innerHTML = StaffDashboardPage({});
+  } else if (hash === '#/wishlist') {
+    mountWishlist(appEl, currentMentors);
     window.scrollTo({ top: 0, behavior: 'instant' });
-    staffService.getDashboard().then(data => {
-      if (window.location.hash === '#/staff' || window.location.hash === '#/staff/dashboard') {
-        appEl.innerHTML = StaffDashboardPage(data);
-      }
-    }).catch(err => {
-      console.warn('Staff dashboard API offline, using cached fallback:', err.message);
-    });
+  } else if (hash === '#/signup' || hash.startsWith('#/signup?') || hash === '#/signup/mentee') {
+    mountMenteeSignup(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/apply/mentor' || hash.startsWith('#/apply/mentor') || hash === '#/signup/mentor') {
+    mountMentorApplication(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash.startsWith('#/apply/monthly')) {
+    const query = new URLSearchParams(hash.split('?')[1] || '');
+    mountMonthlyMentorshipApplication(appEl, query.get('mentor') || '', query.get('name') || 'your mentor');
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/account') {
+    location.hash = '#/';
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash.startsWith('#/mentors/')) {
+    let id;
+    try { id = decodeURIComponent(hash.slice('#/mentors/'.length)); } catch { id = ''; }
+    mountMentorProfile(appEl, id);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/components' || hash === '#/showcase') {
+    appEl.innerHTML = ComponentShowcasePage();
+    bindAuthInfo(appEl);
+    appEl.querySelector('#login-form')?.addEventListener('submit', event => event.preventDefault());
+    bindMentorPricingCardEvents(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash.startsWith('#/mentors')) {
+    const params = new URLSearchParams(window.location.search);
+    const initialFilters = {
+      q: params.get('q') || '', skills: params.getAll('skills'), categories: params.getAll('categories'),
+      jobTitles: params.getAll('jobTitles'), companies: params.getAll('companies'),
+      languages: params.getAll('languages'), countries: params.getAll('countries'),
+      minExperience: params.get('minExperience') || '', minPrice: params.get('minPrice') || '', maxPrice: params.get('maxPrice') || '',
+      minRating: params.get('minRating') || '', available: params.get('available') || '',
+      sort: params.get('sort') || 'recommended'
+    };
+    appEl.innerHTML = MentorSearchPage(currentMentors.map(toDirectoryMentor), initialFilters);
+    initMentorDirectory();
+    window.scrollTo({ top: 0, behavior: 'instant' });
   } else {
     renderApp(currentMentors);
   }
 }
 
+function initMentorDirectory() {
+  const form = document.querySelector('#directory-search');
+  const panel = document.querySelector('#filter-panel');
+  const results = document.querySelector('#mentor-results');
+  const loading = document.querySelector('#directory-loading');
+  const empty = document.querySelector('#directory-empty');
+  const error = document.querySelector('#directory-error');
+  const resultCount = document.querySelector('#result-count');
+  const activeFilters = document.querySelector('#active-filters');
+  const sort = document.querySelector('#sort');
+  const mobileButton = document.querySelector('#mobile-filter-button');
+  let requestNumber = 0;
+  let toastTimer;
+
+  const getFilters = () => ({
+    q: document.querySelector('#directory-query')?.value.trim() || '',
+    categories: [...document.querySelectorAll('input[name="categories"]:checked')].map(input => input.value),
+    skills: [...document.querySelectorAll('input[name="skills"]:checked')].map(input => input.value),
+    jobTitles: [...document.querySelectorAll('input[name="jobTitles"]:checked')].map(input => input.value),
+    companies: [...document.querySelectorAll('input[name="companies"]:checked')].map(input => input.value),
+    languages: [...document.querySelectorAll('input[name="languages"]:checked')].map(input => input.value),
+    countries: [...document.querySelectorAll('input[name="countries"]:checked')].map(input => input.value),
+    minExperience: document.querySelector('input[name="minExperience"]:checked')?.value || '',
+    minPrice: document.querySelector('input[name="minPrice"]')?.value || '',
+    maxPrice: document.querySelector('input[name="maxPrice"]')?.value || '',
+    minRating: document.querySelector('input[name="minRating"]:checked')?.value || '',
+    available: document.querySelector('input[name="available"]')?.checked || false,
+    sort: sort?.value || 'recommended'
+  });
+
+  const filterLabels = filters => {
+    const labels = [...filters.categories, ...filters.skills, ...filters.jobTitles, ...filters.companies, ...filters.languages, ...filters.countries];
+    if (filters.q) labels.unshift(`Search: ${filters.q}`);
+    if (filters.minExperience) labels.push(`${filters.minExperience}+ years`);
+    if (filters.minPrice) labels.push(`From ${Number(filters.minPrice).toLocaleString('en-US')} VND`);
+    if (filters.maxPrice) labels.push(`Up to ${Number(filters.maxPrice).toLocaleString('en-US')} VND`);
+    if (filters.minRating) labels.push(`${filters.minRating}+ stars`);
+    if (filters.available) labels.push('Available now');
+    return labels;
+  };
+
+  function syncFilterSummary(filters) {
+    const labels = filterLabels(filters);
+    activeFilters.hidden = labels.length === 0;
+    activeFilters.replaceChildren(...labels.map(label => {
+      const chip = document.createElement('span');
+      chip.className = 'active-filter';
+      chip.textContent = label;
+      return chip;
+    }));
+    const count = document.querySelector('#mobile-filter-count');
+    if (count) count.textContent = labels.length ? `(${labels.length})` : '';
+    const url = new URL(window.location.href);
+    url.search = '';
+    Object.entries(filters).forEach(([key, value]) => {
+      if (Array.isArray(value)) value.forEach(item => url.searchParams.append(key, item));
+      else if (value !== '' && value !== false && !(key === 'sort' && value === 'recommended')) url.searchParams.set(key, value);
+    });
+    history.replaceState(null, '', `${url.pathname}${url.search}#/mentors`);
+  }
+
+  async function wireCards() {
+    let saved = new Set();
+    try { saved = new Set(await wishlistService.list()); } catch (error) { if (error.status !== 401) console.info('Wishlist unavailable:', error.message); }
+    document.querySelectorAll('[data-mentor-id]').forEach(card => {
+      const id = card.dataset.mentorId;
+      const button = card.querySelector('[data-save]');
+      button?.setAttribute('aria-pressed', String(saved.has(id)));
+      button?.addEventListener('click', async () => {
+        const user = authService.getCurrentUser();
+        if (!user) { toast('Please log in to save mentors to your wishlist.'); return; }
+        const removing = saved.has(id);
+        button.disabled = true;
+        try {
+          if (removing) await wishlistService.remove(id); else await wishlistService.save(id);
+          removing ? saved.delete(id) : saved.add(id);
+        } catch (error) { toast(error.message || 'Unable to update your wishlist.'); return; }
+        finally { button.disabled = false; }
+        button.setAttribute('aria-pressed', String(saved.has(id)));
+        const toast = document.querySelector('#toast');
+        if (toast) {
+          clearTimeout(toastTimer);
+          toast.textContent = saved.has(id) ? 'Mentor saved to your wishlist.' : 'Mentor removed from your wishlist.';
+          toast.hidden = false;
+          toastTimer = setTimeout(() => { toast.hidden = true; }, 2500);
+        }
+      });
+    });
+  }
+
+  async function search() {
+    const activeRequest = ++requestNumber;
+    const filters = getFilters();
+    syncFilterSummary(filters);
+    loading.hidden = false;
+    results.hidden = true;
+    empty.hidden = true;
+    error.hidden = true;
+    try {
+      const mentors = await mentorService.searchMentors(filters);
+      if (activeRequest !== requestNumber) return;
+      results.innerHTML = mentors.map(DirectoryMentorCard).join('');
+      results.hidden = mentors.length === 0;
+      empty.hidden = mentors.length > 0;
+      resultCount.textContent = `${mentors.length} mentor${mentors.length === 1 ? '' : 's'} found`;
+      wireCards();
+    } catch {
+      if (activeRequest !== requestNumber) return;
+      error.hidden = false;
+      resultCount.textContent = 'Mentor search unavailable';
+    } finally {
+      if (activeRequest === requestNumber) loading.hidden = true;
+    }
+  }
+
+  function clearFilters() {
+    form.reset();
+    form.querySelector('[name="q"]').value = '';
+    panel.querySelectorAll('input[type="checkbox"]').forEach(input => { input.checked = false; });
+    panel.querySelectorAll('input[type="number"], input[type="search"]').forEach(input => { input.value = ''; });
+    panel.querySelectorAll('.filter-option').forEach(option => { option.hidden = option.classList.contains('is-extra'); });
+    panel.querySelectorAll('[data-show-options]').forEach(button => { button.setAttribute('aria-expanded', 'false'); button.textContent = 'Show more'; });
+    sort.value = 'recommended';
+    search();
+  }
+
+  form?.addEventListener('submit', event => { event.preventDefault(); search(); });
+  panel?.addEventListener('change', () => { if (window.innerWidth >= 1024) search(); });
+  sort?.addEventListener('change', search);
+  document.querySelector('#clear-filters')?.addEventListener('click', clearFilters);
+  document.querySelector('#empty-clear')?.addEventListener('click', clearFilters);
+  document.querySelector('#retry-search')?.addEventListener('click', search);
+  document.querySelector('#apply-mobile-filters')?.addEventListener('click', () => { panel.classList.remove('is-open'); mobileButton.setAttribute('aria-expanded', 'false'); search(); });
+  mobileButton?.addEventListener('click', () => {
+    const open = panel.classList.toggle('is-open');
+    mobileButton.setAttribute('aria-expanded', String(open));
+  });
+  panel?.querySelectorAll('[data-option-search]').forEach(input => {
+    input.addEventListener('input', () => {
+      const term = input.value.trim().toLowerCase();
+      panel.querySelectorAll(`[data-filter-options="${input.dataset.optionSearch}"] .filter-option`).forEach(option => {
+        const expanded = panel.querySelector(`[data-show-options="${input.dataset.optionSearch}"]`)?.getAttribute('aria-expanded') === 'true';
+        option.hidden = term ? !option.dataset.optionLabel.includes(term) : option.classList.contains('is-extra') && !expanded && !option.querySelector('input').checked;
+      });
+    });
+  });
+  panel?.querySelectorAll('[data-show-options]').forEach(button => {
+    button.addEventListener('click', () => {
+      const expanded = button.getAttribute('aria-expanded') === 'true';
+      button.setAttribute('aria-expanded', String(!expanded));
+      button.textContent = expanded ? 'Show more' : 'Show less';
+      const term = panel.querySelector(`[data-option-search="${button.dataset.showOptions}"]`)?.value.trim().toLowerCase() || '';
+      panel.querySelectorAll(`[data-filter-options="${button.dataset.showOptions}"] .filter-option`).forEach(option => {
+        option.hidden = term ? !option.dataset.optionLabel.includes(term) : expanded && option.classList.contains('is-extra') && !option.querySelector('input').checked;
+      });
+    });
+  });
+  wireCards();
+  bindUserDropdown(appEl, () => router());
+  if (filterLabels(getFilters()).length > 0 || getFilters().sort !== 'recommended') search();
+}
+
 window.addEventListener('hashchange', router);
+window.addEventListener('popstate', router);
 
 // Initial route
 router();
+
+// Revalidate session in background
+authService.me().then(user => {
+  if (user && (!window.location.hash || window.location.hash === '#/' || window.location.hash === '#')) {
+    renderApp(currentMentors);
+  }
+}).catch(() => {});
 
 // Hydrate / fetch from Spring Boot REST API
 mentorService
   .getFeaturedMentors()
   .then(res => {
-    if (res && res.data && Array.isArray(res.data) && res.data.length > 0) {
-      currentMentors = res.data;
-      if (!window.location.hash.startsWith('#/components') && !window.location.hash.startsWith('#/showcase')) {
+    if (Array.isArray(res) && res.length > 0) {
+      currentMentors = res;
+      if (['#/mentors/', '#/login', '#/signup', '#/apply/', '#/staff/'].some(prefix => window.location.hash.startsWith(prefix)) || window.location.hash === '#/account' || window.location.hash === '#/wishlist') {
+        if (window.location.hash === '#/wishlist') mountWishlist(appEl, currentMentors);
+        return;
+      }
+      if (window.location.hash.startsWith('#/mentors')) {
+        const params = new URLSearchParams(window.location.search);
+        appEl.innerHTML = MentorSearchPage(currentMentors.map(toDirectoryMentor), {
+          q: params.get('q') || '', skills: params.getAll('skills'), categories: params.getAll('categories'), minExperience: params.get('minExperience') || '',
+          jobTitles: params.getAll('jobTitles'), companies: params.getAll('companies'), languages: params.getAll('languages'), countries: params.getAll('countries'),
+          minPrice: params.get('minPrice') || '', maxPrice: params.get('maxPrice') || '', minRating: params.get('minRating') || '', available: params.get('available') || '',
+          sort: params.get('sort') || 'recommended'
+        });
+        initMentorDirectory();
+      } else if (!window.location.hash.startsWith('#/components') && !window.location.hash.startsWith('#/showcase')) {
         renderApp(currentMentors);
       }
     }

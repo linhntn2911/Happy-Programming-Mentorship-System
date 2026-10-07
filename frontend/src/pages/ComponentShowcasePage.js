@@ -1,8 +1,11 @@
 import { Button } from '../components/ui/Button.js';
+import { LoginForm } from '../components/auth/LoginForm.js';
+import { MenteeSignupForm } from '../components/auth/MenteeSignupForm.js';
 import { Badge, TopicPill } from '../components/ui/Badge.js';
 import { SearchForm, TextInput } from '../components/ui/Input.js';
 import { EmptyState } from '../components/ui/EmptyState.js';
 import { MentorCard } from '../components/mentor/MentorCard.js';
+import { MentorPricingCard } from '../components/mentor/MentorPricingCard.js';
 
 export function ComponentShowcasePage() {
   const sampleMentor = {
@@ -159,15 +162,44 @@ export function ComponentShowcasePage() {
       </div>
     </section>
 
-    <!-- 5. Cards -->
+    <!-- 5. Cards & Pricing Plans -->
     <section aria-labelledby="cards-title">
-      <p class="eyebrow">CARDS & PROFILES</p>
-      <h2 id="cards-title" class="section-title mt-2">Mentor Card</h2>
-      <div class="mt-6 max-w-sm">
-        ${MentorCard(sampleMentor)}
+      <p class="eyebrow">CARDS & PACKAGES</p>
+      <h2 id="cards-title" class="section-title mt-2">Mentor Card & Pricing Plans</h2>
+      <p class="section-copy mt-2 max-w-2xl">Interactive cards for mentor discovery and monthly mentorship tiers (Lite, Standard, Pro) with free trial, call scheduling and one-off session options.</p>
+      <div class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+        <div>
+          <h3 class="text-sm font-bold uppercase tracking-wider text-muted mb-4">Catalog Mentor Card</h3>
+          <div class="max-w-sm">
+            ${MentorCard(sampleMentor)}
+          </div>
+        </div>
+        <div>
+          <h3 class="text-sm font-bold uppercase tracking-wider text-muted mb-4">Mentorship Package Tier Card (Lite / Standard / Pro)</h3>
+          ${MentorPricingCard({
+            mentorName: sampleMentor.name,
+            mentorSlug: sampleMentor.id,
+            oneOffPrice: sampleMentor.session,
+            currencyMode: 'VND'
+          })}
+        </div>
       </div>
     </section>
 
+    <section aria-labelledby="login-preview-title">
+      <p class="eyebrow">AUTHENTICATION</p>
+      <h2 id="login-preview-title" class="section-title mt-2">Login & Sign up Forms</h2>
+      <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+        <div>
+          <h3 class="text-sm font-bold uppercase tracking-wider text-muted mb-4">Login Form</h3>
+          <div class="auth-panel rounded-2xl border border-line bg-white p-6">${LoginForm({ preview: true })}</div>
+        </div>
+        <div>
+          <h3 class="text-sm font-bold uppercase tracking-wider text-muted mb-4">Mentee Sign Up Form</h3>
+          <div class="auth-panel rounded-2xl border border-line bg-white p-6">${MenteeSignupForm({ preview: true })}</div>
+        </div>
+      </div>
+    </section>
     <!-- 6. Empty States & Feedback -->
     <section aria-labelledby="feedback-title">
       <p class="eyebrow">FEEDBACK</p>

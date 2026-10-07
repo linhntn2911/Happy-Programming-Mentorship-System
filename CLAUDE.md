@@ -49,11 +49,17 @@ All active feature work, API endpoints, and client modules must target `backend/
 ## Backend Expectations
 
 - Use Java 17 and Spring Boot 3.5.x.
-- Prefer capability-based packages over global controller/service/repository folders.
+- Follow `Package Diagram1.docx` and the canonical layout in `AGENTS.md`: layered packages under `com.happyprogramming` (`config`, `constant`, `controller`, `dto`, `entity`, `repository`, `service`, `security`, `integration`, `scheduler`, `utils`). Do not use the former `vn.happyprogramming` capability-first layout.
+- Keep `HpmsApplication` in the root package and mirror production packages in tests. Create packages only as implementations require them.
+- Controllers delegate to services; services coordinate repositories and integration adapters. Schedulers call services. Keep DTOs separate from JPA entities and planned diagram components separate from implemented features.
 - Keep controllers thin and business rules in services.
 - Use DTOs at API boundaries; do not serialize JPA entities directly.
 - Use Bean Validation and the shared exception response format.
-- Use Flyway for persistent schema changes.
+- Use Flyway for persistent schema changes. Never rely on manual database edits.
+- Database Schema (`docs/database/`):
+  - `docs/database/init/`: Contains baseline `schema_31_tables.sql`; never edit, overwrite, or append to this file.
+  - `docs/database/migration/`: For every database change made during development, create a separate script named `YYYYMMDD_<description>.sql` and apply changes through that migration.
+- Temporary development seed records may be added through a versioned migration for development only. Read them through Repository/API code, never through a hardcoded frontend array; remove the seed records and seed mechanism once the real create/update flow is available, while preserving real data, official catalog data, and schema.
 - Apply authorization and ownership checks in the backend.
 - Make VNPay and other callback-driven operations idempotent and verifiable.
 - Add focused unit or integration coverage for changed behavior.
@@ -66,22 +72,25 @@ All active feature work, API endpoints, and client modules must target `backend/
 - Keep page code responsible for composition and orchestration.
 - Put HTTP logic in service modules and shared request behavior in `apiClient`.
 - Render loading, empty, error, disabled, and success states where relevant.
-- Preserve accessibility, keyboard behavior, responsive layout, and reduced-motion support.
+- Preserve accessibility, keyboard behavior, and reduced-motion support. Do not add a separate mobile viewport build/check unless the user explicitly requests it.
+
+## Visual Consistency
+
+- Use the existing font stack and typography classes from `frontend/src/app.css` and the component showcase. Do not add a new font family, arbitrary font import, or isolated page typography.
+- Reuse the established color tokens: brand purple `#8b46e8`, dark purple `#7431d0`, ink `#25143f`, lavender `#f1e8ff`, cream `#fbf9ff`, and border `#e8e0f1`. Do not create a competing palette or hardcode a different color when a token exists.
+- Reuse shared buttons, inputs, cards, badges, spacing, borders, radii, shadows, and loading/error states so all pages remain synchronized with the homepage and component showcase.
+- Add genuinely new visual patterns to the shared design system and showcase before using them in feature pages.
 
 ## Verification Commands
 
 Canonical monorepo applications:
 
 ```bash
-cd backend && mvn test
+cd backend && ./mvnw test
 cd ../frontend && npm run build && npm test
 ```
 
-Legacy verification (during migration from `happyprogramming/`):
-
-```bash
-cd happyprogramming && npm run css:build && mvn test
-```
+On Windows, use `mvnw.cmd` instead of `mvnw`.
 
 Do not claim a command passed unless it was run successfully. If a tool or environment prevents a check, report the exact unverified check and preserve the work for review.
 
