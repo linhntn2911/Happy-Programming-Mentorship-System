@@ -1,4 +1,28 @@
+import { authService } from '../../services/authService.js';
+
 export function Header() {
+  const currentUser = authService.getCurrentUser();
+  const isStaffOrAdmin = authService.isStaff() || authService.hasRole('ADMIN');
+
+  let authNavHtml = '';
+  if (currentUser) {
+    authNavHtml = `
+      <div class="flex items-center gap-3">
+        ${isStaffOrAdmin ? `
+          <a class="nav-link font-bold text-brand hover:underline" href="#/staff/dashboard">Staff Portal</a>
+        ` : ''}
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-lilac text-brand">
+          <span>👤</span> ${currentUser.full_name || currentUser.email} (${currentUser.role_code})
+        </span>
+        <button id="logout-btn" class="text-xs font-bold text-muted hover:text-ink">Log out</button>
+      </div>
+    `;
+  } else {
+    authNavHtml = `
+      <button class="nav-link" id="login-nav-btn">Log in</button>
+    `;
+  }
+
   return `
 <header class="relative z-10 hero-shell">
   <div class="container flex h-[86px] items-center justify-between gap-6">
@@ -8,7 +32,7 @@ export function Header() {
     </a>
     <nav class="hidden items-center gap-6 lg:flex" aria-label="Main navigation">
       <a class="nav-link" href="#how-it-works">How it works</a>
-      <button class="nav-link" id="login-nav-btn">Log in</button>
+      ${authNavHtml}
       <a href="#mentors" class="btn btn-light !min-h-10 !px-5 !py-2.5">Browse all mentors <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></a>
     </nav>
     <button id="menu-toggle" class="grid h-10 w-10 place-items-center rounded-lg border border-brand/20 bg-white text-brand lg:hidden" aria-label="Open menu"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>

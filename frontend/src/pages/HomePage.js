@@ -291,12 +291,63 @@ ${Footer()}
   <button class="btn btn-primary mt-5" data-close>Keep exploring <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></button>
 </dialog>
 
-<dialog id="login-dialog" class="modal" aria-labelledby="login-dialog-title">
+<dialog id="login-dialog" class="modal w-full max-w-md p-6 rounded-3xl" aria-labelledby="login-dialog-title">
   <button class="modal-close" data-close aria-label="Close"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button>
-  <span class="grid h-12 w-12 place-items-center rounded-2xl bg-lilac text-brand"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg></span>
-  <h2 id="login-dialog-title" class="mt-5 font-display text-3xl">Your next chapter starts here.</h2>
-  <p class="mt-4 text-sm leading-7 text-muted">Account registration and login are coming in a future release. For now, explore our sample mentor profiles, compare learning options, and save your favorites in this browser.</p>
-  <button class="btn btn-primary mt-6" data-close data-go-mentors>Explore mentors <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></button>
+  
+  <div class="text-left">
+    <div class="flex items-center gap-2 mb-1">
+      <span class="w-8 h-8 rounded-xl bg-lilac text-brand font-bold flex items-center justify-center text-sm">HP</span>
+      <h2 id="login-dialog-title" class="font-display text-2xl text-ink">Sign in</h2>
+    </div>
+    <p class="text-xs text-muted">Enter your account credentials to access your workspace.</p>
+
+    <!-- Login Form -->
+    <form id="login-form" class="mt-4 space-y-3.5">
+      <div>
+        <label class="block text-xs font-bold text-ink mb-1" for="login-email">Email or username</label>
+        <input id="login-email" type="email" required placeholder="name@example.com" class="w-full px-3.5 py-2 text-sm bg-white border border-line rounded-xl focus:outline-none focus:border-brand">
+      </div>
+
+      <div>
+        <div class="flex justify-between items-center mb-1">
+          <label class="block text-xs font-bold text-ink" for="login-password">Password</label>
+          <a href="#" onclick="alert('Password reset link has been dispatched to your email.'); return false;" class="text-xs text-brand font-semibold hover:underline">Forgot password?</a>
+        </div>
+        <div class="relative">
+          <input id="login-password" type="password" required placeholder="••••••••" class="w-full px-3.5 py-2 text-sm bg-white border border-line rounded-xl focus:outline-none focus:border-brand pr-10">
+          <button type="button" id="toggle-password-btn" class="absolute right-3 top-2.5 text-xs text-muted hover:text-ink">Show</button>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary w-full py-2.5 text-sm font-bold mt-2">
+        Sign in to HappyProgramming
+      </button>
+
+      <button type="button" onclick="alert('Redirecting to Google OAuth2...');" class="w-full py-2.5 px-4 rounded-xl border border-line bg-white text-ink text-xs font-semibold hover:bg-lilac/40 flex items-center justify-center gap-2 transition-colors">
+        <svg class="w-4 h-4" viewBox="0 0 24 24"><path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/><path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.24v3.15C3.26 21.36 7.37 24 12 24z"/><path fill="#FBBC05" d="M5.28 14.24c-.25-.72-.38-1.49-.38-2.24s.13-1.52.38-2.24V6.61H1.24C.45 8.18 0 9.99 0 12s.45 3.82 1.24 5.39l4.04-3.15z"/><path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.37 0 3.26 2.64 1.24 6.61l4.04 3.15c.95-2.85 3.6-4.96 6.72-4.96z"/></svg>
+        Continue with Google
+      </button>
+    </form>
+
+    <!-- Demo Quick Login Options -->
+    <div class="mt-4 pt-3 border-t border-line text-left">
+      <span class="text-[11px] font-bold text-muted uppercase tracking-wider block mb-2">Demo Quick Login Shortcuts:</span>
+      <div class="grid grid-cols-1 gap-1.5">
+        <button type="button" id="quick-staff-btn" class="text-left px-3 py-1.5 rounded-lg bg-lilac/60 border border-brand/20 text-xs font-semibold text-brand hover:bg-lilac transition-colors flex items-center justify-between">
+          <span>🛡️ Staff Login (staff@happyprogramming.vn)</span>
+          <span class="font-bold text-[10px] bg-white px-1.5 py-0.5 rounded">STAFF</span>
+        </button>
+        <button type="button" id="quick-mentor-btn" class="text-left px-3 py-1.5 rounded-lg bg-[#f7f5fa] border border-line text-xs font-semibold text-ink hover:bg-lilac/30 transition-colors flex items-center justify-between">
+          <span>🎓 Mentor Login (an.nguyen@example.com)</span>
+          <span class="font-bold text-[10px] bg-white px-1.5 py-0.5 rounded">MENTOR</span>
+        </button>
+        <button type="button" id="quick-mentee-btn" class="text-left px-3 py-1.5 rounded-lg bg-[#f7f5fa] border border-line text-xs font-semibold text-ink hover:bg-lilac/30 transition-colors flex items-center justify-between">
+          <span>👨‍💻 Mentee Login (khoa.pham@example.com)</span>
+          <span class="font-bold text-[10px] bg-white px-1.5 py-0.5 rounded">MENTEE</span>
+        </button>
+      </div>
+    </div>
+  </div>
 </dialog>
 
 <dialog id="become-dialog" class="modal" aria-labelledby="become-dialog-title">
