@@ -65,4 +65,21 @@ class ProfileControllerTest {
         em.flush(); em.clear();
         mvc.perform(get("/api/profile/me/avatar").with(authentication(principal()))).andExpect(status().isNotFound());
     }
+
+    @Test void publicMentorUsesOnlyOwnedAvatarAndHasNoInventedReviews() throws Exception {
+        String slug="avatar-test-"+id;
+        db.update("INSERT INTO dbo.mentor_profiles(user_id,slug,headline,job_title,biography,years_experience,is_public,approved_by,approved_at) VALUES (?,?,'Test mentor','Engineer',?,2,1,?,SYSUTCDATETIME())",id,slug,"A mentor profile created solely for testing avatar and rating integrity.",id);
+        mvc.perform(get("/api/mentors").param("q",slug)).andExpect(status().isOk());
+        var catalog = new com.happyprogramming.service.MentorCatalog(db);
+        var card=catalog.allMentors().stream().filter(m -> m.id().equals(slug)).findFirst().orElseThrow();
+        assertNull(card.portrait()); assertEquals(0,card.rating()); assertEquals(0,card.reviewCount());
+        mvc.perform(get("/api/mentors/"+slug+"/avatar")).andExpect(status().isNotFound());
+        var output=new ByteArrayOutputStream(); ImageIO.write(new BufferedImage(2,2,BufferedImage.TYPE_INT_RGB),"png",output);
+        mvc.perform(put("/api/profile/me/avatar").with(authentication(principal())).with(csrf()).contentType("application/json").content(json.writeValueAsString(Map.of("base64",Base64.getEncoder().encodeToString(output.toByteArray()))))).andExpect(status().isOk());
+        em.flush(); em.clear();
+        assertEquals("/api/mentors/"+slug+"/avatar",catalog.allMentors().stream().filter(m -> m.id().equals(slug)).findFirst().orElseThrow().portrait());
+        mvc.perform(get("/api/mentors/"+slug+"/avatar")).andExpect(status().isOk()).andExpect(content().contentTypeCompatibleWith("image/png"));
+        db.update("UPDATE dbo.mentor_profiles SET is_public=0 WHERE user_id=?",id);
+        mvc.perform(get("/api/mentors/"+slug+"/avatar")).andExpect(status().isNotFound());
+    }
 }

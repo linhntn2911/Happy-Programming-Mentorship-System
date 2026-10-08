@@ -9,6 +9,7 @@ Authenticated mentees can save public mentors, remove saved mentors, and review 
 - A signed-in mentee can save or remove a mentor from the directory, homepage, or mentor profile.
 - The saved state is restored from the server after refresh and across browsers for the same account.
 - A signed-in mentee can open a Wishlist page showing saved mentors and links to their profiles.
+- A signed-in mentee can search and filter saved mentors by skill, and sort the visible shortlist without changing saved data.
 - Guests receive an actionable sign-in message instead of a local-only save.
 - Mentor ownership, public visibility, and mentee role checks are enforced by the backend.
 
@@ -23,3 +24,4 @@ Wishlist sharing, notifications, recommendations, mentor-side management, and sc
 3. `DELETE /api/wishlists/{mentorSlug}` is idempotent for the authenticated mentee.
 4. Non-mentees and unauthenticated callers cannot mutate or read a wishlist.
 5. The frontend shows loading, empty, error, saved, and removed states without writing wishlist data to browser storage.
+6. Wishlist filters distinguish no matching mentors from an empty wishlist and update after a mentor is removed.

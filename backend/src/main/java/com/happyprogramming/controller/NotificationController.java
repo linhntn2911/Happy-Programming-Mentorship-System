@@ -31,6 +31,14 @@ public class NotificationController {
         return ApiResponse.ok(service.getUserNotifications(userId(auth)));
     }
 
+    @GetMapping("/history")
+    public ApiResponse<?> history(@RequestParam(defaultValue = "0") int page,
+                                  @RequestParam(defaultValue = "10") int size,
+                                  @RequestParam(defaultValue = "false") boolean unreadOnly,
+                                  Authentication auth) {
+        return ApiResponse.ok(service.getHistory(userId(auth), page, size, unreadOnly));
+    }
+
     @PostMapping("/{id}/read")
     public ApiResponse<?> markRead(@PathVariable Long id, Authentication auth) {
         boolean success = service.markAsRead(userId(auth), id);

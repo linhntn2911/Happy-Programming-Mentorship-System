@@ -1,4 +1,5 @@
 import { mentorService } from '../services/mentorService.js';
+import { MentorAvatar } from '../components/mentor/MentorAvatar.js';
 import { BrowseAllMentorsLink } from '../components/ui/BrowseAllMentorsLink.js';
 import { Footer } from '../components/layout/Footer.js';
 import { MentorPricingCard, bindMentorPricingCardEvents } from '../components/mentor/MentorPricingCard.js';
@@ -33,9 +34,6 @@ export function MentorProfilePage() {
       </aside>
       <div class="min-w-0">
 
-  <div id="profile-demo-notice" class="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" role="status" hidden>
-    Development preview: sample profile data is read-only and has not been saved to the backend.
-  </div>
   <div id="profile-loading" class="rounded-xl border border-line bg-white p-6 text-sm text-muted" role="status">
     Loading your profile…
   </div>
@@ -111,7 +109,6 @@ export function initializeMentorProfilePage() {
   const retry = document.querySelector('#profile-retry');
   const saveButton = document.querySelector('#profile-save');
   const success = document.querySelector('#profile-save-status');
-  const demoNotice = document.querySelector('#profile-demo-notice');
   const selectedSkillIds = new Set();
   let availableSkills = [];
   let disposed = false;
@@ -153,7 +150,7 @@ export function initializeMentorProfilePage() {
     }
 
     count.textContent = `${selectedSkillIds.size} selected`;
-    saveButton.disabled = selectedSkillIds.size === 0 || form.dataset.readOnly === 'true';
+    saveButton.disabled = selectedSkillIds.size === 0;
   }
 
   function renderAvailableSkills() {
@@ -198,16 +195,11 @@ export function initializeMentorProfilePage() {
     success.textContent = '';
 
     try {
-      const [profileResult, skillsResult] = await Promise.all([
+      const [profile, skills] = await Promise.all([
         mentorService.getMyProfile(),
         mentorService.getActiveSkills(),
       ]);
       if (disposed) return;
-      const profile = profileResult.data;
-      const skills = skillsResult.data;
-      const readOnly = profileResult.isMock || skillsResult.isMock;
-      demoNotice.hidden = !readOnly;
-      form.dataset.readOnly = String(readOnly);
       form.querySelectorAll('input, textarea, button').forEach(control => {
         control.disabled = false;
       });
@@ -228,11 +220,6 @@ export function initializeMentorProfilePage() {
       document.querySelector('#profile-avatar').textContent = getInitials(displayName);
       renderAvailableSkills();
       updateSelection();
-      if (readOnly) {
-        form.querySelectorAll('input, textarea, button').forEach(control => {
-          control.disabled = true;
-        });
-      }
       form.hidden = false;
     } catch (loadError) {
       if (disposed) return;
@@ -249,10 +236,6 @@ export function initializeMentorProfilePage() {
     event.preventDefault();
     success.textContent = '';
     error.hidden = true;
-    if (form.dataset.readOnly === 'true') {
-      showError('Development sample data is read-only. Start the backend to save profile changes.');
-      return;
-    }
 
     if (!form.reportValidity()) return;
     if (selectedSkillIds.size === 0) {
@@ -285,7 +268,7 @@ export function initializeMentorProfilePage() {
     } finally {
       if (!disposed) {
         saveButton.textContent = 'Save profile';
-        saveButton.disabled = selectedSkillIds.size === 0 || form.dataset.readOnly === 'true';
+        saveButton.disabled = selectedSkillIds.size === 0;
       }
     }
   };
@@ -311,7 +294,7 @@ const layout = body => `${profileHeader()}<main class="profile-page"><div class=
 export function ProfilePage(m) {
   return layout(`<nav class="mb-8 text-xs text-muted" aria-label="Breadcrumb"><a href="#/">Home</a> / <a href="?#/mentors" data-browse-all-mentors>Browse all mentors</a> / <span aria-current="page">${esc(m.name)}</span></nav>
     <div class="profile-columns"><div class="min-w-0">
-      <section class="profile-intro"><img class="profile-photo" src="/images/${esc(m.portrait)}" alt="${esc(m.name)}" width="168" height="184"><div><p class="eyebrow">PROGRAMMING MENTOR</p><h1 class="mt-3 font-display text-4xl sm:text-5xl">${esc(m.name)}</h1><p class="mt-3 text-base">${esc(m.role)}${m.company ? ` at <strong>${esc(m.company)}</strong>` : ''}</p><div class="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted"><span>${esc(m.country)}</span><span>${esc(m.experience)}</span></div><p class="mt-4 text-sm text-brand">${m.acceptingMentees ? 'Accepting new mentees' : 'Not accepting new mentees'}</p><button type="button" class="save-btn profile-save-btn mt-5" data-profile-save data-mentor-id="${esc(m.id)}" aria-pressed="false" aria-label="Save ${esc(m.name)} to wishlist"><svg class="icon h-4 w-4" viewBox="0 0 24 24"><path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg><span>Save to wishlist</span></button></div></section>
+      <section class="profile-intro">${MentorAvatar(m, 'profile-photo', 168)}<div><p class="eyebrow">PROGRAMMING MENTOR</p><h1 class="mt-3 font-display text-4xl sm:text-5xl">${esc(m.name)}</h1><p class="mt-3 text-base">${esc(m.role)}${m.company ? ` at <strong>${esc(m.company)}</strong>` : ''}</p><div class="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted"><span>${esc(m.country)}</span><span>${esc(m.experience)}</span></div><p class="mt-4 text-sm text-brand">${m.acceptingMentees ? 'Accepting new mentees' : 'Not accepting new mentees'}</p><button type="button" class="save-btn profile-save-btn mt-5" data-profile-save data-mentor-id="${esc(m.id)}" aria-pressed="false" aria-label="Save ${esc(m.name)} to wishlist"><svg class="icon h-4 w-4" viewBox="0 0 24 24"><path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg><span>Save to wishlist</span></button></div></section>
       <nav class="profile-nav" aria-label="Profile sections"><a href="#profile-about">About</a><a href="#profile-experience">Experience</a><a href="#profile-skills">Skills</a><a href="#profile-reviews">Reviews</a></nav>
       <section class="profile-block" id="profile-about"><p class="eyebrow">MEET YOUR MENTOR</p><h2 class="mt-2">About ${esc(m.name)}</h2><p class="profile-copy">${esc(m.description)}</p></section>
       <section class="profile-block" id="profile-experience"><h2>Experience</h2><div class="profile-experience"><span class="profile-monogram" aria-hidden="true">${esc(m.initials)}</span><div><h3 class="font-semibold">${esc(m.role)}</h3><p class="mt-1 text-sm text-muted">${esc(m.company)}</p><p class="mt-2 text-sm text-brand">${esc(m.experience)}</p></div></div>${m.languages?.length ? `<p class="mt-5 text-sm text-muted">Languages: ${m.languages.map(esc).join(', ')}</p>` : ''}</section>

@@ -1,10 +1,5 @@
 import { mentorMatchesCategory } from '../constants/mentorDiscovery.js';
 import { apiClient } from './apiClient.js';
-import {
-  developmentActiveSkills,
-  developmentMentorProfile,
-  loadWithDevelopmentFallback,
-} from './mentorDemoData.js';
 
 export const mentorService = {
   async getProfile(id) {
@@ -16,10 +11,7 @@ export const mentorService = {
   },
 
   async getMyProfile() {
-    return loadWithDevelopmentFallback(
-      () => apiClient('/api/mentors/me/profile'),
-      developmentMentorProfile
-    );
+    return apiClient('/api/mentors/me/profile');
   },
 
   async updateMyProfile(profile) {
@@ -40,10 +32,7 @@ export const mentorService = {
   },
 
   async getActiveSkills() {
-    return loadWithDevelopmentFallback(
-      () => apiClient('/api/skills?active=true'),
-      developmentActiveSkills
-    );
+    return apiClient('/api/skills?active=true');
   },
 
   async searchMentors(filters = {}) {

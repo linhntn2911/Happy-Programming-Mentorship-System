@@ -150,7 +150,7 @@ export function ComponentShowcasePage() {
           <p class="text-xs font-semibold text-muted uppercase tracking-wider mb-3">Status Badges</p>
           <div class="flex flex-wrap gap-2.5 items-center">
             ${Badge({ text: 'Active Mentor', variant: 'brand' })}
-            ${Badge({ text: '7-day trial', variant: 'lilac' })}
+            ${Badge({ text: 'Pay after acceptance', variant: 'lilac' })}
             ${Badge({ text: 'Completed', variant: 'gray' })}
             <span class="tag">Java</span>
             <span class="tag">Spring Boot</span>
@@ -199,7 +199,7 @@ export function ComponentShowcasePage() {
     <section aria-labelledby="cards-title">
       <p class="eyebrow">CARDS & PACKAGES</p>
       <h2 id="cards-title" class="section-title mt-2">Mentor Card & Pricing Plans</h2>
-      <p class="section-copy mt-2 max-w-2xl">Interactive cards for mentor discovery and monthly mentorship tiers (Lite, Standard, Pro) with free trial, call scheduling and one-off session options.</p>
+      <p class="section-copy mt-2 max-w-2xl">Interactive cards for mentor discovery and monthly mentorship tiers (Lite, Standard, Pro) with call scheduling and one-off session options.</p>
       <div class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
         <div>
           <h3 class="text-sm font-bold uppercase tracking-wider text-muted mb-4">Catalog Mentor Card</h3>

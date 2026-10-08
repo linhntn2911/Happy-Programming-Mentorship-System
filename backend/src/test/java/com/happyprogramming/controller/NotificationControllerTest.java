@@ -87,4 +87,32 @@ class NotificationControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.unreadCount").value(0));
     }
+
+    @Test
+    void historyPaginatesBeyondBellLimitAndFiltersUnreadForCurrentUser() throws Exception {
+        for (int i = 0; i < 55; i++) notificationService.create(userId, "Notice " + i, "Message", "TEST", "#/account");
+        String otherEmail = "notify-other-" + UUID.randomUUID() + "@example.invalid";
+        db.update("INSERT INTO dbo.users(email, full_name, role_code, status) VALUES (?, 'Other User', 'MENTEE', 'ACTIVE')", otherEmail);
+        Long otherId = db.queryForObject("SELECT id FROM dbo.users WHERE email=?", Long.class, otherEmail);
+        notificationService.create(otherId, "Private notice", "Private", "TEST", null);
+        em.flush();
+        em.clear();
+
+        mvc.perform(get("/api/notifications/history?page=5&size=10").with(authentication(principal())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.totalElements").value(55))
+            .andExpect(jsonPath("$.data.totalPages").value(6))
+            .andExpect(jsonPath("$.data.notifications", hasSize(5)));
+
+        Long firstId = db.queryForObject("SELECT TOP 1 id FROM dbo.notifications WHERE user_id=? ORDER BY id DESC", Long.class, userId);
+        mvc.perform(post("/api/notifications/" + firstId + "/read").with(authentication(principal())).with(csrf()))
+            .andExpect(status().isOk());
+        mvc.perform(get("/api/notifications/history?unreadOnly=true&size=10").with(authentication(principal())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.unreadCount").value(54))
+            .andExpect(jsonPath("$.data.totalElements").value(54))
+            .andExpect(jsonPath("$.data.notifications", hasSize(10)));
+        mvc.perform(get("/api/notifications/history?page=-1").with(authentication(principal())))
+            .andExpect(status().isBadRequest());
+    }
 }

@@ -2,7 +2,7 @@ import { authService } from '../services/authService.js';
 import { profileService } from '../services/profileService.js';
 import { TextInput } from '../components/ui/Input.js';
 import { BrowseAllMentorsLink } from '../components/ui/BrowseAllMentorsLink.js';
-import { renderUserDropdown, bindUserDropdown, getInitials, renderNotificationBell } from '../components/layout/Header.js';
+import { renderUserDropdown, bindUserDropdown, refreshUserMenuAvatar, getInitials, renderNotificationBell } from '../components/layout/Header.js';
 
 const fields = ['firstName', 'lastName', 'bio', 'experienceLevel', 'learningGoals', 'githubUrl', 'portfolioUrl'];
 const controlClass = 'w-full rounded-lg border border-line bg-white px-3.5 py-2.5 text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20';
@@ -65,7 +65,8 @@ export async function mountAccount(root) {
     avatar.textContent = getInitials(name);
     if (saved.hasAvatar) {
       const img = new Image(); img.alt = 'Your profile photo'; img.className = 'h-full w-full object-cover';
-      img.onload = () => { if (avatar.isConnected) avatar.replaceChildren(img); };
+      img.onload = () => { if (avatar.isConnected && saved.hasAvatar) avatar.replaceChildren(img); };
+      img.onerror = () => { if (avatar.isConnected) photoFeedback.textContent = 'Your photo could not be loaded. Please refresh or upload it again.'; };
       img.src = `/api/profile/me/avatar?v=${Date.now()}`;
     }
     remove.disabled = !saved.hasAvatar;
@@ -91,6 +92,7 @@ export async function mountAccount(root) {
         trigger.setAttribute('aria-label', `User menu for ${user.name}`);
         const spans = trigger.querySelectorAll('span'); spans[0].textContent = getInitials(user.name); spans[1].textContent = user.name;
       });
+      await refreshUserMenuAvatar(root);
       feedback.textContent = 'Your profile has been saved.';
     } catch (error) { if (form.isConnected) feedback.textContent = error.message; }
     finally { setBusy(false); save.textContent = 'Save changes'; }
@@ -101,6 +103,7 @@ export async function mountAccount(root) {
       const result = await action();
       if (!form.isConnected) return;
       saved.hasAvatar = result.hasAvatar; renderIdentity(); photoFeedback.textContent = 'Profile photo updated.';
+      await refreshUserMenuAvatar(root);
     } catch (error) { if (form.isConnected) photoFeedback.textContent = error.message; }
     finally { fileInput.value = ''; setBusy(false); }
   };

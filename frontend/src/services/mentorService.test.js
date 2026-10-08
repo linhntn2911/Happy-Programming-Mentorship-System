@@ -25,9 +25,8 @@ test('mentor profile and active-skill requests use the matching backend routes',
       '/api/mentors/me/profile',
       '/api/skills?active=true',
     ]);
-    assert.equal(profile.data.userId, 42);
-    assert.equal(skills.data[0].name, 'Java');
-    assert.equal(profile.isMock || skills.isMock, false);
+    assert.equal(profile.userId, 42);
+    assert.equal(skills[0].name, 'Java');
   } finally {
     globalThis.fetch = originalFetch;
   }

@@ -1,3 +1,4 @@
+import { MentorAvatar } from './MentorAvatar.js';
 export function MentorCard(mentor) {
   const skillsHtml = mentor.skills
     ? mentor.skills.map(s => `<span class="tag">${s}</span>`).join('')
@@ -6,7 +7,7 @@ export function MentorCard(mentor) {
   return `
 <article class="mentor-card" data-id="${mentor.id}" data-name="${mentor.name}" data-skills="${(mentor.skills || []).join(', ')}" data-specialty="${mentor.specialty}" data-role="${mentor.role}">
   <div class="flex items-start gap-4">
-    <img src="/images/${mentor.portrait}" alt="${mentor.name}" width="56" height="56" class="h-14 w-14 rounded-full object-cover bg-lilac">
+    ${MentorAvatar(mentor, '', 56)}
     <div class="min-w-0 flex-1">
       <h3 class="font-display text-lg font-semibold truncate">${mentor.name}</h3>
       <p class="text-[11px] text-muted truncate">${mentor.role}</p>

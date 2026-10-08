@@ -56,7 +56,7 @@ export const staffService = {
           { id: 'MA-018', type: 'APPLICATION', title: 'Mentor Application #MA-018', description: 'Nguyen Van A submitted PDF CV for Java & Spring Boot track', status: 'PENDING', timeAgo: '10 mins ago' },
           { id: 'RQ-0301', type: 'REQUEST', title: 'Mentorship Request #RQ-0301', description: 'Pham Minh Khoa applied for Monthly Mentorship with Minh An Nguyen', status: 'ACCEPTED', timeAgo: '25 mins ago' },
           { id: 'SK-012', type: 'SKILL', title: 'Skill Catalog Updated', description: 'Spring Boot 3 set to ACTIVE by Staff', status: 'ACTIVE', timeAgo: '1 hour ago' },
-          { id: 'SR-104', type: 'SUPPORT', title: 'Support Ticket #SR-104', description: 'Escrow refund inquiry processed under 7-day trial policy', status: 'RESOLVED', timeAgo: '2 hours ago' },
+          { id: 'SR-104', type: 'SUPPORT', title: 'Support Ticket #SR-104', description: 'Escrow refund inquiry processed under the monthly cancellation policy', status: 'RESOLVED', timeAgo: '2 hours ago' },
           { id: 'MA-017', type: 'APPLICATION', title: 'Mentor Application #MA-017', description: 'Tran Thi B approved for Frontend React track', status: 'APPROVED', timeAgo: '4 hours ago' }
         ]
       };
