@@ -170,13 +170,13 @@ Frontend rules:
 - New pages and components must reuse the current buttons, inputs, cards, badges, spacing, borders, radii, shadows, and states so the interface remains visually synchronized across homepage, directory, profile, and future modules.
 - When a new visual treatment is genuinely needed, add it to the shared design system and component showcase before using it in a feature page.
 
-### Shared Admin and Staff workspace UI
+### Shared Admin, Staff, and Mentor workspace UI
 
 Admin and Staff workspaces share a single unified presentation system (`frontend/src/styles/admin.css`):
 
 1. **Layout Shell**:
    - Use the 2-column grid `.admin-shell`: a fixed 246px navigation rail (`.admin-sidebar`), 83px top bar (`.admin-topbar`), and 36px content gutters (`.admin-content`).
-   - Navigation rail must include the brand logo `{h} HappyProgramming`, an uppercase eyebrow (`ADMIN WORKSPACE` or `STAFF WORKSPACE`), navigation links (`.admin-nav-link` with inline SVG icon and `aria-current="page"`), a bottom note card (`.admin-sidebar-note`), and a "Back to website" link.
+   - Navigation rail must include the brand logo `{h} HappyProgramming`, an uppercase eyebrow (`ADMIN WORKSPACE`, `STAFF WORKSPACE`, or `MENTOR WORKSPACE`), navigation links (`.admin-nav-link` with inline SVG icon and `aria-current="page"`), a bottom note card (`.admin-sidebar-note`), and a "Back to website" link.
    - Top bar must provide a left-aligned breadcrumb (`Workspace / [Section]`), a right-aligned profile pill (`.admin-profile` with `.admin-avatar`, user name, role subtext), and an explicit Sign out button (`.btn.btn-outline.btn-sm`).
 
 2. **Typography**:
@@ -198,7 +198,7 @@ Admin and Staff workspaces share a single unified presentation system (`frontend
    - Status Badges: Restrained colored pills (`.status-badge.status-[success|warning|danger|neutral]`) with bullet dot `●`. Never use emoji icons in status badges, tables, or buttons.
    - Modals & Dialogs: Native `<dialog class="modal">` with `.modal-close`, eyebrow, Georgia display title, clean form fields, and `.admin-actions`.
 
-Both roles must adhere strictly to these shared workspace rules while preserving role-specific permissions, API contracts, and operational workflows.
+Admin, Staff, and all Mentor workspace pages (Dashboard, Profile, Availability, Packages) must adhere to these shared workspace rules while preserving role-specific permissions, API contracts, and operational workflows. Public mentor profiles retain the website layout.
 
 ## Design System
 

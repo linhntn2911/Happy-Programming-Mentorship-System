@@ -1,32 +1,19 @@
 import { mentorService } from '../services/mentorService.js';
+import { MentorLayout, bindMentorLayout } from '../components/layout/MentorLayout.js';
 import { MentorAvatar } from '../components/mentor/MentorAvatar.js';
 import { BrowseAllMentorsLink } from '../components/ui/BrowseAllMentorsLink.js';
 import { Footer } from '../components/layout/Footer.js';
 import { MentorPricingCard, bindMentorPricingCardEvents } from '../components/mentor/MentorPricingCard.js';
 import { wishlistService } from '../services/wishlistService.js';
 import { authService } from '../services/authService.js';
-import { bindUserDropdown, getInitials, renderUserDropdown, renderNotificationBell } from '../components/layout/Header.js';
-
-function mentorProfileHeader() {
-  const user = authService.getCurrentUser();
-  const displayName = user?.name || user?.email || '';
-  const accountNavigation = user
-    ? `<div class="flex items-center gap-3">${renderNotificationBell()}${renderUserDropdown({ currentUser: user, displayName, initials: getInitials(displayName) })}</div>`
-    : '<a href="#/login" class="btn btn-outline btn-sm">Log in</a>';
-
-  return `<header class="directory-header"><div class="container flex h-[76px] items-center justify-between gap-4"><a href="#/" class="flex shrink-0 items-center gap-2.5" aria-label="HappyProgramming home"><span class="grid h-9 w-9 place-items-center rounded-[10px] bg-brand font-mono text-xl font-bold text-white">{h}</span><span class="text-[16px] font-semibold tracking-tight text-ink">Happy<span class="text-brand">Programming</span></span></a><nav class="flex items-center gap-6" aria-label="Main navigation">${BrowseAllMentorsLink()}${accountNavigation}</nav></div></header>`;
-}
+import { bindUserDropdown, getInitials, renderUserDropdown } from '../components/layout/Header.js';
 
 export function MentorProfilePage() {
-  return `${mentorProfileHeader()}
-<main class="min-h-screen bg-cream">
-  <div class="container max-w-5xl py-12">
-    <p class="eyebrow">MENTOR SPACE</p>
-    <h1 class="mt-3 font-display text-4xl text-ink">Your mentor profile</h1>
-    <p class="mt-3 text-sm text-muted">Keep your background and teaching skills up to date for mentees.</p>
+  return MentorLayout(`
+    <div class="admin-page-heading"><div><p class="eyebrow mb-3">HAPPYPROGRAMMING MENTOR</p><h1>Your mentor profile</h1><p>Keep your background and teaching skills up to date for mentees.</p></div></div>
 
-    <div class="mt-8 grid items-start gap-7 lg:grid-cols-[260px_minmax(0,1fr)]">
-      <aside class="rounded-2xl border border-line bg-white p-6 shadow-sm">
+    <div class="grid items-start gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
+      <aside class="admin-panel p-6">
         <div id="profile-avatar" class="mx-auto grid h-28 w-28 place-items-center overflow-hidden rounded-full bg-lilac text-3xl font-semibold text-brand" aria-hidden="true">M</div>
         <h2 id="profile-display-name" class="mt-4 break-words text-center font-semibold text-ink">Mentor profile</h2>
         <p class="mt-1 text-center text-xs text-muted">Mentor account</p>
@@ -42,7 +29,7 @@ export function MentorProfilePage() {
   <p id="profile-save-status" class="mb-5 text-sm font-medium text-brand" role="status" aria-live="polite"></p>
 
   <form id="mentor-profile-form" class="space-y-6" hidden novalidate>
-    <section class="rounded-2xl border border-line bg-white p-5 shadow-sm sm:p-8" aria-labelledby="profile-details-title">
+    <section class="admin-panel p-5 sm:p-8" aria-labelledby="profile-details-title">
       <h2 id="profile-details-title" class="text-lg font-semibold text-ink">Profile details</h2>
       <div class="mt-6 grid gap-5 sm:grid-cols-2">
         <div class="space-y-1.5 sm:col-span-2">
@@ -74,7 +61,7 @@ export function MentorProfilePage() {
       </div>
     </section>
 
-    <section class="rounded-2xl border border-line bg-white p-5 shadow-sm sm:p-8" aria-labelledby="profile-skills-title">
+    <section class="admin-panel p-5 sm:p-8" aria-labelledby="profile-skills-title">
       <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 id="profile-skills-title" class="text-lg font-semibold text-ink">Teaching skills</h2>
@@ -97,8 +84,7 @@ export function MentorProfilePage() {
   </form>
       </div>
     </div>
-  </div>
-</main>${Footer()}`;
+  `, authService.getCurrentUser(), 'profile');
 }
 
 export function initializeMentorProfilePage() {
@@ -114,7 +100,7 @@ export function initializeMentorProfilePage() {
   let disposed = false;
 
   if (!form) return;
-  bindUserDropdown(pageRoot);
+  const unbindLayout = bindMentorLayout(pageRoot);
 
   function showError(message) {
     error.textContent = message;
@@ -279,6 +265,7 @@ export function initializeMentorProfilePage() {
 
   return () => {
     disposed = true;
+    unbindLayout();
     retry.removeEventListener('click', handleRetry);
     form.removeEventListener('submit', handleSubmit);
   };

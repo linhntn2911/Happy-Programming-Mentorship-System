@@ -512,7 +512,7 @@ function router() {
     window.scrollTo({ top: 0, behavior: 'instant' });
     cleanupCurrentPage = initializeMentorDashboardPage();
   } else if (hash === '#/mentor/availability' || hash === '#/mentor/packages') {
-    mountMentorWorkspacePage(appEl, hash === '#/mentor/packages' ? 'packages' : 'availability');
+    cleanupCurrentPage = mountMentorWorkspacePage(appEl, hash === '#/mentor/packages' ? 'packages' : 'availability');
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else {
     renderApp(currentMentors);

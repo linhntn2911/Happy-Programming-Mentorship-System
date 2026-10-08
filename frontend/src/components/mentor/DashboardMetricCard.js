@@ -1,3 +1,5 @@
+import { adminIcon } from '../layout/AdminLayout.js';
+
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, character => ({
     '&': '&amp;',
@@ -9,13 +11,16 @@ function escapeHtml(value) {
 }
 
 export function DashboardMetricCard({ label, value, description, icon }) {
+  const iconMarkup = ['overview', 'users', 'staff', 'revenue', 'settings', 'audit'].includes(icon)
+    ? adminIcon(icon)
+    : escapeHtml(icon);
   return `
-<article class="rounded-2xl border border-line bg-white p-5 shadow-sm sm:p-6">
-  <div class="flex items-start justify-between gap-3">
-    <p class="text-sm font-medium text-muted">${escapeHtml(label)}</p>
-    <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-lilac text-brand" aria-hidden="true">${escapeHtml(icon)}</span>
+<article class="stat-card">
+  <div class="stat-label">
+    <p>${escapeHtml(label)}</p>
+    <span aria-hidden="true">${iconMarkup}</span>
   </div>
-  <p class="mt-4 break-words text-2xl font-bold tracking-tight text-ink sm:text-3xl">${escapeHtml(value)}</p>
-  <p class="mt-2 text-xs leading-5 text-muted">${escapeHtml(description)}</p>
+  <p class="stat-value">${escapeHtml(value)}</p>
+  <p class="stat-note">${escapeHtml(description)}</p>
 </article>`;
 }

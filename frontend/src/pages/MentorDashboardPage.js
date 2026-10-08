@@ -1,4 +1,6 @@
 import { DashboardMetricCard } from '../components/mentor/DashboardMetricCard.js';
+import { MentorLayout, bindMentorLayout } from '../components/layout/MentorLayout.js';
+import { authService } from '../services/authService.js';
 import { mentorDashboardService } from '../services/mentorDashboardService.js';
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
@@ -41,77 +43,74 @@ export function summarizeLearningGoals(value) {
 }
 
 export function MentorDashboardPage() {
-  return `
-<main id="mentor-dashboard" class="container max-w-7xl py-8 sm:py-12">
-  <nav class="mb-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm" aria-label="Mentor navigation">
-    <a href="#/" class="font-medium text-brand underline-offset-4 hover:underline">← Home</a>
-    <a href="#/mentor/profile" class="font-medium text-brand underline-offset-4 hover:underline">Edit profile</a>
-    <a href="#/mentor/availability" class="font-medium text-brand underline-offset-4 hover:underline">Availability</a>
-    <a href="#/mentor/packages" class="font-medium text-brand underline-offset-4 hover:underline">Packages</a>
-  </nav>
-  <header class="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+  return MentorLayout(`
+  <div class="admin-page-heading">
     <div>
-      <p class="eyebrow">MENTOR SPACE</p>
-      <h1 class="section-title mt-2">Mentor dashboard</h1>
-      <p class="section-copy mt-3">Review your earnings, incoming requests, and mentorship updates.</p>
+      <p class="eyebrow mb-3">HAPPYPROGRAMMING MENTOR</p>
+      <h1>Mentor dashboard</h1>
+      <p>Review your earnings, incoming requests, and mentorship updates.</p>
     </div>
-    <a href="#/mentor/profile" class="btn btn-outline self-start sm:self-auto">Edit mentor profile</a>
-  </header>
+    <a href="#/mentor/profile" class="btn btn-primary">Edit mentor profile</a>
+  </div>
 
-  <div id="dashboard-loading" class="rounded-xl border border-line bg-white p-6 text-sm text-muted" role="status">
+  <div id="dashboard-loading" class="admin-panel admin-panel-body text-sm text-muted" role="status">
     Loading your dashboard…
   </div>
-  <div id="dashboard-error" class="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert" hidden></div>
+  <div id="dashboard-error" class="admin-notice notice-error mb-5" role="alert" hidden></div>
   <button id="dashboard-retry" class="btn btn-outline mb-5" type="button" hidden>Try again</button>
   <p id="dashboard-action-status" class="mb-5 text-sm font-medium text-brand" role="status" aria-live="polite"></p>
 
-  <div id="dashboard-content" class="space-y-9" hidden>
+  <div id="dashboard-content" hidden>
     <section aria-labelledby="dashboard-summary-title">
       <h2 id="dashboard-summary-title" class="sr-only">Summary</h2>
-      <div id="dashboard-metrics" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"></div>
+      <div id="dashboard-metrics" class="admin-stats"></div>
     </section>
 
-    <section aria-labelledby="dashboard-requests-title">
-      <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
+    <section class="admin-panel mb-6" aria-labelledby="dashboard-requests-title">
+      <div class="admin-panel-heading">
         <div>
-          <p class="eyebrow">NEEDS YOUR ATTENTION</p>
-          <h2 id="dashboard-requests-title" class="mt-2 text-xl font-semibold text-ink">Incoming mentorship requests</h2>
+          <p class="eyebrow mb-2">NEEDS YOUR ATTENTION</p>
+          <h2 id="dashboard-requests-title">Incoming mentorship requests</h2>
+          <p>Review applications and respond within 48 hours.</p>
         </div>
-        <p class="text-sm text-muted">Respond within 48 hours.</p>
+        <span class="status-badge status-neutral">48-hour SLA</span>
       </div>
-      <div id="dashboard-requests-empty" class="rounded-2xl border border-line bg-white p-6 text-sm text-muted" hidden>
+      <div id="dashboard-requests-empty" class="admin-panel-body text-sm text-muted" hidden>
         No pending mentorship requests right now.
       </div>
-      <div class="hidden overflow-x-auto rounded-2xl border border-line bg-white md:block">
-        <table class="w-full min-w-[760px] border-collapse text-left text-sm">
-          <thead class="bg-lilac/60 text-xs uppercase tracking-wide text-muted">
+      <div class="data-table-scroll hidden md:block">
+        <table class="data-table min-w-[760px]">
+          <thead>
             <tr>
-              <th scope="col" class="px-4 py-3">Mentee Name</th>
-              <th scope="col" class="px-4 py-3">Package</th>
-              <th scope="col" class="px-4 py-3">Learning Goals Summary</th>
-              <th scope="col" class="px-4 py-3">SLA Timer</th>
-              <th scope="col" class="px-4 py-3">Actions</th>
+              <th scope="col">Mentee name</th>
+              <th scope="col">Package</th>
+              <th scope="col">Learning goals summary</th>
+              <th scope="col">SLA timer</th>
+              <th scope="col">Actions</th>
             </tr>
           </thead>
           <tbody id="dashboard-request-rows" class="divide-y divide-line"></tbody>
         </table>
       </div>
-      <div id="dashboard-request-cards" class="grid gap-3 md:hidden"></div>
+      <div id="dashboard-request-cards" class="grid gap-3 p-4 md:hidden"></div>
     </section>
 
-    <section aria-labelledby="dashboard-notices-title">
-      <div class="mb-4">
-        <p class="eyebrow">SYSTEM UPDATES</p>
-        <h2 id="dashboard-notices-title" class="mt-2 text-xl font-semibold text-ink">Cancellations and refunds</h2>
+    <section class="admin-panel" aria-labelledby="dashboard-notices-title">
+      <div class="admin-panel-heading">
+        <div>
+          <p class="eyebrow mb-2">SYSTEM UPDATES</p>
+          <h2 id="dashboard-notices-title">Cancellations and refunds</h2>
+          <p>Recent changes to your mentorships and payments.</p>
+        </div>
       </div>
-      <div id="dashboard-notices-empty" class="rounded-2xl border border-line bg-white p-6 text-sm text-muted" hidden>
+      <div id="dashboard-notices-empty" class="admin-panel-body text-sm text-muted" hidden>
         No recent cancellation or refund updates.
       </div>
-      <ul id="dashboard-notices" class="space-y-3"></ul>
+      <ul id="dashboard-notices" class="admin-panel-body space-y-3"></ul>
     </section>
   </div>
 
-  <dialog id="dashboard-request-dialog" class="w-[min(92vw,38rem)] rounded-2xl border border-line bg-white p-0 text-ink shadow-xl backdrop:bg-ink/40" aria-labelledby="dashboard-dialog-title">
+  <dialog id="dashboard-request-dialog" class="modal w-[min(92vw,38rem)] rounded-2xl border border-line bg-white p-0 text-ink shadow-xl backdrop:bg-ink/40" aria-labelledby="dashboard-dialog-title">
     <div class="flex items-start justify-between gap-4 border-b border-line p-5 sm:p-6">
       <div>
         <p class="eyebrow">REQUEST DETAILS</p>
@@ -127,7 +126,7 @@ export function MentorDashboardPage() {
       <div><dt class="text-xs font-semibold uppercase tracking-wide text-muted">Response deadline (UTC)</dt><dd id="dashboard-dialog-deadline" class="mt-1 text-sm"></dd></div>
     </dl>
   </dialog>
-</main>`;
+`, authService.getCurrentUser());
 }
 
 function createActionButton(label, action, requestId, variant, disabled = false) {
@@ -284,19 +283,25 @@ function renderDashboardMetrics(summary) {
       label: 'Net earnings',
       value: formatVnd(summary.netEarnings),
       description: 'Lifetime after successful refunds and payment commission.',
-      icon: '₫',
+      icon: 'revenue',
     }),
     DashboardMetricCard({
       label: 'Pending invitations',
       value: String(Number(summary.pendingInvitations)),
       description: 'Requests waiting for a decision within the 48-hour SLA.',
-      icon: '⌛',
+      icon: 'audit',
     }),
     DashboardMetricCard({
       label: 'Average rating',
       value: ratingValue,
       description: `${Number(summary.reviewCount)} published review${Number(summary.reviewCount) === 1 ? '' : 's'}.`,
-      icon: '★',
+      icon: 'staff',
+    }),
+    DashboardMetricCard({
+      label: 'Published reviews',
+      value: String(Number(summary.reviewCount)),
+      description: 'Reviews included in your average rating.',
+      icon: 'users',
     }),
   ];
   document.querySelector('#dashboard-metrics').innerHTML = cards.join('');
@@ -322,6 +327,7 @@ export function initializeMentorDashboardPage() {
   const requestsById = new Map();
   const busyRequestIds = new Set();
   let disposed = false;
+  const unbindLayout = bindMentorLayout(root);
 
   function updateSlaTimers() {
     for (const timer of root.querySelectorAll('[data-sla-id]')) {
@@ -447,6 +453,7 @@ export function initializeMentorDashboardPage() {
 
   return () => {
     disposed = true;
+    unbindLayout();
     window.clearInterval(timer);
     root.removeEventListener('click', handleActionClick);
   };

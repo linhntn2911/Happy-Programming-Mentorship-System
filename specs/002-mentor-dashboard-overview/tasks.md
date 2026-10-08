@@ -1,5 +1,10 @@
 # Tasks: Mentor Dashboard Overview
 
+## Dashboard visual alignment follow-up
+
+- [X] Reuse the Admin/Staff shell and shared metric/panel styles for the mentor dashboard without changing its API calls, request decisions, SLA timer, or notices.
+- [X] Run the frontend test suite and production build after the layout change.
+
 **Input**: Design documents from `/specs/002-mentor-dashboard-overview/`
 
 **Prerequisites**: [plan.md](./plan.md), [spec.md](./spec.md), [research.md](./research.md), [data-model.md](./data-model.md), [API contract](./contracts/mentor-dashboard-api.md), [quickstart.md](./quickstart.md)

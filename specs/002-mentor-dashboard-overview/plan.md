@@ -116,6 +116,8 @@ frontend/src/
 
 ## Verification Plan
 
+The dashboard visual alignment reuses `frontend/src/styles/admin.css` through a Mentor layout component. Existing dashboard element IDs and event handlers remain intact, so API calls and request decisions do not change. Verify the frontend test suite and production build after changing the shell.
+
 1. Run focused backend tests for mentor dashboard business logic and HTTP contracts using mocked repositories; verify failure, cross-owner, deadline, idempotency, summary, notice, and response-envelope cases.
 2. Run SQL Server-gated repository/transition checks when the required local SQL Server, `DB_PASSWORD`, and active `HPMS_MENTOR_TEST_USER_ID` are configured.
 3. Run `mvn -f backend/pom.xml test` when datasource requirements permit; do not report database-backed behavior verified if those tests are skipped.
