@@ -114,6 +114,7 @@ const INITIAL_MENTORS = [
 let currentMentors = [...INITIAL_MENTORS];
 const appEl = document.querySelector('#app');
 let cleanupCurrentPage = () => {};
+let directoryRenderToken = 0;
 
 function openMentorDirectory(keyword = '') {
   const url = new URL(window.location.href);
@@ -123,18 +124,6 @@ function openMentorDirectory(keyword = '') {
   history.pushState(null, '', `${url.pathname}${url.search}#/mentors`);
   router();
 }
-
-const toDirectoryMentor = (mentor, index) => ({
-  company: ['FPT Software', 'NashTech', 'VNG', 'Grab', 'KMS Technology', 'Tiki'][index] || 'Technology company',
-  languages: ['Vietnamese', 'English'],
-  country: index === 3 ? 'Singapore' : index === 4 ? 'United States' : 'Vietnam',
-  yearsExperience: Number.parseInt(mentor.experience, 10) || 5,
-  monthlyPrice: Number(String(mentor.monthly).replaceAll(',', '')) || 0,
-  rating: [4.9, 4.8, 5, 4.7, 4.9, 4.6][index] || 4.8,
-  reviewCount: [38, 24, 31, 19, 27, 16][index] || 12,
-  acceptingMentees: index !== 3,
-  ...mentor
-});
 
 function renderApp(mentors) {
   currentMentors = mentors;
@@ -496,9 +485,7 @@ function router() {
       minRating: params.get('minRating') || '', available: params.get('available') || '',
       sort: params.get('sort') || 'recommended'
     };
-    appEl.innerHTML = MentorSearchPage(currentMentors.map(toDirectoryMentor), initialFilters);
-    initMentorDirectory();
-    window.scrollTo({ top: 0, behavior: 'instant' });
+    void mountMentorDirectory(initialFilters);
   } else if (hash === '#/mentor/profile') {
     appEl.innerHTML = MentorProfilePage();
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -513,6 +500,36 @@ function router() {
   } else {
     renderApp(currentMentors);
   }
+}
+
+async function mountMentorDirectory(initialFilters) {
+  const token = ++directoryRenderToken;
+  appEl.innerHTML = MentorSearchPage([], initialFilters);
+  const loadingEl = document.querySelector('#directory-loading');
+  if (loadingEl) loadingEl.hidden = false;
+  window.scrollTo({ top: 0, behavior: 'instant' });
+
+  let mentors = [];
+  let failed = false;
+  try {
+    const result = await mentorService.getFeaturedMentors();
+    mentors = Array.isArray(result) ? result : [];
+  } catch (error) {
+    failed = true;
+  }
+  if (token !== directoryRenderToken) return;
+
+  if (!failed) currentMentors = mentors;
+  appEl.innerHTML = MentorSearchPage(mentors, initialFilters);
+  if (failed) {
+    const emptyEl = document.querySelector('#directory-empty');
+    const errorEl = document.querySelector('#directory-error');
+    const countEl = document.querySelector('#result-count');
+    if (emptyEl) emptyEl.hidden = true;
+    if (errorEl) errorEl.hidden = false;
+    if (countEl) countEl.textContent = 'Mentor search unavailable';
+  }
+  initMentorDirectory();
 }
 
 function initMentorDirectory() {
@@ -724,11 +741,10 @@ mentorService
     ].some(prefix => hash.startsWith(prefix));
 
     if (routeIsMountedIndependently) return;
-    if (hash.startsWith('#/mentors')) {
-      router();
-    } else {
-      renderApp(currentMentors);
-    }
+    // The directory route loads its own catalog via mountMentorDirectory; only
+    // the homepage needs a re-render from the freshly hydrated currentMentors.
+    if (hash.startsWith('#/mentors')) return;
+    renderApp(currentMentors);
   })
   .catch(err => {
     console.info('Using local catalog (backend API unreachable or offline):', err.message);
