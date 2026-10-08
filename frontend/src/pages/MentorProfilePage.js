@@ -33,9 +33,6 @@ export function MentorProfilePage() {
       </aside>
       <div class="min-w-0">
 
-  <div id="profile-demo-notice" class="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" role="status" hidden>
-    Development preview: sample profile data is read-only and has not been saved to the backend.
-  </div>
   <div id="profile-loading" class="rounded-xl border border-line bg-white p-6 text-sm text-muted" role="status">
     Loading your profile…
   </div>
@@ -111,7 +108,6 @@ export function initializeMentorProfilePage() {
   const retry = document.querySelector('#profile-retry');
   const saveButton = document.querySelector('#profile-save');
   const success = document.querySelector('#profile-save-status');
-  const demoNotice = document.querySelector('#profile-demo-notice');
   const selectedSkillIds = new Set();
   let availableSkills = [];
   let disposed = false;
@@ -153,7 +149,7 @@ export function initializeMentorProfilePage() {
     }
 
     count.textContent = `${selectedSkillIds.size} selected`;
-    saveButton.disabled = selectedSkillIds.size === 0 || form.dataset.readOnly === 'true';
+    saveButton.disabled = selectedSkillIds.size === 0;
   }
 
   function renderAvailableSkills() {
@@ -198,16 +194,11 @@ export function initializeMentorProfilePage() {
     success.textContent = '';
 
     try {
-      const [profileResult, skillsResult] = await Promise.all([
+      const [profile, skills] = await Promise.all([
         mentorService.getMyProfile(),
         mentorService.getActiveSkills(),
       ]);
       if (disposed) return;
-      const profile = profileResult.data;
-      const skills = skillsResult.data;
-      const readOnly = profileResult.isMock || skillsResult.isMock;
-      demoNotice.hidden = !readOnly;
-      form.dataset.readOnly = String(readOnly);
       form.querySelectorAll('input, textarea, button').forEach(control => {
         control.disabled = false;
       });
@@ -228,11 +219,6 @@ export function initializeMentorProfilePage() {
       document.querySelector('#profile-avatar').textContent = getInitials(displayName);
       renderAvailableSkills();
       updateSelection();
-      if (readOnly) {
-        form.querySelectorAll('input, textarea, button').forEach(control => {
-          control.disabled = true;
-        });
-      }
       form.hidden = false;
     } catch (loadError) {
       if (disposed) return;
@@ -249,10 +235,6 @@ export function initializeMentorProfilePage() {
     event.preventDefault();
     success.textContent = '';
     error.hidden = true;
-    if (form.dataset.readOnly === 'true') {
-      showError('Development sample data is read-only. Start the backend to save profile changes.');
-      return;
-    }
 
     if (!form.reportValidity()) return;
     if (selectedSkillIds.size === 0) {
@@ -285,7 +267,7 @@ export function initializeMentorProfilePage() {
     } finally {
       if (!disposed) {
         saveButton.textContent = 'Save profile';
-        saveButton.disabled = selectedSkillIds.size === 0 || form.dataset.readOnly === 'true';
+        saveButton.disabled = selectedSkillIds.size === 0;
       }
     }
   };
