@@ -32,7 +32,7 @@ export function renderUserDropdown({ currentUser, displayName, initials, isMobil
         ${currentUser?.roles?.includes('MENTEE') || currentUser?.role === 'MENTEE' ? '<a href="#/account" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">My profile</a>' : ''}
         <a href="#/apply/mentor" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Mentor application</a>
         <a href="#/wishlist" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Wishlist</a>
-        ${currentUser?.roles?.some(role => ['STAFF','ADMIN'].includes(role)) ? '<a href="#/staff/mentor-applications" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Review applications</a>' : ''}
+        ${currentUser?.roles?.some(role => ['STAFF','ADMIN'].includes(role)) || ['STAFF','ADMIN'].includes(currentUser?.role) ? '<a href="#/staff/dashboard" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Staff Dashboard</a>' : ''}
         <button type="button" class="user-logout-btn flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer text-left" role="menuitem">
           <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>

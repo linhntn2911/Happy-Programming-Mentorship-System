@@ -82,7 +82,7 @@ export function mountLogin(root) {
       if (form.isConnected) {
         const userRole = result?.role || result?.role_code || (result?.roles && result.roles[0]);
         if (['STAFF', 'ADMIN'].includes(userRole)) {
-          location.hash = '#/staff/mentor-applications';
+          location.hash = '#/staff/dashboard';
         } else if (result?.mentorVerificationRequired) {
           location.hash = '#/apply/mentor';
         } else {

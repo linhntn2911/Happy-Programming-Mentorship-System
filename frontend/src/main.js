@@ -3,7 +3,12 @@ import { mountLogin } from './pages/LoginPage.js';
 import { mountMenteeSignup } from './pages/MenteeSignupPage.js';
 import { mountAccount } from './pages/AccountPage.js';
 import { mountMentorApplication } from './pages/MentorApplicationPage.js';
-import { mountStaffMentorApplications } from './pages/StaffMentorApplicationsPage.js';
+import {
+  mountStaffDashboard,
+  mountStaffApplications,
+  mountStaffMentors,
+  mountStaffMentees
+} from './pages/StaffPortal.js';
 import { mountMonthlyMentorshipApplication } from './pages/MonthlyMentorshipApplicationPage.js';
 import { mountWishlist } from './pages/WishlistPage.js';
 import { bindAuthInfo } from './components/auth/LoginForm.js';
@@ -423,8 +428,20 @@ function router() {
   if (hash === '#/login' || hash.startsWith('#/login?')) {
     mountLogin(appEl);
     window.scrollTo({ top: 0, behavior: 'instant' });
-  } else if (hash === '#/staff/mentor-applications') {
-    mountStaffMentorApplications(appEl);
+  } else if (hash === '#/staff/dashboard') {
+    mountStaffDashboard(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/staff/mentor-applications' || hash === '#/staff/applications') {
+    mountStaffApplications(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/staff/mentors') {
+    mountStaffMentors(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/staff/mentees') {
+    mountStaffMentees(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash.startsWith('#/staff/')) {
+    mountStaffDashboard(appEl);
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash === '#/wishlist') {
     mountWishlist(appEl, currentMentors);
