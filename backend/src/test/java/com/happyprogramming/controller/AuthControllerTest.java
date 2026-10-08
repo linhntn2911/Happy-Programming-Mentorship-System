@@ -41,6 +41,51 @@ class AuthControllerTest {
         return json.writeValueAsString(Map.of("email", email, "password", value, "role", role));
     }
 
+    @Test void adminLoginWorkspaceCsrfAndLogoutUseOneSession() throws Exception {
+        db.update("UPDATE dbo.users SET role_code='ADMIN' WHERE email=?", email);
+        var result = mvc.perform(post("/api/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("email", email, "password", password)))).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.role").value("ADMIN")).andReturn();
+        var session = (MockHttpSession) result.getRequest().getSession(false);
+        mvc.perform(get("/api/admin/session").session(session)).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.email").value(email));
+        mvc.perform(get("/api/admin/workspace").session(session)).andExpect(status().isOk());
+        mvc.perform(put("/api/admin/settings").session(session).contentType(MediaType.APPLICATION_JSON)
+            .content("{}")).andExpect(status().isForbidden());
+        mvc.perform(post("/api/auth/logout").session(session).with(csrf())).andExpect(status().isOk());
+        assertTrue(session.isInvalid());
+        mvc.perform(get("/api/admin/workspace")).andExpect(status().isUnauthorized());
+    }
+
+    @Test void adminSessionCannotOutliveRevokedAccess() throws Exception {
+        db.update("UPDATE dbo.users SET role_code='ADMIN' WHERE email=?", email);
+        var result = mvc.perform(post("/api/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content(body(password, "ADMIN"))).andExpect(status().isOk()).andReturn();
+        var session = (MockHttpSession) result.getRequest().getSession(false);
+        entityManager.flush();
+        db.update("UPDATE dbo.users SET status='INACTIVE' WHERE email=?", email);
+        mvc.perform(get("/api/admin/workspace").session(session)).andExpect(status().isForbidden());
+    }
+
+    @Test void additionalAdminRoleIsRespectedAndRevocationTakesEffect() throws Exception {
+        db.update("INSERT INTO dbo.user_roles(user_id,role_code) SELECT id,'ADMIN' FROM dbo.users WHERE email=?", email);
+        var result = mvc.perform(post("/api/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content(body(password, "ADMIN"))).andExpect(status().isOk()).andReturn();
+        var session = (MockHttpSession) result.getRequest().getSession(false);
+        mvc.perform(get("/api/admin/session").session(session)).andExpect(status().isOk());
+        entityManager.flush();
+        db.update("DELETE FROM dbo.user_roles WHERE user_id=(SELECT id FROM dbo.users WHERE email=?) AND role_code='ADMIN'", email);
+        mvc.perform(get("/api/admin/session").session(session)).andExpect(status().isForbidden());
+    }
+
+    @Test void staffCannotAccessAdminWorkspace() throws Exception {
+        db.update("UPDATE dbo.users SET role_code='STAFF' WHERE email=?", email);
+        var result = mvc.perform(post("/api/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content(body(password, "STAFF"))).andExpect(status().isOk()).andReturn();
+        mvc.perform(get("/api/admin/workspace").session((MockHttpSession)result.getRequest().getSession(false)))
+            .andExpect(status().isForbidden());
+    }
+
     @Test void loginPersistsSessionRotatesIdAndLogoutInvalidatesIt() throws Exception {
         var initial = new MockHttpSession();
         String oldId = initial.getId();
@@ -53,6 +98,7 @@ class AuthControllerTest {
         assertNotEquals(oldId, session.getId());
         mvc.perform(get("/api/auth/me").session(session)).andExpect(status().isOk())
             .andExpect(jsonPath("$.data.role").value("MENTEE"));
+        mvc.perform(get("/api/admin/workspace").session(session)).andExpect(status().isForbidden());
         mvc.perform(post("/api/auth/logout").session(session).with(csrf())).andExpect(status().isOk());
         assertTrue(session.isInvalid());
         mvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());

@@ -18,6 +18,9 @@
         <maven.compiler.fork>true</maven.compiler.fork>
     </properties>
     <dependencies>
+        <dependency><groupId>org.flywaydb</groupId><artifactId>flyway-core</artifactId></dependency>
+        <dependency><groupId>org.flywaydb</groupId><artifactId>flyway-sqlserver</artifactId></dependency>
+        <dependency><groupId>com.h2database</groupId><artifactId>h2</artifactId><scope>test</scope></dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
@@ -60,6 +63,25 @@
     <build>
         <finalName>happyprogramming-backend</finalName>
         <plugins>
+            <!-- One SQL source; preserve already published Flyway versions/checksums. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions><execution>
+                    <id>package-canonical-migrations</id>
+                    <phase>process-resources</phase>
+                    <goals><goal>run</goal></goals>
+                    <configuration><target>
+                        <mkdir dir="${project.build.outputDirectory}/db/migration"/>
+                        <copy file="${project.basedir}/../docs/database/migration/008_20261006_admin_audit_integrity.sql" tofile="${project.build.outputDirectory}/db/migration/V2__admin_audit_integrity.sql" overwrite="true"/>
+                        <copy file="${project.basedir}/../docs/database/migration/001_20261006_add_user_first_last_name.sql" tofile="${project.build.outputDirectory}/db/migration/V3__user_first_last_name.sql" overwrite="true"/>
+                        <copy file="${project.basedir}/../docs/database/migration/004_20261007_mentor_application_approval.sql" tofile="${project.build.outputDirectory}/db/migration/V4__mentor_application_approval.sql" overwrite="true"/>
+                        <copy file="${project.basedir}/../docs/database/migration/002_20261007_add_fresher_profile_level.sql" tofile="${project.build.outputDirectory}/db/migration/V5__add_fresher_profile_level.sql" overwrite="true"/>
+                        <copy file="${project.basedir}/../docs/database/migration/003_20261007_add_my_profile.sql" tofile="${project.build.outputDirectory}/db/migration/V6__add_my_profile.sql" overwrite="true"/>
+                    </target></configuration>
+                </execution></executions>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

@@ -14,6 +14,9 @@ export const authService = {
   login: async data => {
     const user = await post('/api/auth/login', data);
     authService.setCurrentUser(user.mentorVerificationRequired ? null : user);
+    if (!user.mentorVerificationRequired) {
+      try { sessionStorage.removeItem('hpms.admin.mode'); } catch { /* optional storage */ }
+    }
     return user;
   },
   signupMentee: data => post('/api/auth/signup/mentee', data),
@@ -37,11 +40,8 @@ export const authService = {
     }
   },
   logout: async () => {
-    try {
-      await post('/api/auth/logout');
-    } finally {
-      authService.clearCurrentUser();
-    }
+    await post('/api/auth/logout');
+    authService.clearCurrentUser();
   },
   google: (role, returnTo = null) => post('/api/auth/google', { role, returnTo }),
 

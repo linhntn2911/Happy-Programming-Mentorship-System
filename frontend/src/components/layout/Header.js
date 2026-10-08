@@ -144,7 +144,9 @@ export function bindUserDropdown(root = document, onLogout = null) {
         try {
           await authService.logout();
         } catch {
-          authService.clearCurrentUser();
+          logoutBtn.disabled = false;
+          if (span) span.textContent = 'Logout failed. Try again';
+          return;
         }
         closeAllDropdowns();
         if (typeof onLogout === 'function') {
