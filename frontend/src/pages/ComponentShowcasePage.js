@@ -6,6 +6,7 @@ import { Badge, TopicPill } from '../components/ui/Badge.js';
 import { SearchForm, TextInput } from '../components/ui/Input.js';
 import { EmptyState } from '../components/ui/EmptyState.js';
 import { MentorCard } from '../components/mentor/MentorCard.js';
+import { DashboardMetricCard } from '../components/mentor/DashboardMetricCard.js';
 import { MentorPricingCard } from '../components/mentor/MentorPricingCard.js';
 
 export function ComponentShowcasePage() {
@@ -169,7 +170,32 @@ export function ComponentShowcasePage() {
       </div>
     </section>
 
-    <!-- 5. Cards & Pricing Plans -->
+    <section aria-labelledby="dashboard-metrics-title">
+      <p class="eyebrow">MENTOR DASHBOARD</p>
+      <h2 id="dashboard-metrics-title" class="section-title mt-2">Summary metric cards</h2>
+      <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        ${DashboardMetricCard({
+          label: 'Net earnings',
+          value: '₫1,250,000',
+          description: 'Lifetime after successful refunds and payment commission.',
+          icon: '₫',
+        })}
+        ${DashboardMetricCard({
+          label: 'Pending invitations',
+          value: '3',
+          description: 'Requests waiting for a decision within the 48-hour SLA.',
+          icon: '⌛',
+        })}
+        ${DashboardMetricCard({
+          label: 'Average rating',
+          value: 'No published reviews',
+          description: '0 published reviews.',
+          icon: '★',
+        })}
+      </div>
+    </section>
+
+    <!-- Cards & Pricing Plans -->
     <section aria-labelledby="cards-title">
       <p class="eyebrow">CARDS & PACKAGES</p>
       <h2 id="cards-title" class="section-title mt-2">Mentor Card & Pricing Plans</h2>

@@ -1,4 +1,8 @@
-import { mountMentorProfile } from './pages/MentorProfilePage.js';
+import {
+  mountMentorProfile,
+  initializeMentorProfilePage,
+  MentorProfilePage,
+} from './pages/MentorProfilePage.js';
 import { mountLogin } from './pages/LoginPage.js';
 import { mountAdmin } from './pages/AdminPage.js';
 import { mountMenteeSignup } from './pages/MenteeSignupPage.js';
@@ -16,6 +20,8 @@ import { bindAuthInfo } from './components/auth/LoginForm.js';
 import './app.css';
 import { HomePage } from './pages/HomePage.js';
 import { ComponentShowcasePage } from './pages/ComponentShowcasePage.js';
+import { initializeMentorDashboardPage, MentorDashboardPage } from './pages/MentorDashboardPage.js';
+import { mountMentorWorkspacePage } from './pages/MentorWorkspacePage.js';
 import { MentorSearchPage } from './pages/MentorSearchPage.js';
 import { DirectoryMentorCard } from './components/mentor/DirectoryMentorCard.js';
 import { bindMentorPricingCardEvents } from './components/mentor/MentorPricingCard.js';
@@ -107,6 +113,7 @@ const INITIAL_MENTORS = [
 
 let currentMentors = [...INITIAL_MENTORS];
 const appEl = document.querySelector('#app');
+let cleanupCurrentPage = () => {};
 
 function openMentorDirectory(keyword = '') {
   const url = new URL(window.location.href);
@@ -428,6 +435,8 @@ let disposeAdmin;
 function router() {
   disposeAdmin?.();
   disposeAdmin = undefined;
+  cleanupCurrentPage();
+  cleanupCurrentPage = () => {};
   const hash = window.location.hash;
   if (hash === '#/admin' || hash.startsWith('#/admin/')) {
     disposeAdmin = mountAdmin(appEl, hash.split('/')[2] || 'overview');
@@ -489,6 +498,17 @@ function router() {
     };
     appEl.innerHTML = MentorSearchPage(currentMentors.map(toDirectoryMentor), initialFilters);
     initMentorDirectory();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/mentor/profile') {
+    appEl.innerHTML = MentorProfilePage();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    cleanupCurrentPage = initializeMentorProfilePage() || (() => {});
+  } else if (hash === '#/mentor/dashboard') {
+    appEl.innerHTML = MentorDashboardPage();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    cleanupCurrentPage = initializeMentorDashboardPage();
+  } else if (hash === '#/mentor/availability' || hash === '#/mentor/packages') {
+    mountMentorWorkspacePage(appEl, hash === '#/mentor/packages' ? 'packages' : 'availability');
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else {
     renderApp(currentMentors);
@@ -681,26 +701,35 @@ authService.me().then(user => {
 // Hydrate / fetch from Spring Boot REST API
 mentorService
   .getFeaturedMentors()
-  .then(res => {
-    if (Array.isArray(res) && res.length > 0) {
-      currentMentors = res;
-      if (['#/admin', '#/mentors/', '#/login', '#/signup', '#/apply/', '#/staff/'].some(prefix => window.location.hash.startsWith(prefix)) || window.location.hash === '#/account' || window.location.hash === '#/wishlist') {
-        if (window.location.hash === '#/wishlist') mountWishlist(appEl, currentMentors);
-        return;
-      }
-      if (window.location.hash.startsWith('#/mentors')) {
-        const params = new URLSearchParams(window.location.search);
-        appEl.innerHTML = MentorSearchPage(currentMentors.map(toDirectoryMentor), {
-          q: params.get('q') || '', skills: params.getAll('skills'), categories: params.getAll('categories'), minExperience: params.get('minExperience') || '',
-          jobTitles: params.getAll('jobTitles'), companies: params.getAll('companies'), languages: params.getAll('languages'), countries: params.getAll('countries'),
-          minPrice: params.get('minPrice') || '', maxPrice: params.get('maxPrice') || '', minRating: params.get('minRating') || '', available: params.get('available') || '',
-          sort: params.get('sort') || 'recommended'
-        });
-        initMentorDirectory();
-      } else if (!window.location.hash.startsWith('#/components') && !window.location.hash.startsWith('#/showcase')) {
-        renderApp(currentMentors);
-      }
+  .then(mentors => {
+    if (!Array.isArray(mentors) || mentors.length === 0) return;
+    currentMentors = mentors;
+
+    const hash = window.location.hash;
+    if (hash === '#/wishlist') {
+      mountWishlist(appEl, currentMentors);
+      return;
     }
+    const routeIsMountedIndependently = [
+      '#/admin',
+      '#/login',
+      '#/signup',
+      '#/apply',
+      '#/staff/',
+      '#/account',
+      '#/components',
+      '#/showcase',
+      '#/mentor/',
+      '#/mentors/',
+    ].some(prefix => hash.startsWith(prefix));
+
+    if (routeIsMountedIndependently) return;
+    if (hash.startsWith('#/mentors')) {
+      router();
+    } else {
+      renderApp(currentMentors);
+    }
+  })
   })
   .catch(err => {
     console.info('Using local catalog (backend API unreachable or offline):', err.message);

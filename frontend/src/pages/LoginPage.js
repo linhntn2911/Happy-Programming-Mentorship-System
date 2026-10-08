@@ -66,7 +66,7 @@ export function mountLogin(root) {
     googleEnabled = Boolean(options.googleEnabled);
     google.disabled = !googleEnabled || busy;
     google.setAttribute('aria-disabled', String(google.disabled));
-    form.querySelector('#google-status').textContent = googleEnabled ? '' : 'Google login is not available yet. Please use email and password.';
+    form.querySelector('#google-status').textContent = googleEnabled ? '' : 'Google sign-in is not configured for this environment. Please use email and password.';
   }).catch(() => {
     if (form.isConnected) form.querySelector('#google-status').textContent = 'Unable to check Google login. Please try email and password.';
   });

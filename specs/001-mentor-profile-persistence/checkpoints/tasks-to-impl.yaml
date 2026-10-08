@@ -1,0 +1,175 @@
+metadata:
+  generated: "2026-10-07"
+  source_tasks: "specs/001-mentor-profile-persistence/tasks.md"
+  last_updated: "2026-10-07"
+
+summary:
+  total_tasks: 36
+  completed_tasks: 35
+  in_progress_tasks: 0
+  pending_tasks: 0
+  blocked_tasks: 1
+  completion_percentage: 97.2
+
+tasks:
+  - task_id: "T001"
+    description: "Verify existing SQL Server/JPA dependencies and datasource property names."
+    status: "completed"
+    implementation:
+      files_changed: []
+    verification:
+      build_passed: true
+      test_results:
+        command: "Focused Maven test run compiled the backend."
+        passed: 9
+        failed: 0
+        skipped: 0
+        failures: []
+  - task_id: "T002"
+    description: "Require DB_PASSWORD without a tracked password fallback."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "backend/src/main/resources/application.properties"
+          changes:
+            - change_type: "modified"
+              description: "Datasource password now resolves strictly from DB_PASSWORD."
+    verification:
+      build_passed: true
+      notes: "Confirmed the property has no fallback and file has no UTF-8 BOM."
+  - task_id: "T003-T016"
+    description: "Implement and verify mentor profile and active skill persistence foundations."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "backend/src/main/java/vn/happyprogramming/mentor/"
+          changes:
+            - change_type: "added"
+              description: "Added profile/skill entities, composite key, DTOs, and repositories."
+        - file: "backend/src/test/java/vn/happyprogramming/mentor/"
+          changes:
+            - change_type: "added"
+              description: "Added focused mapping, validation, composite-key, and active-query tests."
+        - file: "specs/001-mentor-profile-persistence/"
+          changes:
+            - change_type: "added"
+              description: "Added specification, design, task, quickstart, report, and traceability artifacts."
+    verification:
+      build_passed: true
+      test_results:
+        command: "mvn -f backend/pom.xml -Dtest=MentorPersistenceMappingTest,MentorSkillRepositoryTest test"
+        passed: 9
+        failed: 0
+        skipped: 0
+        failures: []
+      notes: "Full SQL Server-backed application-context tests were not run because DB_PASSWORD was unavailable in the current process."
+  - task_id: "T017-T035"
+    description: "Implement the transactional mentor profile API, active skill catalog, and responsive frontend profile editor."
+    status: "completed"
+    implementation:
+      files_changed:
+        - file: "backend/src/main/java/vn/happyprogramming/mentor/"
+          changes:
+            - change_type: "added"
+              description: "Added MentorAccount mapping/repository, MentorService, API exception handler, and profile/catalog routes."
+            - change_type: "modified"
+              description: "Updated profile request/response DTOs and active skill repository queries."
+        - file: "backend/src/test/java/vn/happyprogramming/mentor/"
+          changes:
+            - change_type: "added"
+              description: "Added service, controller, and SQL Server rollback integration tests; updated DTO mapping tests."
+        - file: "frontend/src/"
+          changes:
+            - change_type: "added"
+              description: "Added the safe profile editor page."
+            - change_type: "modified"
+              description: "Added profile API calls, hash routing, and profile navigation."
+        - file: "specs/001-mentor-profile-persistence/"
+          changes:
+            - change_type: "added"
+              description: "Added profile API contract and updated plan, data model, tasks, quickstart, and reports."
+    verification:
+      build_passed: true
+      test_results:
+        command: "mvn -f backend/pom.xml -Djava.version=17 -Dtest=MentorPersistenceMappingTest,MentorSkillRepositoryTest,MentorServiceTest,MentorControllerTest,MentorProfileTransactionIntegrationTest clean test"
+        passed: 26
+        failed: 0
+        skipped: 1
+        failures: []
+      notes: "Focused tests and frontend production build passed. Java 25 is unavailable. SQL Server rollback integration test was skipped because DB_PASSWORD is absent. npm test is an echo-only placeholder."
+  - task_id: "T036"
+    description: "Run the SQL Server-backed rollback integration test against a configured active local mentor."
+    status: "blocked"
+    implementation:
+      files_changed:
+        - file: "backend/src/test/java/vn/happyprogramming/mentor/MentorProfileTransactionIntegrationTest.java"
+          changes:
+            - change_type: "added"
+              description: "Test forces a transaction flush followed by failure and checks account/profile data remains unchanged."
+    verification:
+      build_passed: true
+      test_results:
+        command: "mvn -f backend/pom.xml -Dtest=MentorProfileTransactionIntegrationTest test"
+        passed: 0
+        failed: 0
+        skipped: 1
+        failures: []
+      notes: "Requires DB_PASSWORD, HPMS_MENTOR_TEST_USER_ID, and a reachable local SQL Server."
+
+pending_tasks:
+  - task_id: "T036"
+    description: "Execute the database-backed rollback test."
+    blocked_by: ["DB_PASSWORD", "HPMS_MENTOR_TEST_USER_ID", "local SQL Server"]
+    priority: "P1"
+untracked_changes: []
+traceability_chain:
+  - chain_id: "TRACE-001"
+    requirement: "FR-001, FR-002, FR-003"
+    plan_phase: "Persistence mappings"
+    plan_item: "Design Decisions 1-2"
+    tasks: ["T004", "T009", "T010", "T011"]
+    files:
+      - "backend/src/main/java/vn/happyprogramming/mentor/MentorProfile.java"
+      - "backend/src/main/java/vn/happyprogramming/mentor/Skill.java"
+      - "backend/src/main/java/vn/happyprogramming/mentor/MentorSkill.java"
+      - "backend/src/main/java/vn/happyprogramming/mentor/MentorSkillId.java"
+    status: "complete"
+  - chain_id: "TRACE-002"
+    requirement: "FR-004"
+    plan_phase: "Skill repository"
+    plan_item: "Design Decision 3"
+    tasks: ["T013", "T014"]
+    files:
+      - "backend/src/main/java/vn/happyprogramming/mentor/SkillRepository.java"
+      - "backend/src/main/java/vn/happyprogramming/mentor/MentorSkillRepository.java"
+    status: "complete"
+  - chain_id: "TRACE-003"
+    requirement: "FR-009, FR-010, FR-012, FR-013"
+    plan_phase: "Profile service and API"
+    plan_item: "Design Decisions 1-3"
+    tasks: ["T017", "T018", "T019", "T020", "T021", "T022", "T023", "T024", "T025"]
+    files:
+      - "backend/src/main/java/vn/happyprogramming/mentor/MentorService.java"
+      - "backend/src/main/java/vn/happyprogramming/mentor/MentorController.java"
+      - "backend/src/test/java/vn/happyprogramming/mentor/MentorServiceTest.java"
+      - "backend/src/test/java/vn/happyprogramming/mentor/MentorControllerTest.java"
+    status: "partial"
+  - chain_id: "TRACE-004"
+    requirement: "FR-011, FR-014, FR-015"
+    plan_phase: "Active skill endpoint and profile editor"
+    plan_item: "Design Decisions 5-8"
+    tasks: ["T026", "T027", "T028", "T029", "T030", "T031", "T032", "T033", "T034", "T035"]
+    files:
+      - "backend/src/main/java/vn/happyprogramming/mentor/MentorController.java"
+      - "frontend/src/pages/MentorProfilePage.js"
+      - "frontend/src/services/mentorService.js"
+    status: "complete"
+
+validation:
+  passed: false
+  errors: []
+  warnings:
+    - "The SQL Server-backed transaction rollback task T036 remains blocked until local DB access is configured."
+    - "Backend compilation used Java 17 override because the required Java 25 JDK is not installed."
+  blocking_issues:
+    - "T036 requires a reachable local SQL Server and an active mentor test account."

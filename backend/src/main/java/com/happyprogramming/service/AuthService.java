@@ -164,30 +164,12 @@ public class AuthService {
         var identity = identities.findByProviderAndProviderSubject("GOOGLE", subject).orElse(null);
         var now = LocalDateTime.now(clock);
 
-        if (identity != null) {
-            var user = users.findForLoginById(identity.getUserId()).orElse(null);
-            if (user == null || !eligible(user, effectiveRole, now)) return Optional.empty();
-            user.recordLogin(now);
-            identity.markUsed(now);
-            return Optional.of(AuthenticatedUser.from(user, effectiveRole));
-        }
-
-        // Auto-provision or link by email
-        if (email == null || email.isBlank()) return Optional.empty();
-        var existingUser = users.findForLogin(email.toLowerCase().trim()).orElse(null);
-        User targetUser;
-        if (existingUser != null) {
-            if (!eligible(existingUser, effectiveRole, now)) return Optional.empty();
-            targetUser = existingUser;
-        } else {
-            if ("MENTOR".equals(effectiveRole)) return Optional.empty();
-            targetUser = users.save(User.createGoogleUser(email, fullName, firstName, lastName, "MENTEE", now));
-        }
-
-        var newIdentity = AuthIdentity.create(targetUser.getId(), "GOOGLE", subject, email.trim(), now);
-        identities.save(newIdentity);
-        targetUser.recordLogin(now);
-        return Optional.of(AuthenticatedUser.from(targetUser, effectiveRole));
+        if (identity == null) return Optional.empty();
+        var user = users.findForLoginById(identity.getUserId()).orElse(null);
+        if (user == null || !eligible(user, effectiveRole, now)) return Optional.empty();
+        user.recordLogin(now);
+        identity.markUsed(now);
+        return Optional.of(AuthenticatedUser.from(user, effectiveRole));
     }
 
     @Transactional

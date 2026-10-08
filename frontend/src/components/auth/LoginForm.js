@@ -51,7 +51,7 @@ export function LoginForm({ preview = false } = {}) {
       label: 'Log in with Google',
       variant: 'outline',
       className: 'auth-google',
-      disabled: true,
+      disabled: false,
       icon: `
         <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
           <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -62,7 +62,7 @@ export function LoginForm({ preview = false } = {}) {
       `
     })}
 
-    <p id="google-status" class="auth-hint">${preview ? 'Google login is unavailable in this preview.' : 'Checking Google login availability…'}</p>
+    <p id="google-status" class="auth-hint">${preview ? 'Google sign-in is not configured for this environment.' : 'Checking Google sign-in availability…'}</p>
 
     <div class="auth-links">
       <button type="button" data-auth-info="recovery" class="auth-link">Forgot password?</button>

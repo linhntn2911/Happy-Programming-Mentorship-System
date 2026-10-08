@@ -50,6 +50,7 @@ export function Header(mentors = [], user = null) {
   const currentUser = user || authService.getCurrentUser();
   const displayName = currentUser?.name || currentUser?.email || '';
   const initials = getInitials(displayName);
+  const isMentor = currentUser?.role === 'MENTOR' || currentUser?.roles?.includes('MENTOR');
 
   const authDesktopNav = currentUser
     ? renderUserDropdown({ currentUser, displayName, initials, isMobile: false })
@@ -69,9 +70,13 @@ export function Header(mentors = [], user = null) {
     <nav class="hidden items-center gap-6 lg:flex" aria-label="Main navigation">
       <a class="nav-link" href="#how-it-works">How it works</a>
       ${authDesktopNav}
+      ${isMentor ? '<a class="nav-link" href="#/mentor/dashboard">Mentor dashboard</a><a class="nav-link" href="#/mentor/profile">Mentor profile</a>' : ''}
       ${BrowseAllMentorsLink()}
     </nav>
-    ${authMobileNav}
+    <div class="flex items-center gap-2 lg:hidden">
+      ${authMobileNav}
+      ${isMentor ? '<a href="#/mentor/dashboard" class="btn btn-outline btn-sm">Dashboard</a>' : ''}
+    </div>
   </div>
 
   <!-- Centered Category Bar matching HappyProgramming tone -->

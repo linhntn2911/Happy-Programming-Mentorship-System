@@ -49,9 +49,9 @@ All active feature work, API endpoints, and client modules must target `backend/
 ## Backend Expectations
 
 - Use Java 17 and Spring Boot 3.5.x.
-- Follow `Package Diagram1.docx` and the canonical layout in `AGENTS.md`: layered packages under `com.happyprogramming` (`config`, `constant`, `controller`, `dto`, `entity`, `repository`, `service`, `security`, `integration`, `scheduler`, `utils`). Do not use the former `vn.happyprogramming` capability-first layout.
+- Follow `Package Diagram1.docx` and the canonical layered layout under `com.happyprogramming` (`config`, `constant`, `controller`, `dto`, `entity`, `repository`, `service`, `security`, `integration`, `scheduler`, `utils`). Do not use the former `vn.happyprogramming` package layout.
 - Keep `HpmsApplication` in the root package and mirror production packages in tests. Create packages only as implementations require them.
-- Controllers delegate to services; services coordinate repositories and integration adapters. Schedulers call services. Keep DTOs separate from JPA entities and planned diagram components separate from implemented features.
+- Controllers delegate to services; services coordinate repositories and integrations. Keep DTOs separate from entities.
 - Keep controllers thin and business rules in services.
 - Use DTOs at API boundaries; do not serialize JPA entities directly.
 - Use Bean Validation and the shared exception response format.
@@ -112,4 +112,3 @@ Do not claim a command passed unless it was run successfully. If a tool or envir
 - Do not leave placeholder logic presented as a completed feature.
 - Explain material tradeoffs in `plan.md`, not only in chat.
 - Finish with the behavior changed, files affected, verification performed, and any remaining limitation.
-

@@ -12,7 +12,7 @@ HappyProgramming/
 ```
 
 ## Backend Architecture
-- **Language & Runtime:** Java 17, Spring Boot 3.5.x
+- **Language & Runtime:** Java 25, Spring Boot 3.5.x
 - **Communication:** RESTful APIs under `/api/`
 - **Package Convention:** Layered packages under `com.happyprogramming`, following [Package Diagram1.docx](../Package%20Diagram1.docx).
 - **Entry point:** `com.happyprogramming.HpmsApplication`; tests mirror production packages.
