@@ -1,7 +1,7 @@
 import { LoginForm, bindAuthInfo } from '../components/auth/LoginForm.js';
 import { authService } from '../services/authService.js';
 
-export const AuthShell = content => `
+export const AuthShell = (content, { wide = false } = {}) => `
   <div class="auth-split-layout">
     <aside class="auth-image-side" aria-label="HappyProgramming online mentorship">
       <img
@@ -29,7 +29,7 @@ export const AuthShell = content => `
           <span class="auth-back-text">Back to homepage</span>
         </a>
       </header>
-      <div class="auth-content-body">
+      <div class="auth-content-body ${wide ? '!max-w-[560px]' : ''}">
         <main class="auth-panel">
           ${content}
         </main>

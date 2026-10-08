@@ -81,6 +81,14 @@ All active feature work, API endpoints, and client modules must target `backend/
 - Reuse shared buttons, inputs, cards, badges, spacing, borders, radii, shadows, and loading/error states so all pages remain synchronized with the homepage and component showcase.
 - Add genuinely new visual patterns to the shared design system and showcase before using them in feature pages.
 
+### Shared Admin and Staff workspace UI
+
+Admin and Staff workspaces must strictly adhere to the single presentation system defined in `AGENTS.md` and `frontend/src/styles/admin.css`:
+- **Shell & Navigation**: `.admin-shell` (246px navigation rail, 83px top bar, 36px gutters). Navigation rail with `{h} HappyProgramming`, uppercase eyebrow (`ADMIN WORKSPACE` / `STAFF WORKSPACE`), `.admin-nav-link` with inline SVG icons and `aria-current="page"`, bottom note, and "Back to website".
+- **Typography**: Display font Georgia (`var(--font-display)`) for 36px page titles; Be Vietnam Pro (`var(--font-body)`) for body and controls; uppercase purple `.eyebrow` for section subtitles.
+- **Surfaces & Colors**: Cream background (`#fbf9ff`), white cards/panels with 1px border (`#e8e0f1`) and 14px radii, brand purple (`#8b46e8`), dark purple (`#7431d0`), lilac (`#f1e8ff`), and ink (`#25143f`).
+- **Primitives**: `.admin-stats` grid of 4 `.stat-card`s, `.admin-panel` with `.admin-panel-heading` and `.admin-panel-body`, `.admin-toolbar`, `.data-table-scroll` + `.data-table`, restrained `.status-badge` pills with `●` (never use emojis), and `<dialog class="modal">` for operational reviews.
+
 ## Verification Commands
 
 Canonical monorepo applications:

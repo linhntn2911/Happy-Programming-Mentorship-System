@@ -1,7 +1,6 @@
 /**
  * Staff Portal Controller / Mount Handlers - HappyProgramming
- * Wires StaffDashboardPage, StaffApplicationsPage, StaffMentorsPage, and StaffMenteesPage.
- * Complies with AGENTS.md, specs/001-staff-management/spec.md, and RBAC security rules.
+ * Strictly complies with AGENTS.md, CLAUDE.md, and Shared Workspace UI standards.
  */
 import { StaffDashboardPage } from './StaffDashboardPage.js';
 import { StaffApplicationsPage } from './StaffApplicationsPage.js';
@@ -10,6 +9,8 @@ import { StaffMenteesPage } from './StaffMenteesPage.js';
 import { StaffAccessDeniedPage } from './StaffAccessDeniedPage.js';
 import { staffService } from '../services/staffService.js';
 import { authService } from '../services/authService.js';
+import { escapeHtml as e } from '../utils/html.js';
+import { StatusBadge } from '../components/ui/AdminPrimitives.js';
 
 async function checkStaffAccess(root) {
   let user = authService.getCurrentUser();
@@ -35,56 +36,62 @@ async function checkStaffAccess(root) {
     root.querySelector('#open-staff-login-btn')?.addEventListener('click', () => {
       window.location.hash = '#/login?portal=staff&return=review';
     });
-    return false;
+    return null;
   }
-  return true;
+  return user;
 }
 
 function bindStaffGlobalEvents(root) {
-  // Bind Logout button in staff header
-  root.querySelectorAll('a').forEach(link => {
-    const text = link.textContent.trim().toLowerCase();
-    if (text === 'logout') {
-      link.addEventListener('click', async (e) => {
-        e.preventDefault();
-        await authService.logout();
-        window.location.hash = '#/login';
-      });
-    }
+  // Bind Logout button in staff topbar
+  root.querySelector('#staff-logout-btn')?.addEventListener('click', async () => {
+    await authService.logout();
+    window.location.hash = '#/login';
+  });
+
+  // Mobile navigation rail toggle
+  root.querySelector('#staff-menu')?.addEventListener('click', event => {
+    const open = root.querySelector('.admin-sidebar')?.classList.toggle('menu-open');
+    event.currentTarget.setAttribute('aria-expanded', String(open));
+  });
+
+  // Skip to content accessible action
+  root.querySelector('.admin-skip')?.addEventListener('click', event => {
+    event.preventDefault();
+    root.querySelector('#staff-content')?.focus();
   });
 }
 
 export async function mountStaffDashboard(root) {
   document.title = 'Staff Dashboard | HappyProgramming';
-  root.innerHTML = '<div class="min-h-screen bg-[#fbf9ff] flex items-center justify-center p-8 text-slate-500 font-semibold">Loading Staff Dashboard…</div>';
+  root.innerHTML = '<div class="min-h-screen bg-[#fbf9ff] flex items-center justify-center p-8 text-muted text-xs font-medium">Loading staff workspace…</div>';
 
-  const hasAccess = await checkStaffAccess(root);
-  if (!hasAccess || !root.isConnected) return;
+  const user = await checkStaffAccess(root);
+  if (!user || !root.isConnected) return;
 
   try {
     const data = await staffService.getDashboard();
     if (!root.isConnected) return;
-    root.innerHTML = StaffDashboardPage(data);
+    root.innerHTML = StaffDashboardPage(data, user);
     bindStaffGlobalEvents(root);
   } catch (err) {
     if (!root.isConnected) return;
-    root.innerHTML = StaffDashboardPage({});
+    root.innerHTML = StaffDashboardPage({}, user);
     bindStaffGlobalEvents(root);
   }
 }
 
 export async function mountStaffApplications(root, initialTab = 'PENDING') {
-  document.title = 'Mentor Applications Review | HappyProgramming';
-  root.innerHTML = '<div class="min-h-screen bg-[#fbf9ff] flex items-center justify-center p-8 text-slate-500 font-semibold">Loading Applications…</div>';
+  document.title = 'Mentor Applications | HappyProgramming';
+  root.innerHTML = '<div class="min-h-screen bg-[#fbf9ff] flex items-center justify-center p-8 text-muted text-xs font-medium">Loading mentor applications…</div>';
 
-  const hasAccess = await checkStaffAccess(root);
-  if (!hasAccess || !root.isConnected) return;
+  const user = await checkStaffAccess(root);
+  if (!user || !root.isConnected) return;
 
   let activeTab = initialTab;
   let applications = [];
 
   const render = () => {
-    root.innerHTML = StaffApplicationsPage(applications, activeTab);
+    root.innerHTML = StaffApplicationsPage(applications, activeTab, user);
     bindStaffGlobalEvents(root);
 
     // Tab switching
@@ -105,43 +112,51 @@ export async function mountStaffApplications(root, initialTab = 'PENDING') {
         const app = applications.find(a => String(a.id) === String(appId));
         if (!app || !dialog || !dialogContent) return;
 
+        const applicantName = app.applicantName || app.name || 'Applicant';
+
         dialogContent.innerHTML = `
-          <div class="p-6 bg-white rounded-3xl space-y-5">
-            <div class="flex items-center justify-between border-b border-[#e8e0f1] pb-4">
-              <div>
-                <h3 class="font-extrabold text-xl text-[#25143f]">${app.applicantName || app.name || 'Applicant'}</h3>
-                <p class="text-xs text-slate-500">${app.email} · ${app.specialty || 'General'}</p>
+          <button class="modal-close" id="close-review-modal" type="button" aria-label="Close">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 6 12 12M6 18 18 6"/></svg>
+          </button>
+          
+          <p class="eyebrow !pr-8">MENTOR CV REVIEW · SLA 48H</p>
+          <h2 id="app-review-modal-title" class="mt-3 font-display text-2xl text-ink">${e(applicantName)}</h2>
+          <p class="text-xs text-muted mt-1">${e(app.email)} · Track: <strong>${e(app.specialty || 'General')}</strong></p>
+
+          <div class="mt-5 space-y-3.5 text-xs text-ink/90 border-t border-b border-line py-4">
+            <p><strong>Years of experience:</strong> ${e(app.experienceYears || '0')} years</p>
+            <p><strong>Bio & Background:</strong> <span class="text-muted">${e(app.bio || 'No candidate bio provided.')}</span></p>
+            ${app.skills ? `<p><strong>Technical skills:</strong> ${(Array.isArray(app.skills) ? app.skills : [app.skills]).map(s => `<span class="badge !text-[10px] !py-0.5 ml-1">${e(s)}</span>`).join('')}</p>` : ''}
+            
+            ${app.cvFileName ? `
+              <div class="mt-3 p-3 bg-lilac/40 border border-line rounded-xl flex items-center justify-between">
+                <div>
+                  <p class="font-semibold text-xs text-ink">CV Document: ${e(app.cvFileName)}</p>
+                  <span class="text-[10px] text-muted">${e(app.cvFileSize || 'PDF Document')}</span>
+                </div>
+                <a href="/api/staff/mentor-applications/${app.id}/cv" download class="btn btn-outline btn-sm">
+                  Download PDF
+                </a>
               </div>
-              <button type="button" id="close-review-modal" class="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            ` : ''}
+          </div>
+
+          <form id="app-decision-form" class="mt-4 space-y-3">
+            <label class="admin-field" for="review-reason">
+              Review feedback / note (Required if rejecting):
+              <textarea id="review-reason" rows="3" placeholder="Provide constructive feedback or state reason for rejection..."></textarea>
+            </label>
+            <p id="review-modal-error" class="text-xs text-rose-600 font-semibold hidden" role="alert"></p>
+
+            <div class="admin-actions">
+              <button type="button" id="btn-reject-app" class="btn btn-outline">
+                Reject candidate
+              </button>
+              <button type="button" id="btn-approve-app" class="btn btn-primary">
+                Approve & promote to Mentor
               </button>
             </div>
-
-            <div class="space-y-3 text-sm text-slate-700">
-              <p><strong>Experience:</strong> ${app.experienceYears || 'N/A'} years</p>
-              <p><strong>Bio:</strong> ${app.bio || 'No bio provided'}</p>
-              ${app.skills ? `<p><strong>Skills:</strong> ${(Array.isArray(app.skills) ? app.skills : [app.skills]).join(', ')}</p>` : ''}
-              ${app.cvFileName ? `<div class="p-3 bg-[#f1e8ff] rounded-xl flex items-center justify-between">
-                <span class="text-xs font-bold text-[#8b46e8]">📄 ${app.cvFileName}</span>
-                <a href="/api/staff/mentor-applications/${app.id}/cv" download class="text-xs font-bold px-3 py-1.5 bg-[#8b46e8] text-white rounded-lg hover:bg-[#7431d0] transition-colors">Download PDF</a>
-              </div>` : ''}
-            </div>
-
-            <div class="pt-4 border-t border-[#e8e0f1]">
-              <label for="review-reason" class="block text-xs font-bold text-slate-600 mb-1">Feedback / Reason (required if rejecting):</label>
-              <textarea id="review-reason" class="w-full p-3 text-sm border border-[#e8e0f1] rounded-xl focus:outline-none focus:border-[#8b46e8]" rows="3" placeholder="Enter review notes or rejection feedback..."></textarea>
-              <p id="review-modal-error" class="text-xs text-rose-600 font-semibold mt-1 hidden"></p>
-
-              <div class="flex justify-end gap-3 mt-4">
-                <button type="button" id="btn-reject-app" class="px-4 py-2 text-xs font-bold rounded-xl border border-rose-300 text-rose-600 hover:bg-rose-50 transition-colors">
-                  Reject Application
-                </button>
-                <button type="button" id="btn-approve-app" class="px-5 py-2 text-xs font-bold rounded-xl bg-[#8b46e8] text-white hover:bg-[#7431d0] shadow-xs transition-colors">
-                  Approve Application
-                </button>
-              </div>
-            </div>
-          </div>
+          </form>
         `;
 
         dialog.showModal();
@@ -154,9 +169,9 @@ export async function mountStaffApplications(root, initialTab = 'PENDING') {
             dialog.close();
             applications = await staffService.getApplications();
             render();
-          } catch (e) {
+          } catch (err) {
             const errEl = dialog.querySelector('#review-modal-error');
-            if (errEl) { errEl.textContent = e.message; errEl.classList.remove('hidden'); }
+            if (errEl) { errEl.textContent = err.message; errEl.classList.remove('hidden'); }
           }
         });
 
@@ -164,7 +179,7 @@ export async function mountStaffApplications(root, initialTab = 'PENDING') {
           const reason = dialog.querySelector('#review-reason')?.value.trim();
           if (!reason) {
             const errEl = dialog.querySelector('#review-modal-error');
-            if (errEl) { errEl.textContent = 'Please provide a rejection reason.'; errEl.classList.remove('hidden'); }
+            if (errEl) { errEl.textContent = 'Please provide a reason when rejecting an application.'; errEl.classList.remove('hidden'); }
             return;
           }
           try {
@@ -172,9 +187,9 @@ export async function mountStaffApplications(root, initialTab = 'PENDING') {
             dialog.close();
             applications = await staffService.getApplications();
             render();
-          } catch (e) {
+          } catch (err) {
             const errEl = dialog.querySelector('#review-modal-error');
-            if (errEl) { errEl.textContent = e.message; errEl.classList.remove('hidden'); }
+            if (errEl) { errEl.textContent = err.message; errEl.classList.remove('hidden'); }
           }
         });
       });
@@ -190,23 +205,22 @@ export async function mountStaffApplications(root, initialTab = 'PENDING') {
 }
 
 export async function mountStaffMentors(root) {
-  document.title = 'Manage Mentors | HappyProgramming';
-  root.innerHTML = '<div class="min-h-screen bg-[#fbf9ff] flex items-center justify-center p-8 text-slate-500 font-semibold">Loading Mentors…</div>';
+  document.title = 'Manager Mentors | HappyProgramming';
+  root.innerHTML = '<div class="min-h-screen bg-[#fbf9ff] flex items-center justify-center p-8 text-muted text-xs font-medium">Loading mentors…</div>';
 
-  const hasAccess = await checkStaffAccess(root);
-  if (!hasAccess || !root.isConnected) return;
+  const user = await checkStaffAccess(root);
+  if (!user || !root.isConnected) return;
 
   try {
     const mentors = await staffService.getMentors();
     if (!root.isConnected) return;
-    root.innerHTML = StaffMentorsPage(mentors);
+    root.innerHTML = StaffMentorsPage(mentors, user);
     bindStaffGlobalEvents(root);
 
-    // Filter and search logic
     const searchInput = root.querySelector('#mentor-search-input');
     const skillFilter = root.querySelector('#mentor-skill-filter');
     const statusFilter = root.querySelector('#mentor-status-filter');
-    const tableBody = root.querySelector('#mentor-table-body');
+    const container = root.querySelector('#mentor-table-container');
 
     const filterMentors = () => {
       const q = (searchInput?.value || '').trim().toLowerCase();
@@ -220,69 +234,206 @@ export async function mountStaffMentors(root) {
         return matchesQ && matchesSkill && matchesStatus;
       });
 
-      if (tableBody) {
-        tableBody.innerHTML = filtered.length > 0 ? filtered.map((m, index) => `
-          <tr class="hover:bg-[#fbf9ff] transition-colors border-b border-[#e8e0f1]">
-            <td class="px-4 py-3.5 text-xs font-bold text-slate-400">${index + 1}</td>
-            <td class="px-4 py-3.5">
-              <div class="flex items-center gap-3">
-                <div class="w-9 h-9 rounded-full bg-[#f1e8ff] text-[#8b46e8] flex items-center justify-center font-bold text-sm">
-                  ${m.name ? m.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'M'}
-                </div>
-                <div>
-                  <div class="font-bold text-sm text-[#25143f]">${m.name}</div>
-                  <div class="text-xs text-slate-500">${m.jobTitle}</div>
-                </div>
-              </div>
-            </td>
-            <td class="px-4 py-3.5 text-xs text-slate-600 font-medium">${m.email}</td>
-            <td class="px-4 py-3.5">
-              <div class="flex flex-wrap gap-1">
-                ${(m.skills || []).map(s => `<span class="px-2 py-0.5 text-[11px] font-bold rounded-md bg-[#f1e8ff] text-[#8b46e8]">${s}</span>`).join('')}
-              </div>
-            </td>
-            <td class="px-4 py-3.5 text-xs font-semibold text-slate-700">${m.experienceYears} yrs</td>
-            <td class="px-4 py-3.5">
-              <span class="px-2.5 py-1 text-xs font-bold rounded-full ${m.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}">${m.status || 'ACTIVE'}</span>
-            </td>
-            <td class="px-4 py-3.5">
-              <button data-view-mentor="${m.id}" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-[#f1e8ff] text-[#8b46e8] hover:bg-[#8b46e8] hover:text-white transition-colors">
-                View Profile
-              </button>
-            </td>
-          </tr>
-        `).join('') : `
-          <tr><td colspan="7" class="py-12 text-center text-sm text-slate-500">No mentors match the criteria.</td></tr>
-        `;
+      const rows = filtered.map(m => {
+        const initials = (m.name || 'M').trim().split(/\s+/).map(p => p[0]).slice(0, 2).join('').toUpperCase();
+        return [
+          `<div class="admin-person"><span class="admin-avatar">${e(initials)}</span><div><strong>${e(m.name)}</strong><small>${e(m.jobTitle || 'Mentor')}</small></div></div>`,
+          e(m.email),
+          `<div class="flex flex-wrap gap-1">${(m.skills || []).map(s => `<span class="badge !text-[10px] !py-0.5">${e(s)}</span>`).join('')}</div>`,
+          `${e(m.experienceYears || '0')} yrs`,
+          StatusBadge(m.status || 'ACTIVE'),
+          `<button class="btn btn-outline btn-sm" data-view-mentor="${m.id}">View profile</button>`
+        ];
+      });
+
+      if (container) {
+        if (rows.length === 0) {
+          container.innerHTML = '<div class="p-12 text-center text-muted text-xs">No mentors found matching the criteria.</div>';
+        } else {
+          container.innerHTML = `
+            <div class="data-table-scroll" role="region" aria-label="Mentor directory" tabindex="0">
+              <table class="data-table">
+                <caption class="sr-only">Mentor directory</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Mentor</th>
+                    <th scope="col">Email address</th>
+                    <th scope="col">Skills</th>
+                    <th scope="col">Experience</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}
+                </tbody>
+              </table>
+            </div>
+          `;
+        }
+        bindMentorDetailButtons();
       }
     };
+
+    function bindMentorDetailButtons() {
+      root.querySelectorAll('[data-view-mentor]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const mentorId = btn.dataset.viewMentor;
+          const mentor = mentors.find(m => String(m.id) === String(mentorId));
+          const dialog = root.querySelector('#mentor-detail-dialog');
+          const content = root.querySelector('#mentor-detail-dialog-content');
+          if (!mentor || !dialog || !content) return;
+
+          content.innerHTML = `
+            <button class="modal-close" id="close-mentor-modal" type="button" aria-label="Close">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 6 12 12M6 18 18 6"/></svg>
+            </button>
+            <p class="eyebrow !pr-8">MENTOR PROFILE DETAILS</p>
+            <h2 id="mentor-detail-modal-title" class="mt-3 font-display text-2xl text-ink">${e(mentor.name)}</h2>
+            <p class="text-xs text-muted mt-1">${e(mentor.jobTitle || 'Senior Software Engineer')} · ${e(mentor.email)}</p>
+
+            <div class="mt-5 space-y-3.5 text-xs text-ink/90 border-t border-b border-line py-4">
+              <p><strong>Experience:</strong> ${e(mentor.experienceYears || '0')} years</p>
+              <p><strong>Monthly rate:</strong> ${e(mentor.monthlyPrice || '2,000,000')} VND/mo</p>
+              <p><strong>1-on-1 Session:</strong> ${e(mentor.sessionPrice || '400,000')} VND/session</p>
+              <p><strong>Biography:</strong> <span class="text-muted">${e(mentor.bio || 'No detailed biography provided.')}</span></p>
+              <p><strong>Technical Skills:</strong> ${(mentor.skills || []).map(s => `<span class="badge !text-[10px] !py-0.5 ml-1">${e(s)}</span>`).join('')}</p>
+            </div>
+
+            <div class="admin-actions">
+              <button type="button" id="btn-done-mentor" class="btn btn-outline">Close</button>
+            </div>
+          `;
+
+          dialog.showModal();
+          dialog.querySelector('#close-mentor-modal')?.addEventListener('click', () => dialog.close());
+          dialog.querySelector('#btn-done-mentor')?.addEventListener('click', () => dialog.close());
+        });
+      });
+    }
 
     searchInput?.addEventListener('input', filterMentors);
     skillFilter?.addEventListener('change', filterMentors);
     statusFilter?.addEventListener('change', filterMentors);
+    bindMentorDetailButtons();
 
   } catch {
     if (!root.isConnected) return;
-    root.innerHTML = StaffMentorsPage([]);
+    root.innerHTML = StaffMentorsPage([], user);
     bindStaffGlobalEvents(root);
   }
 }
 
 export async function mountStaffMentees(root) {
-  document.title = 'Manage Mentees | HappyProgramming';
-  root.innerHTML = '<div class="min-h-screen bg-[#fbf9ff] flex items-center justify-center p-8 text-slate-500 font-semibold">Loading Mentees…</div>';
+  document.title = 'Manager Mentees | HappyProgramming';
+  root.innerHTML = '<div class="min-h-screen bg-[#fbf9ff] flex items-center justify-center p-8 text-muted text-xs font-medium">Loading mentees…</div>';
 
-  const hasAccess = await checkStaffAccess(root);
-  if (!hasAccess || !root.isConnected) return;
+  const user = await checkStaffAccess(root);
+  if (!user || !root.isConnected) return;
 
   try {
     const mentees = await staffService.getMentees();
     if (!root.isConnected) return;
-    root.innerHTML = StaffMenteesPage(mentees);
+    root.innerHTML = StaffMenteesPage(mentees, user);
     bindStaffGlobalEvents(root);
+
+    const searchInput = root.querySelector('#mentee-search-input');
+    const statusFilter = root.querySelector('#mentee-status-filter');
+    const container = root.querySelector('#mentee-table-container');
+
+    const filterMentees = () => {
+      const q = (searchInput?.value || '').trim().toLowerCase();
+      const status = statusFilter?.value || 'ALL';
+
+      const filtered = mentees.filter(m => {
+        const matchesQ = !q || (m.name && m.name.toLowerCase().includes(q)) || (m.email && m.email.toLowerCase().includes(q));
+        const matchesStatus = status === 'ALL' || (m.status && m.status.toUpperCase() === status.toUpperCase());
+        return matchesQ && matchesStatus;
+      });
+
+      const rows = filtered.map(m => {
+        const initials = (m.name || 'U').trim().split(/\s+/).map(p => p[0]).slice(0, 2).join('').toUpperCase();
+        return [
+          `<div class="admin-person"><span class="admin-avatar">${e(initials)}</span><div><strong>${e(m.name)}</strong><small>${m.emailVerified ? 'Email verified' : 'Unverified email'}</small></div></div>`,
+          e(m.email),
+          e(m.registeredDate || 'Recent'),
+          `<span class="badge !text-[10px] !py-0.5">${e(m.requestsCount || 0)} requests</span>`,
+          StatusBadge(m.status || 'ACTIVE'),
+          `<button class="btn btn-outline btn-sm" data-view-mentee="${m.id}">View details</button>`
+        ];
+      });
+
+      if (container) {
+        if (rows.length === 0) {
+          container.innerHTML = '<div class="p-12 text-center text-muted text-xs">No mentees found matching the criteria.</div>';
+        } else {
+          container.innerHTML = `
+            <div class="data-table-scroll" role="region" aria-label="Mentee directory" tabindex="0">
+              <table class="data-table">
+                <caption class="sr-only">Mentee directory</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Mentee</th>
+                    <th scope="col">Email address</th>
+                    <th scope="col">Registered on</th>
+                    <th scope="col">Requests</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}
+                </tbody>
+              </table>
+            </div>
+          `;
+        }
+        bindMenteeDetailButtons();
+      }
+    };
+
+    function bindMenteeDetailButtons() {
+      root.querySelectorAll('[data-view-mentee]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const menteeId = btn.dataset.viewMentee;
+          const mentee = mentees.find(m => String(m.id) === String(menteeId));
+          const dialog = root.querySelector('#mentee-detail-dialog');
+          const content = root.querySelector('#mentee-detail-dialog-content');
+          if (!mentee || !dialog || !content) return;
+
+          content.innerHTML = `
+            <button class="modal-close" id="close-mentee-modal" type="button" aria-label="Close">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 6 12 12M6 18 18 6"/></svg>
+            </button>
+            <p class="eyebrow !pr-8">MENTEE ACCOUNT DETAILS</p>
+            <h2 id="mentee-detail-modal-title" class="mt-3 font-display text-2xl text-ink">${e(mentee.name)}</h2>
+            <p class="text-xs text-muted mt-1">${e(mentee.email)} · Registered on: ${e(mentee.registeredDate || 'Recent')}</p>
+
+            <div class="mt-5 space-y-3.5 text-xs text-ink/90 border-t border-b border-line py-4">
+              <p><strong>Account status:</strong> ${StatusBadge(mentee.status || 'ACTIVE')}</p>
+              <p><strong>Email verification:</strong> ${mentee.emailVerified ? '<span class="text-emerald-700 font-semibold">Verified</span>' : '<span class="text-amber-700 font-semibold">Pending verification</span>'}</p>
+              <p><strong>Submitted mentorship requests:</strong> ${e(mentee.requestsCount || 0)} requests</p>
+            </div>
+
+            <div class="admin-actions">
+              <button type="button" id="btn-done-mentee" class="btn btn-outline">Close</button>
+            </div>
+          `;
+
+          dialog.showModal();
+          dialog.querySelector('#close-mentee-modal')?.addEventListener('click', () => dialog.close());
+          dialog.querySelector('#btn-done-mentee')?.addEventListener('click', () => dialog.close());
+        });
+      });
+    }
+
+    searchInput?.addEventListener('input', filterMentees);
+    statusFilter?.addEventListener('change', filterMentees);
+    bindMenteeDetailButtons();
+
   } catch {
     if (!root.isConnected) return;
-    root.innerHTML = StaffMenteesPage([]);
+    root.innerHTML = StaffMenteesPage([], user);
     bindStaffGlobalEvents(root);
   }
 }

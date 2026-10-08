@@ -5,7 +5,20 @@ export function StatCard({ label, value, note = '', icon = '' }) {
 }
 
 export function StatusBadge(status) {
-  const tone = { ACTIVE: 'success', SUCCEEDED: 'success', INACTIVE: 'neutral', LOCKED: 'danger', PENDING: 'warning', FAILED: 'danger', EXPIRED: 'neutral' }[status] || 'neutral';
+  const tone = {
+    ACTIVE: 'success',
+    APPROVED: 'success',
+    ACCEPTED: 'success',
+    RESOLVED: 'success',
+    SUCCEEDED: 'success',
+    INACTIVE: 'neutral',
+    LOCKED: 'danger',
+    REJECTED: 'danger',
+    CANCELLED: 'danger',
+    PENDING: 'warning',
+    FAILED: 'danger',
+    EXPIRED: 'neutral'
+  }[status] || 'neutral';
   return `<span class="status-badge status-${tone}"><span aria-hidden="true">●</span> ${e(String(status).toLowerCase().replaceAll('_', ' '))}</span>`;
 }
 

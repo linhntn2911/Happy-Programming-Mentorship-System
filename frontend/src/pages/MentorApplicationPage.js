@@ -636,7 +636,7 @@ export function mountMentorApplication(root) {
         eyeHide?.classList.toggle('hidden', !isPassword);
       });
 
-      form.addEventListener('submit', e => {
+      form.addEventListener('submit', async e => {
         e.preventDefault();
 
         const firstName = form.querySelector('#mentor-first-name').value.trim();
@@ -699,6 +699,23 @@ export function mountMentorApplication(root) {
         }
 
         if (hasError) return;
+
+        if (!identityLocked) {
+          const submitBtn = form.querySelector('button[type="submit"]');
+          if (submitBtn) submitBtn.disabled = true;
+          try {
+            const check = await mentorApplicationService.checkEmail(email);
+            if (check?.loginRequired) {
+              showFieldError('email', 'An account already uses this email. Please log in to continue.');
+              if (submitBtn) submitBtn.disabled = false;
+              return;
+            }
+          } catch {
+            // Ignore error here and allow proceeding
+          } finally {
+            if (submitBtn) submitBtn.disabled = false;
+          }
+        }
 
         state.firstName = firstName;
         state.lastName = lastName;
@@ -1063,53 +1080,155 @@ export function mountMentorApplication(root) {
   function showStatus(a) {
     const approved = a.status === 'APPROVED';
     const rejected = a.status === 'REJECTED';
-    root.innerHTML = AuthShell(`
-      <h1 class="font-display auth-title">Mentor application</h1>
-      <div class="rounded-2xl border border-line bg-white p-6 space-y-5">
-        <span class="badge">${escapeHtml(a.status)}</span>
-        <h2 class="text-xl font-semibold">${approved ? 'Your application is approved' : rejected ? 'Please update your application' : 'Your application is awaiting Staff review'}</h2>
-        <p class="text-muted text-sm">${approved ? 'You can now log in as a mentor. Your mentee access is still available.' : rejected ? escapeHtml(a.rejectionReason) : 'Your email is verified and your application has been submitted. You can continue using your mentee account while we review it.'}</p>
-        ${rejected ? '<button id="edit-application" class="btn btn-primary">Edit and resubmit</button>' : ''}
-        ${approved ? '<a href="#/login" class="btn btn-primary">Log in as mentor</a>' : ''}
-        <button id="refresh-status" class="btn btn-outline">Refresh status</button>
-        <a href="#/" class="auth-link">Back to homepage</a>
-      </div>`);
-    root.querySelector('#edit-application')?.addEventListener('click', () => { state.step = 1; render(); });
-    root.querySelector('#refresh-status').addEventListener('click', initialise);
-  }
 
-  function emailGate() {
-    root.innerHTML = AuthShell(`
-      <h1 class="font-display auth-title">Become a mentor</h1>
-      <p class="text-muted mb-6">Start with your email. Already a mentee? Log in to apply with your existing account.</p>
-      <form id="application-email-gate" class="auth-form">
-        <label for="application-email">Email address</label>
-        <input id="application-email" class="w-full rounded-lg border border-line bg-cream p-3" type="email" maxlength="254" autocomplete="email" required>
-        <p id="gate-feedback" role="alert" hidden></p>
-        <button class="btn btn-primary" type="submit">Continue</button>
-        <a class="auth-link" href="#/login?return=mentor">Already have an account? Please log in</a>
-      </form>`);
-    const form = root.querySelector('form');
-    form.addEventListener('submit', async event => {
-      event.preventDefault();
-      const button = form.querySelector('button');
-      if (button.disabled) return;
-      button.disabled = true;
-      const feedback = form.querySelector('#gate-feedback');
-      feedback.hidden = true;
-      try {
-        const email = form.querySelector('input').value.trim();
-        const result = await mentorApplicationService.checkEmail(email);
-        if (!form.isConnected) return;
-        if (result.loginRequired) {
-          feedback.textContent = 'An account already uses this email. Please log in below to continue your mentor application.';
-          feedback.hidden = false;
-          form.querySelector('a').focus();
-        } else { state.email = email; render(); }
-      } catch (error) {
-        feedback.textContent = error.message; feedback.hidden = false;
-      } finally { button.disabled = false; }
-    });
+    let statusBadge = `
+      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+        <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+        Pending Staff Review · 48h SLA
+      </span>
+    `;
+    let iconHtml = `
+      <div class="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200/80 grid place-items-center mx-auto shadow-xs">
+        <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+      </div>
+    `;
+    let title = 'Application Awaiting Review';
+    let subtitle = 'Your email is verified and your mentor application has been successfully submitted. Our team reviews all qualifications and credentials within the 48-hour SLA.';
+
+    if (approved) {
+      statusBadge = `
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+          <span class="w-2 h-2 rounded-full bg-emerald-600"></span>
+          Approved ✓
+        </span>
+      `;
+      iconHtml = `
+        <div class="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200/80 grid place-items-center mx-auto shadow-xs">
+          <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+            <polyline points="22 4 12 14.01 9 11.01"/>
+          </svg>
+        </div>
+      `;
+      title = "Welcome to the Mentor Team!";
+      subtitle = "Your application has been verified and approved by HappyProgramming. You now have full access to mentor scheduling, mentee management, and booking features.";
+    } else if (rejected) {
+      statusBadge = `
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-800 border border-rose-200">
+          <span class="w-2 h-2 rounded-full bg-rose-600"></span>
+          Action Required
+        </span>
+      `;
+      iconHtml = `
+        <div class="w-16 h-16 rounded-2xl bg-rose-50 text-rose-600 border border-rose-200/80 grid place-items-center mx-auto shadow-xs">
+          <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+        </div>
+      `;
+      title = 'Application Requires Updates';
+      subtitle = 'Our operations team reviewed your application and requested the following updates before approval:';
+    }
+
+    const applicantEmail = a.email || a.applicantEmail || state.email || '';
+    const cvName = a.cvFileName || state.cvFileName || '';
+
+    const contentHtml = `
+      <div class="max-w-md mx-auto text-center space-y-6">
+        ${iconHtml}
+
+        <div>
+          <div class="mb-3">${statusBadge}</div>
+          <h1 class="font-display text-2xl sm:text-3xl text-ink font-bold tracking-tight">${title}</h1>
+          <p class="text-xs sm:text-sm text-muted mt-2 leading-relaxed">${subtitle}</p>
+        </div>
+
+        ${rejected && a.rejectionReason ? `
+          <div class="text-left bg-rose-50/70 border border-rose-200 rounded-xl p-4 text-xs text-rose-900 leading-relaxed space-y-1">
+            <strong class="font-semibold block text-rose-950">Feedback from Staff:</strong>
+            <p>${escapeHtml(a.rejectionReason)}</p>
+          </div>
+        ` : ''}
+
+        <!-- 3-Step Verification Timeline -->
+        <div class="bg-[#fbf9ff] border border-line rounded-2xl p-4 sm:p-5 text-left">
+          <p class="text-[11px] font-bold text-muted uppercase tracking-wider mb-4">Application Progress</p>
+          <div class="space-y-3.5">
+            <div class="flex items-start gap-3">
+              <span class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 font-bold text-xs grid place-items-center shrink-0">✓</span>
+              <div>
+                <p class="text-xs font-semibold text-ink">Credentials & Profile Submitted</p>
+                <p class="text-[11px] text-muted">Personal background and contact information saved.</p>
+              </div>
+            </div>
+            <div class="flex items-start gap-3">
+              <span class="w-6 h-6 rounded-full ${approved ? 'bg-emerald-100 text-emerald-700 font-bold' : rejected ? 'bg-rose-100 text-rose-700 font-bold' : 'bg-amber-100 text-amber-800 font-bold animate-pulse'} text-xs grid place-items-center shrink-0">
+                ${approved ? '✓' : rejected ? '!' : '2'}
+              </span>
+              <div>
+                <p class="text-xs font-semibold text-ink">Staff Verification & CV Assessment</p>
+                <p class="text-[11px] text-muted">${approved ? 'Completed and verified by Staff.' : rejected ? 'Review finished with feedback requested.' : 'Under review by our back-office team (48h SLA).'}</p>
+              </div>
+            </div>
+            <div class="flex items-start gap-3">
+              <span class="w-6 h-6 rounded-full ${approved ? 'bg-emerald-100 text-emerald-700 font-bold' : 'bg-slate-100 text-slate-400 font-semibold'} text-xs grid place-items-center shrink-0">
+                ${approved ? '✓' : '3'}
+              </span>
+              <div>
+                <p class="text-xs font-semibold ${approved ? 'text-ink' : 'text-slate-400'}">Mentor Activation</p>
+                <p class="text-[11px] text-muted">${approved ? 'Mentor privileges active on your account.' : 'Finalize profile, pricing rates, and open slots.'}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Submission Summary Pill -->
+        ${(applicantEmail || cvName) ? `
+          <div class="bg-white border border-line rounded-xl p-3.5 text-left flex items-center justify-between gap-3 text-xs">
+            <div class="truncate">
+              ${applicantEmail ? `<p class="font-semibold text-ink truncate">${escapeHtml(applicantEmail)}</p>` : ''}
+              ${cvName ? `<p class="text-[11px] text-muted flex items-center gap-1 mt-0.5">📄 ${escapeHtml(cvName)}</p>` : ''}
+            </div>
+            <span class="status-badge status-neutral shrink-0 text-[10px]">Verified email</span>
+          </div>
+        ` : ''}
+
+        <!-- Actions -->
+        <div class="space-y-3 pt-2">
+          ${approved ? `
+            <a href="#/login" class="btn btn-primary w-full text-center block shadow-sm">
+              Log in to Mentor Workspace &rarr;
+            </a>
+          ` : ''}
+          ${rejected ? `
+            <button id="edit-application" class="btn btn-primary w-full" type="button">
+              Edit and Resubmit Application
+            </button>
+          ` : ''}
+
+          <div class="flex items-center gap-3">
+            <button id="refresh-status" class="btn btn-outline flex-1 flex items-center justify-center gap-2 text-xs" type="button">
+              <svg class="w-3.5 h-3.5 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+              </svg>
+              <span>Refresh Status</span>
+            </button>
+            <a href="#/" class="btn btn-light flex-1 text-center text-xs">
+              Back to Home
+            </a>
+          </div>
+        </div>
+      </div>
+    `;
+
+    root.innerHTML = AuthShell(contentHtml, { wide: true });
+    root.querySelector('#edit-application')?.addEventListener('click', () => { state.step = 1; render(); });
+    root.querySelector('#refresh-status')?.addEventListener('click', initialise);
   }
 
   async function initialise() {
@@ -1135,7 +1254,9 @@ export function mountMentorApplication(root) {
         state.lastName = names.join(' ') || state.firstName;
         identityLocked = true;
         render();
-      } else emailGate();
+      } else {
+        render();
+      }
     } catch (error) {
       if (!loading.isConnected) return;
       root.innerHTML = AuthShell(`<p role="alert">${escapeHtml(error.message)}</p><button id="application-retry" class="btn btn-outline mt-4">Try again</button>`);

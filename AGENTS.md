@@ -170,6 +170,36 @@ Frontend rules:
 - New pages and components must reuse the current buttons, inputs, cards, badges, spacing, borders, radii, shadows, and states so the interface remains visually synchronized across homepage, directory, profile, and future modules.
 - When a new visual treatment is genuinely needed, add it to the shared design system and component showcase before using it in a feature page.
 
+### Shared Admin and Staff workspace UI
+
+Admin and Staff workspaces share a single unified presentation system (`frontend/src/styles/admin.css`):
+
+1. **Layout Shell**:
+   - Use the 2-column grid `.admin-shell`: a fixed 246px navigation rail (`.admin-sidebar`), 83px top bar (`.admin-topbar`), and 36px content gutters (`.admin-content`).
+   - Navigation rail must include the brand logo `{h} HappyProgramming`, an uppercase eyebrow (`ADMIN WORKSPACE` or `STAFF WORKSPACE`), navigation links (`.admin-nav-link` with inline SVG icon and `aria-current="page"`), a bottom note card (`.admin-sidebar-note`), and a "Back to website" link.
+   - Top bar must provide a left-aligned breadcrumb (`Workspace / [Section]`), a right-aligned profile pill (`.admin-profile` with `.admin-avatar`, user name, role subtext), and an explicit Sign out button (`.btn.btn-outline.btn-sm`).
+
+2. **Typography**:
+   - Headings: Display font Georgia / serif (`var(--font-display)`), 36px/1.2, letter-spacing: -0.8px (`.admin-page-heading h1`).
+   - Section Eyebrow: Uppercase, bold, 11px, letter-spacing: 0.1em, color: brand purple (`.eyebrow`).
+   - Body & Controls: Be Vietnam Pro (`var(--font-body)`), font-weight 400–600, size 11px–14px.
+
+3. **Colors and Surfaces**:
+   - Page background: Cream `#fbf9ff` (`--color-cream`).
+   - Surface cards & panels: White `#ffffff` with 1px border `#e8e0f1` (`--color-line`), 14px radii (`.stat-card`, `.admin-panel`), and restrained shadows.
+   - Accent highlights: Brand purple `#8b46e8` (`--color-brand`), dark purple `#7431d0`, lilac `#f1e8ff` (`--color-lilac`).
+   - Text colors: Primary ink `#25143f` (`--color-ink`), secondary muted `#6b5b82` (`--color-muted`).
+
+4. **UI Primitives & Operational Controls**:
+   - Metrics: `.admin-stats` grid of 4 `.stat-card` containing `.stat-label` (label + SVG icon), `.stat-value` (21–29px semi-bold), and `.stat-note`.
+   - Panels: `.admin-panel` with `.admin-panel-heading` (H2 + description + optional action) and `.admin-panel-body`.
+   - Toolbars: `.admin-toolbar` with `.admin-field` (label + input/select), `.admin-search`, and `.btn` controls.
+   - Data Tables: `.data-table-scroll` + `.data-table` with cream headers (`th`), subtle borders, and `.status-badge`.
+   - Status Badges: Restrained colored pills (`.status-badge.status-[success|warning|danger|neutral]`) with bullet dot `●`. Never use emoji icons in status badges, tables, or buttons.
+   - Modals & Dialogs: Native `<dialog class="modal">` with `.modal-close`, eyebrow, Georgia display title, clean form fields, and `.admin-actions`.
+
+Both roles must adhere strictly to these shared workspace rules while preserving role-specific permissions, API contracts, and operational workflows.
+
 ## Design System
 
 The canonical design source is:
