@@ -1,3 +1,4 @@
+import { MentorAvatar } from './MentorAvatar.js';
 const escapeHtml = value => String(value ?? '')
   .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
   .replaceAll('"', '&quot;').replaceAll("'", '&#039;');
@@ -12,7 +13,7 @@ export function DirectoryMentorCard(mentor) {
   return `
     <article class="directory-card" data-mentor-id="${escapeHtml(mentor.id)}" data-name="${escapeHtml(mentor.name)}">
       <div class="directory-card-media">
-        <img src="/images/${escapeHtml(mentor.portrait)}" alt="Portrait of ${escapeHtml(mentor.name)}" width="176" height="176">
+        ${MentorAvatar(mentor, 'directory-card-photo')}
         <span class="availability-badge">${availability}</span>
       </div>
       <div class="directory-card-body">
@@ -27,7 +28,7 @@ export function DirectoryMentorCard(mentor) {
           </button>
         </div>
         <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-          <span class="font-semibold text-ink">★ ${mentor.rating.toFixed(1)} <span class="font-normal text-muted">(${mentor.reviewCount} reviews)</span></span>
+          <span class="font-semibold text-ink">${mentor.reviewCount > 0 ? `★ ${Number(mentor.rating).toFixed(1)} <span class="font-normal text-muted">(${Number(mentor.reviewCount)} reviews)</span>` : '<span class="font-normal text-muted">No reviews yet</span>'}</span>
           <span class="text-muted">${mentor.yearsExperience} years of experience</span>
         </div>
         <p class="mt-4 text-[13px] leading-6 text-muted">${escapeHtml(mentor.description)}</p>

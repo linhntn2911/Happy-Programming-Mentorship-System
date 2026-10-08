@@ -2,6 +2,8 @@ import { BrowseAllMentorsLink } from '../ui/BrowseAllMentorsLink.js';
 import { mentorSkillOptions } from '../../constants/mentorDiscovery.js';
 import { authService } from '../../services/authService.js';
 import { notificationService } from '../../services/notificationService.js';
+import { profileService } from '../../services/profileService.js';
+import { safeNotificationHref } from '../../utils/notificationLink.js';
 
 const escapeHtml = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 
@@ -36,7 +38,7 @@ function renderNotificationItems(items = []) {
   return items.map(item => {
     const isUnread = !item.read;
     const timeAgo = formatRelativeTime(item.createdAt);
-    const href = item.actionUrl ? escapeHtml(item.actionUrl) : '#';
+    const href = escapeHtml(safeNotificationHref(item.actionUrl) || '#/notifications');
     const bgClass = isUnread ? 'bg-lilac/30 hover:bg-lilac/50' : 'bg-white hover:bg-cream';
     const dotClass = isUnread ? '<span class="h-2 w-2 rounded-full bg-brand shrink-0"></span>' : '';
 
@@ -83,6 +85,7 @@ export function renderNotificationBell({ isMobile = false } = {}) {
         <div class="notification-list max-h-80 overflow-y-auto divide-y divide-line/60">
           <div class="p-6 text-center text-xs text-muted">Loading notifications…</div>
         </div>
+        <a href="#/notifications" class="block rounded-b-2xl border-t border-line px-4 py-3 text-center text-xs font-semibold text-brand hover:bg-lilac/30">View all notifications</a>
       </div>
     </div>
   `;
@@ -98,7 +101,7 @@ export function renderUserDropdown({ currentUser, displayName, initials, isMobil
   return `
     <div class="relative user-menu-container ${isMobile ? 'shrink-0 lg:hidden' : 'hidden lg:block'}">
       <button type="button" class="user-menu-trigger flex items-center gap-2 rounded-full border border-line bg-white ${triggerPadding} font-semibold text-ink shadow-2xs hover:border-brand/40 hover:bg-lilac/30 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand/30" aria-expanded="false" aria-haspopup="true" aria-label="User menu for ${escapeHtml(displayName)}">
-        <span class="grid ${avatarSize} place-items-center rounded-full bg-brand font-bold text-white uppercase">${escapeHtml(initials)}</span>
+        <span data-account-avatar class="grid ${avatarSize} place-items-center overflow-hidden rounded-full bg-brand font-bold text-white uppercase">${escapeHtml(initials)}</span>
         <span class="${textTruncate} truncate text-ink">${escapeHtml(displayName)}</span>
         <svg class="h-3.5 w-3.5 text-muted transition-transform duration-200 user-menu-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="m6 9 6 6 6-6"/>
@@ -278,8 +281,28 @@ export function bindNotificationBell(root = document) {
   refreshBell();
 }
 
+export async function refreshUserMenuAvatar(root = document) {
+  const placeholders = [...root.querySelectorAll('[data-account-avatar]')];
+  const user = authService.getCurrentUser();
+  if (!placeholders.length || !(user?.roles?.includes('MENTEE') || user?.role === 'MENTEE')) return;
+  let profile;
+  try { profile = await profileService.get(); } catch { return; }
+  for (const placeholder of placeholders) {
+    if (!placeholder.isConnected) continue;
+    const name = [profile.firstName, profile.lastName].filter(Boolean).join(' ') || user.name || user.email;
+    placeholder.textContent = getInitials(name);
+    if (!profile.hasAvatar) continue;
+    const img = new Image();
+    img.alt = '';
+    img.className = 'h-full w-full object-cover';
+    img.onload = () => { if (placeholder.isConnected) placeholder.replaceChildren(img); };
+    img.src = `/api/profile/me/avatar?v=${Date.now()}`;
+  }
+}
+
 export function bindUserDropdown(root = document, onLogout = null) {
   const containers = root.querySelectorAll('.user-menu-container');
+  refreshUserMenuAvatar(root);
 
   function closeAllDropdowns() {
     containers.forEach(container => {

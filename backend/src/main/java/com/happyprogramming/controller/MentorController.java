@@ -67,6 +67,12 @@ public class MentorController {
         return ApiResponse.ok(mentorService.getMyProfile());
     }
 
+    @GetMapping("/api/mentors/{slug}/avatar")
+    public org.springframework.http.ResponseEntity<byte[]> avatar(@PathVariable String slug) {
+        return org.springframework.http.ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+            .header("X-Content-Type-Options", "nosniff").contentType(org.springframework.http.MediaType.IMAGE_PNG).body(mentorCatalog.avatar(slug));
+    }
+
     @PutMapping("/api/mentors/me/profile")
     @Transactional
     public ApiResponse<MentorProfileResponse> updateMyProfile(

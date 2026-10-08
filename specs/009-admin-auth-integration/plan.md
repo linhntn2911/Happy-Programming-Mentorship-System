@@ -1,5 +1,12 @@
 # Integration plan
 
+Latest merge: linh e64ef9d into luong b3c4e07. Preserve fail-closed Staff service when resolving
+the mock-fallback conflict. New Mentor MVC slices require the existing StaffAccessService mock.
+Rename the opt-in Staff provisioning script 013 to 014 because upstream now owns schema script
+013 (Flyway V10); do not rerun provisioning. Keep local target V7 pending V8/V9/V10 data review.
+Full application tests/build are run; new approval-first checkout is not claimed live-verified
+against the old V7 schema. No automatic upstream data backfills or payment transitions applied.
+
 Local Staff demo amendment: user requests a persistent account for manual permission testing.
 Provision staff.demo@example.test as ACTIVE STAFF with no user_permissions via opt-in migration
 013. Generate random credentials in ignored local files; reject duplicates, never reset an

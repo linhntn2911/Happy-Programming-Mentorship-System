@@ -16,18 +16,23 @@ test('getMyDashboard reads the current mentor dashboard endpoint', async () => {
   try {
     const result = await mentorDashboardService.getMyDashboard();
     assert.equal(requestedUrl, '/api/mentors/me/dashboard');
-    assert.equal(result.data.summary.pendingInvitations, 3);
-    assert.equal(result.isMock, false);
+    assert.equal(result.summary.pendingInvitations, 3);
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
-test('decideOnRequest sends only the selected decision', async () => {
+test('decideOnRequest sends the decision with a CSRF header', async () => {
   const originalFetch = globalThis.fetch;
-  let request;
+  const calls = [];
   globalThis.fetch = async (url, options) => {
-    request = { url, options };
+    calls.push({ url, options });
+    if (url === '/api/auth/csrf') {
+      return {
+        ok: true,
+        json: async () => ({ success: true, data: { headerName: 'X-CSRF-TOKEN', token: 'tok-123' } }),
+      };
+    }
     return {
       ok: true,
       json: async () => ({ success: true, data: { requestId: 9, status: 'REJECTED' } }),
@@ -36,9 +41,11 @@ test('decideOnRequest sends only the selected decision', async () => {
 
   try {
     const result = await mentorDashboardService.decideOnRequest(9, 'REJECTED');
-    assert.equal(request.url, '/api/mentors/me/requests/9/decision');
-    assert.equal(request.options.method, 'PUT');
-    assert.deepEqual(JSON.parse(request.options.body), { decision: 'REJECTED' });
+    const decision = calls.find(call => call.url === '/api/mentors/me/requests/9/decision');
+    assert.ok(decision, 'decision request was not issued');
+    assert.equal(decision.options.method, 'PUT');
+    assert.deepEqual(JSON.parse(decision.options.body), { decision: 'REJECTED' });
+    assert.equal(decision.options.headers['X-CSRF-TOKEN'], 'tok-123');
     assert.equal(result.status, 'REJECTED');
   } finally {
     globalThis.fetch = originalFetch;

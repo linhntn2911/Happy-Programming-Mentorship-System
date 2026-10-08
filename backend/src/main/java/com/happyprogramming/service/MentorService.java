@@ -150,7 +150,13 @@ public class MentorService {
     }
 
     long requireCurrentActiveMentorId() {
-        long userId = resolveDemoUserId();
+        return currentActiveMentorUserId();
+    }
+
+    @Transactional(readOnly = true)
+    public long currentActiveMentorUserId() {
+        Long authenticatedId = currentUserId();
+        long userId = authenticatedId != null ? authenticatedId : resolveDemoUserId();
         getActiveMentorAccount(userId);
         getMentorProfile(userId);
         return userId;

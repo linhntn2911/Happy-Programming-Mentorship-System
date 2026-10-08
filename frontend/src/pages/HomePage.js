@@ -2,19 +2,21 @@ import { MENTOR_CATEGORIES } from '../constants/mentorDiscovery.js';
 import { Header } from '../components/layout/Header.js';
 import { Footer } from '../components/layout/Footer.js';
 import { MentorCard } from '../components/mentor/MentorCard.js';
+import { MentorAvatar } from '../components/mentor/MentorAvatar.js';
+import { escapeHtml as e } from '../utils/html.js';
 
-export function HomePage(mentors = [], user = null) {
+export function HomePage(mentors = [], user = null, navigationMentors = mentors) {
   const mentorCardsHtml = mentors.length > 0
     ? mentors.map(m => MentorCard(m)).join('')
     : '<div class="col-span-full py-12 text-center text-muted">Loading mentors...</div>';
 
   const spotlightCardsHtml = mentors.map(mentor => `
-    <button class="spotlight-card" data-mentor-id="${mentor.id}" aria-label="View profile of ${mentor.name}">
-      <img src="/images/${mentor.portrait}" alt="Illustrative mentor portrait" width="270" height="270">
-      <span class="mt-4 block font-display text-[21px]">${mentor.name}</span>
-      <span class="mt-1 block text-[10px] leading-5 text-muted">${mentor.role}</span>
+    <button class="spotlight-card" data-mentor-id="${e(mentor.id)}" aria-label="View profile of ${e(mentor.name)}">
+      ${MentorAvatar(mentor, 'spotlight-image', 185)}
+      <span class="mt-4 block font-display text-[21px]">${e(mentor.name)}</span>
+      <span class="mt-1 block text-[10px] leading-5 text-muted">${e(mentor.role)}</span>
       <span class="mt-3 flex items-center justify-between border-t border-line pt-3 text-[10px]">
-        <span class="text-muted">${mentor.specialty}</span>
+        <span class="text-muted">${e(mentor.specialty)}</span>
         <span class="inline-flex items-center gap-1.5 text-brand">View profile <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg></span>
       </span>
     </button>
@@ -23,7 +25,7 @@ export function HomePage(mentors = [], user = null) {
   return `
 <a href="#main" class="sr-only z-50 rounded-lg bg-brand p-3 text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Skip to main content</a>
 <div class="hero-shell relative z-20">
-  ${Header(mentors, user)}
+  ${Header(navigationMentors, user)}
 </div>
 <main id="main">
   <div class="hero-shell relative overflow-hidden">
@@ -128,7 +130,7 @@ export function HomePage(mentors = [], user = null) {
           <article>
             <div class="step-art text-brand"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6z"/><path d="m8 12 3 3 5-6"/></svg></div>
             <h3 class="mt-5 text-[15px] font-semibold"><span class="mr-2 text-brand/50">03</span> Make it official</h3>
-            <p class="mt-3 text-[12px] leading-6 text-muted">Pay only after your mentor accepts. Your mentorship and 7-day trial start after payment is verified.</p>
+            <p class="mt-3 text-[12px] leading-6 text-muted">Pay only after your mentor accepts. Your mentorship starts after payment is verified.</p>
           </article>
           <article>
             <div class="step-art text-brand"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 6.3L21 12l-6.3 2.7L12 21l-2.7-6.3L3 12l6.3-2.7Z"/></svg></div>
@@ -173,8 +175,8 @@ export function HomePage(mentors = [], user = null) {
         <div class="mt-10 grid gap-8 text-center sm:grid-cols-3">
           <article>
             <span class="inline-grid h-12 w-12 place-items-center rounded-full bg-white text-brand"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 11h18m-13 4h2m4 0h2"/></svg></span>
-            <h3 class="mt-4 text-[15px] font-semibold">A 7-day trial window</h3>
-            <p class="mx-auto mt-3 max-w-[275px] text-[12px] leading-6 text-muted">Your trial starts after verified payment. Cancel within the first 7 days for a full refund.</p>
+            <h3 class="mt-4 text-[15px] font-semibold">Flexible monthly payments</h3>
+            <p class="mx-auto mt-3 max-w-[275px] text-[12px] leading-6 text-muted">Pay after acceptance and manage your monthly mentorship without a long-term contract.</p>
           </article>
           <article>
             <span class="inline-grid h-12 w-12 place-items-center rounded-full bg-white text-brand"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11a8 8 0 0 1-8 8H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z"/><path d="M7 9h10m-10 4h6"/></svg></span>
@@ -252,11 +254,11 @@ export function HomePage(mentors = [], user = null) {
           </details>
           <details class="faq-item">
             <summary>When do I pay for monthly mentorship?</summary>
-            <p>Apply first. Your mentor has 48 hours to respond. You pay only after they accept, and your mentorship, workspace access, and 7-day trial begin after payment is verified.</p>
+            <p>Apply first. Your mentor has 48 hours to respond. You pay only after they accept, and your mentorship and workspace access begin after payment is verified.</p>
           </details>
           <details class="faq-item" id="refund-faq">
             <summary>How do cancellations and refunds work?</summary>
-            <p>For monthly mentorship, cancellation within the first 7 trial days ends access immediately and receives a full refund. After that, cancellation stops renewal while access continues until the end of the paid period. For one-off sessions, cancel at least 24 hours ahead for a full refund; later cancellations retain a 50% reservation fee.</p>
+            <p>For monthly mentorship, cancellation stops renewal while access continues until the end of the paid period. For one-off sessions, cancel at least 24 hours ahead for a full refund; later cancellations retain a 50% reservation fee.</p>
           </details>
           <details class="faq-item">
             <summary>Where do I meet and talk with my mentor?</summary>

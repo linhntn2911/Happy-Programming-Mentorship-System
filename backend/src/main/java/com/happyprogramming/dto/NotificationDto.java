@@ -16,4 +16,12 @@ public record NotificationDto(
         long unreadCount,
         List<NotificationDto> notifications
     ) {}
+    public record NotificationHistoryResponse(
+        long unreadCount,
+        long totalElements,
+        int totalPages,
+        int page,
+        int size,
+        List<NotificationDto> notifications
+    ) {}
 }

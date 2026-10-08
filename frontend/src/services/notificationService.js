@@ -13,6 +13,10 @@ async function withCsrf(headers = {}) {
 }
 
 export const notificationService = {
+  getHistory({ page = 0, size = 10, unreadOnly = false } = {}) {
+    const params = new URLSearchParams({ page: String(page), size: String(size), unreadOnly: String(unreadOnly) });
+    return apiClient(`/api/notifications/history?${params}`, { cache: 'no-store' });
+  },
   async getNotifications() {
     try {
       const res = await apiClient('/api/notifications');

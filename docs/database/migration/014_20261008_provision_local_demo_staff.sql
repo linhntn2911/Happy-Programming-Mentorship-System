@@ -1,4 +1,5 @@
 -- Explicit local-development provisioning only; never included in automatic Flyway startup.
+-- Renumbered from 013 to 014 after merging upstream lifecycle migration 013; SQL behavior unchanged.
 -- Run sqlcmd against local HappyProgramming with HPMS_STAFF_HASH set to a generated BCrypt hash.
 -- Refuses to replace or elevate an existing account. Re-running does not reset credentials.
 SET XACT_ABORT ON;

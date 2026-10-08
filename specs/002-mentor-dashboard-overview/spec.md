@@ -10,6 +10,10 @@
 
 ## User Scenarios & Testing
 
+### Dashboard visual alignment
+
+The mentor dashboard uses the shared Admin/Staff workspace shell, typography, colors, metric cards, and panels. Its existing metrics, request details, accept/reject actions, SLA timer, loading/error states, and cancellation/refund notices remain available.
+
 ### User Story 1 - Review mentor overview (Priority: P1)
 
 As a mentor, I want to see my net earnings, pending invitations, and average rating together so I can understand my current mentorship activity.

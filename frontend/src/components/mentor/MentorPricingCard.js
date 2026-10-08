@@ -1,7 +1,7 @@
 /**
  * MentorPricingCard Component
  * Displays interactive monthly mentorship tiers (Lite, Standard, Pro)
- * along with one-off session CTA, 7-day trial badge, and feature benefits.
+ * along with one-off session CTA and feature benefits.
  *
  * Adheres to HappyProgramming Design System:
  * - Brand Purple: #8b46e8, Lilac: #f1e8ff, Cream: #fbf9ff, Ink: #25143f, Line: #e8e0f1
@@ -16,15 +16,14 @@ export const DEFAULT_MENTOR_TIERS = [
     currency: "₫",
     usdPrice: "$120",
     period: "month",
-    tagline: "Start free, decide later",
-    trialDays: 7,
+    tagline: "Flexible monthly mentorship",
     callsPerMonth: 1,
     callDuration: 60,
     responseTimeHours: 24,
     features: [
       {
-        title: "Free 7-day trial",
-        description: "No charge until day 7. Cancel anytime with zero fees."
+        title: "Pay after acceptance",
+        description: "Your mentor reviews your application before any payment is requested."
       },
       {
         title: "Ongoing calls + chat",
@@ -45,14 +44,13 @@ export const DEFAULT_MENTOR_TIERS = [
     usdPrice: "$220",
     period: "month",
     tagline: "Most popular for steady career growth",
-    trialDays: 7,
     callsPerMonth: 2,
     callDuration: 60,
     responseTimeHours: 12,
     features: [
       {
-        title: "Free 7-day trial",
-        description: "No charge until day 7. Full access to private workspace."
+        title: "Pay after acceptance",
+        description: "Payment is requested only after your mentor accepts your application."
       },
       {
         title: "Bi-weekly calls + priority chat",
@@ -72,14 +70,13 @@ export const DEFAULT_MENTOR_TIERS = [
     usdPrice: "$390",
     period: "month",
     tagline: "Intensive 1-on-1 career acceleration",
-    trialDays: 7,
     callsPerMonth: 4,
     callDuration: 60,
     responseTimeHours: 6,
     features: [
       {
-        title: "Free 7-day trial",
-        description: "Experience high-touch mentorship for 7 days before paying."
+        title: "Pay after acceptance",
+        description: "Start your high-touch mentorship after your mentor accepts and payment is verified."
       },
       {
         title: "Weekly calls + VIP chat",
@@ -181,7 +178,7 @@ export function MentorPricingCard({
     </button>
 
     <p class="mt-3 text-xs text-muted">
-      7-day free trial, cancel anytime.
+      Pay after your mentor accepts. Cancel anytime between billing cycles.
       <a href="#/what-is-included" class="font-medium text-brand underline decoration-brand/40 underline-offset-2 hover:decoration-brand">What's included?</a>
     </p>
 
