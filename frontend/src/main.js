@@ -730,7 +730,6 @@ mentorService
       renderApp(currentMentors);
     }
   })
-  })
   .catch(err => {
     console.info('Using local catalog (backend API unreachable or offline):', err.message);
   });
