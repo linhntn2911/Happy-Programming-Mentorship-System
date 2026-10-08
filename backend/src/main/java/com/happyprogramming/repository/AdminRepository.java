@@ -40,6 +40,7 @@ public class AdminRepository {
         return jdbc.query("SELECT id, full_name, email, role_code, status, created_at FROM dbo.users WITH (UPDLOCK, HOLDLOCK) WHERE id=?",
             (r, n) -> new Account(r.getLong("id"), r.getString("full_name"), r.getString("email"), r.getString("role_code"), r.getString("status"), instant(r.getTimestamp("created_at")), List.of()), id).stream().findFirst();
     }
+    public boolean hasRole(long id, String role) { return jdbc.queryForObject("SELECT COUNT(*) FROM dbo.users u WHERE u.id=? AND (u.role_code=? OR EXISTS (SELECT 1 FROM dbo.user_roles r WHERE r.user_id=u.id AND r.role_code=?))", Integer.class,id,role,role)>0; }
     public List<String> permissions(long id) { return jdbc.queryForList("SELECT permission_code FROM dbo.user_permissions WHERE user_id=? ORDER BY permission_code", String.class, id); }
     public void status(long id, String status) { jdbc.update("UPDATE dbo.users SET status=?, updated_at=SYSUTCDATETIME() WHERE id=?", status, id); }
     public void permissions(long id, Set<String> permissions, long actor) {

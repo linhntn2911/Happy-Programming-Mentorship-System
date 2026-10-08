@@ -12,7 +12,9 @@ export const staffSections = {
   dashboard: 'Staff Dashboard',
   applications: 'Mentor applications',
   mentors: 'Manager Mentors',
-  mentees: 'Manager Mentees'
+  mentees: 'Manager Mentees',
+  requests: 'Mentorship requests',
+  skills: 'Technical skills'
 };
 
 export function staffIcon(name) {
@@ -27,6 +29,8 @@ export function StaffLayout(section, content, { name = 'Operational Staff' } = {
       case 'applications': return '#/staff/mentor-applications';
       case 'mentors': return '#/staff/mentors';
       case 'mentees': return '#/staff/mentees';
+      case 'requests': return '#/staff/requests';
+      case 'skills': return '#/staff/skills';
       default: return '#/staff/dashboard';
     }
   };

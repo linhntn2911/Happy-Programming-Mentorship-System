@@ -11,19 +11,14 @@ export function StaffDashboardPage(data = {}, user = null) {
   const firstName = staffName.split(/\s+/)[0] || 'Staff';
 
   const stats = {
-    pendingApplicationsCount: data.pendingApplicationsCount ?? 0,
-    activeMentorsCount: data.activeMentorsCount ?? 0,
-    activeMenteesCount: data.activeMenteesCount ?? 0,
-    pendingRequestsCount: data.pendingRequestsCount ?? 0,
+    pendingApplicationsCount: data.pendingApplicationsCount ?? 'Not assigned',
+    activeMentorsCount: data.activeMentorsCount ?? 'Not assigned',
+    activeMenteesCount: data.activeMenteesCount ?? 'Not assigned',
+    pendingRequestsCount: data.pendingRequestsCount ?? 'Not assigned',
     recentActivities: data.recentActivities || []
   };
 
-  const volumeTracks = [
-    { label: 'Java & Spring Boot', count: 420, percentage: 85 },
-    { label: 'React & Next.js', count: 310, percentage: 65 },
-    { label: 'Python & AI / Data', count: 215, percentage: 45 },
-    { label: 'DevOps & Cloud Infrastructure', count: 160, percentage: 35 },
-  ];
+
 
   const content = `
     <!-- Page Heading -->
@@ -71,32 +66,7 @@ export function StaffDashboardPage(data = {}, user = null) {
 
     <!-- 2-Column Operational Grid -->
     <div class="admin-grid">
-      <!-- Category Volume Panel -->
-      <section class="admin-panel">
-        <div class="admin-panel-heading">
-          <div>
-            <h2>Mentorship category demand</h2>
-            <p>Weekly connection requests across technical categories</p>
-          </div>
-          <span class="status-badge status-neutral">Live stream</span>
-        </div>
-        <div class="admin-panel-body">
-          <div class="space-y-4">
-            ${volumeTracks.map(track => `
-              <div>
-                <div class="flex items-center justify-between text-xs font-semibold mb-1.5">
-                  <span class="text-ink">${e(track.label)}</span>
-                  <span class="text-muted font-normal">${track.count} requests</span>
-                </div>
-                <div class="w-full bg-[#f1e8ff] h-2.5 rounded-full overflow-hidden">
-                  <div class="bg-brand h-full rounded-full transition-all duration-500" style="width: ${track.percentage}%"></div>
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      </section>
-
+      <section class="admin-panel"><div class="admin-panel-body"><h2>Assigned access</h2><p class="mt-3">Metrics are available only for your assigned permissions. Request access from your administrator when a function is denied.</p></div></section>
       <!-- Recent Staff Activity Panel -->
       <section class="admin-panel">
         <div class="admin-panel-heading">

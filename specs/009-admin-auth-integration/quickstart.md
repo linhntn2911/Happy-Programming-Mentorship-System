@@ -1,5 +1,42 @@
 # Merged authentication validation (2026-10-07)
 
+2026-10-08 follow-up: the Staff authorization/mock-data gaps below are superseded for current
+read routes by specs/011-staff-permission-enforcement/quickstart.md. All four permission
+read boundaries are now tested; full skill/request mutation workflows remain out of scope.
+
+## Persistent Staff demo, 2026-10-08
+User-authorized local migration 013 created staff.demo@example.test as ACTIVE STAFF with
+zero permissions. Random password is only in ignored .system_generated/staff-demo-credentials.txt.
+Actual HTTP test through frontend proxy with separate Admin/Staff sessions: directory contains
+the account; review queue 403 before grant, 200 after Admin grant, 403 after revoke on the
+same Staff session. Workspace readback confirms zero final permissions and two matching audit
+records. Both test sessions logged out. Account retained for manual UI testing; reload the
+Staff directory to see it. No claim that the three other Staff capabilities are complete.
+
+## Staff merge validation, 2026-10-08
+
+Merged origin/linh 9e38f03 into local luong (fast-forward; includes existing Admin commit
+0a5776f). No conflict, no push for this update; unrelated SRS document preserved.
+Backend Maven test: 95 discovered, 90 passed, 5 skipped. Frontend: 26 passed; build passed.
+New AuthControllerTest validates no grant -> 403, Admin grant -> 200, Admin revoke -> 403
+on the same Staff session for mentor application review. It also verifies CSRF rejection,
+Staff self-grant denial, empty final permissions and two database audit records. All fixtures
+roll back; no persistent test Staff account is created. This is HTTP-controller integration
+coverage, not a claim of a completed browser walkthrough for all permission types.
+
+Local backend restarted on 8083 with SPRING_FLYWAY_TARGET=7 and
+SPRING_FLYWAY_VALIDATE_ON_MIGRATE=true, plus working local DB environment variables.
+V7 notification table applied successfully; prior versions validated without checksum repair.
+Use those overrides for subsequent local starts until migration review is complete.
+V8 rewrites mentor primary roles; V9 makes active mentor profiles public/accepting and assigns
+Docker/JavaScript skills broadly. They were deliberately not applied by this validation.
+
+Remaining upstream findings: StaffController's dashboard/mentors/mentees methods have no
+role/permission guard beyond authentication. StaffService supplies sample data; staffService.js
+catches API errors (including denial) and returns mock data, obscuring revoked permissions in
+the UI. The protected mentor-application API grant/revoke passed; this does not establish
+completion of MENTEE_MANAGE, MENTORSHIP_REQUEST_MANAGE or SKILL_MANAGE features.
+
 ## Latest merge: linh af838c0
 
 - Local main fast-forwarded to origin/linh af838c0; original admin changes restored from
