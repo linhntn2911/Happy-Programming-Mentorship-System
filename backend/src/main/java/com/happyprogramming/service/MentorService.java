@@ -57,7 +57,12 @@ public class MentorService {
 
     @Transactional(readOnly = true)
     public MentorProfileResponse getMyProfile() {
-        long userId = resolveDemoUserId();
+        return getMyProfile(currentUserId());
+    }
+
+    @Transactional(readOnly = true)
+    public MentorProfileResponse getMyProfile(Long currentUserId) {
+        long userId = currentUserId != null ? currentUserId : resolveDemoUserId();
         MentorAccount account = getActiveMentorAccount(userId);
         MentorProfile profile = getMentorProfile(userId);
         return toResponse(account, profile, mentorSkillRepository.findActiveSkillsByMentorId(userId));
@@ -65,7 +70,12 @@ public class MentorService {
 
     @Transactional
     public MentorProfileResponse updateMyProfile(MentorProfileRequest request) {
-        long userId = resolveDemoUserId();
+        return updateMyProfile(currentUserId(), request);
+    }
+
+    @Transactional
+    public MentorProfileResponse updateMyProfile(Long currentUserId, MentorProfileRequest request) {
+        long userId = currentUserId != null ? currentUserId : resolveDemoUserId();
         validateRequest(request);
         MentorAccount account = getActiveMentorAccount(userId);
         MentorProfile profile = getMentorProfile(userId);
@@ -106,6 +116,8 @@ public class MentorService {
         account.setPortfolioUrl(portfolioUrl);
         profile.setBiography(biography);
         profile.setYearsExperience(yearsExperience);
+        profile.setPublic(true);
+        profile.setAcceptingMentees(true);
         accountRepository.save(account);
         profileRepository.save(profile);
 
@@ -172,7 +184,20 @@ public class MentorService {
 
     private MentorProfile getMentorProfile(long userId) {
         return profileRepository.findByUserId(userId)
-                .orElseThrow(() -> notFound("Mentor profile was not found."));
+                .orElseGet(() -> {
+                    try {
+                        profileRepository.initMentorProfile(userId, java.time.LocalDateTime.now());
+                        return profileRepository.findByUserId(userId)
+                                .orElseThrow(() -> notFound("Mentor profile was not found."));
+                    } catch (Exception e) {
+                        throw notFound("Mentor profile was not found.");
+                    }
+                });
+    }
+
+    private Long currentUserId() {
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        return auth != null && auth.getPrincipal() instanceof com.happyprogramming.dto.AuthenticatedUser user ? user.id() : null;
     }
 
     private static void validateRequest(MentorProfileRequest request) {

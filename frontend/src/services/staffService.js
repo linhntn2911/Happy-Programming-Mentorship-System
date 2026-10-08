@@ -29,6 +29,17 @@ const MOCK_APPLICATIONS = [
   { id: 'MA-017', applicantName: 'Hoang Duc Anh', email: 'anh.hoang@example.com', phone: '0977889900', specialty: 'Full-stack Development', experienceYears: 5, submittedDate: '15/09/2026', status: 'APPROVED', bio: 'Full-stack engineer with expertise in Node.js, Express, React, and MongoDB.', skills: ['Node.js', 'Express', 'React', 'MongoDB'], cvFileName: 'HoangDucAnh_FullStack_CV.pdf', cvFileSize: '1.9 MB', linkedinUrl: 'https://linkedin.com/in/hoangducanh', githubUrl: 'https://github.com/hoangducanh', portfolioUrl: null, reviewNote: 'Verified and approved by Staff' },
   { id: 'MA-016', applicantName: 'Ngo Bao Ngoc', email: 'ngoc.ngo@example.com', phone: '0944556677', specialty: 'Data Analysis & SQL', experienceYears: 7, submittedDate: '12/09/2026', status: 'REJECTED', bio: 'Data Analyst specializing in SQL Server, PowerBI, and business intelligence.', skills: ['SQL', 'PowerBI', 'Data Analysis'], cvFileName: 'NgoBaoNgoc_Data_CV.pdf', cvFileSize: '5.2 MB', linkedinUrl: 'https://linkedin.com/in/ngobaongoc', githubUrl: null, portfolioUrl: null, reviewNote: 'Uploaded CV indicates less than required 3 years practical software engineering experience.' }
 ];
+async function withCsrf(headers = {}) {
+  try {
+    const csrf = await apiClient('/api/auth/csrf', { cache: 'no-store' });
+    if (csrf?.headerName && csrf?.token) {
+      return { ...headers, [csrf.headerName]: csrf.token };
+    }
+  } catch (err) {
+    console.warn('Could not fetch csrf token:', err);
+  }
+  return headers;
+}
 
 export const staffService = {
   async getDashboard() {
@@ -70,38 +81,53 @@ export const staffService = {
 
   async getApplications() {
     try {
-      return await apiClient('/api/staff/mentor-applications');
+      const data = await apiClient('/api/staff/mentor-applications');
+      if (Array.isArray(data)) {
+        return data.map(app => {
+          const profile = app.profile || {};
+          let skills = profile.skills || [];
+          if (typeof skills === 'string') {
+            skills = skills.split(',').map(s => s.trim()).filter(Boolean);
+          }
+          return {
+            id: app.id,
+            applicantName: app.name,
+            name: app.name,
+            email: app.email,
+            status: app.status,
+            specialty: profile.category || 'General Software Engineering',
+            experienceYears: profile.yearsExperience != null ? profile.yearsExperience : 0,
+            submittedDate: app.submittedAt ? new Date(app.submittedAt).toLocaleDateString('en-GB') : 'Recent',
+            bio: profile.bio || app.bio || 'No candidate bio provided.',
+            skills: skills,
+            cvFileName: app.cvFileName || 'CV_Document.pdf',
+            cvFileSize: 'PDF Document',
+            rejectionReason: app.rejectionReason,
+            reviewNote: app.rejectionReason || (app.status === 'APPROVED' ? 'Verified credentials and PDF CV. Approved by Staff.' : '')
+          };
+        });
+      }
+      return MOCK_APPLICATIONS;
     } catch (err) {
       return MOCK_APPLICATIONS;
     }
   },
 
   async approveApplication(id) {
-    try {
-      return await apiClient(`/api/staff/mentor-applications/${id}/approve`, { method: 'POST' });
-    } catch (err) {
-      const target = MOCK_APPLICATIONS.find(a => a.id === id);
-      if (target) {
-        target.status = 'APPROVED';
-        target.reviewNote = 'Verified credentials and PDF CV. Approved by Staff.';
-      }
-      return target;
-    }
+    const headers = await withCsrf();
+    return await apiClient(`/api/staff/mentor-applications/${id}/decision`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ decision: 'APPROVED' })
+    });
   },
 
   async rejectApplication(id, reason) {
-    try {
-      return await apiClient(`/api/staff/mentor-applications/${id}/reject`, {
-        method: 'POST',
-        body: JSON.stringify({ reason })
-      });
-    } catch (err) {
-      const target = MOCK_APPLICATIONS.find(a => a.id === id);
-      if (target) {
-        target.status = 'REJECTED';
-        target.reviewNote = reason || 'Application rejected by Staff.';
-      }
-      return target;
-    }
+    const headers = await withCsrf();
+    return await apiClient(`/api/staff/mentor-applications/${id}/decision`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ decision: 'REJECTED', reason: reason })
+    });
   }
 };

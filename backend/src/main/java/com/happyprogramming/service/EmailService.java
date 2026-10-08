@@ -17,6 +17,41 @@ public class EmailService {
     }
     public void sendOtpEmail(String email, String recipient, String code) { send(email,code,10,"verify your email"); }
     public void sendMentorOtpEmail(String email, String recipient, String code) { send(email,code,15,"submit your mentor application"); }
+
+    public void sendMentorApplicationApprovedEmail(String email, String recipient) {
+        sendNotification(email, "Mentor Application Approved - Welcome to HappyProgramming!",
+            "Dear " + (recipient != null && !recipient.isBlank() ? recipient : "Mentor") + ",\n\n"
+            + "Congratulations! Your mentor application has been reviewed and approved by the HappyProgramming Staff team.\n\n"
+            + "Your account now has full Mentor privileges. You can sign in to the platform and visit your Mentor Workspace to configure your profile, set up your availability, and accept mentorship requests.\n\n"
+            + "Welcome to the team!\nHappyProgramming Mentorship Team");
+    }
+
+    public void sendMentorApplicationRejectedEmail(String email, String recipient, String reason) {
+        sendNotification(email, "Update Regarding Your Mentor Application - HappyProgramming",
+            "Dear " + (recipient != null && !recipient.isBlank() ? recipient : "Applicant") + ",\n\n"
+            + "Thank you for your interest in becoming a mentor at HappyProgramming. Our operations team has reviewed your application and CV credentials.\n\n"
+            + "At this time, your application requires updates before it can be approved.\n\n"
+            + "Feedback / Note from Staff:\n"
+            + (reason != null && !reason.isBlank() ? reason : "Please review the platform requirements and update your credentials.") + "\n\n"
+            + "Please sign in to the platform to review your application feedback, update your credentials, and resubmit.\n\n"
+            + "Best regards,\nHappyProgramming Mentorship Team");
+    }
+
+    private void sendNotification(String email, String subject, String body) {
+        if (from == null || from.isBlank()) return;
+        try {
+            var message = sender.createMimeMessage();
+            var helper = new MimeMessageHelper(message, false, "UTF-8");
+            helper.setFrom(from, name);
+            helper.setTo(email);
+            helper.setSubject(subject);
+            helper.setText(body, false);
+            sender.send(message);
+        } catch (Exception e) {
+            // Log/ignore in development so offline SMTP does not prevent database updates
+        }
+    }
+
     private void send(String email, String code, int minutes, String purpose) {
         if (from==null || from.isBlank()) throw unavailable();
         try {

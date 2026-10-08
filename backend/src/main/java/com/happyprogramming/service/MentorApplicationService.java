@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import java.time.*;
 import java.util.*;
+import java.math.BigDecimal;
 import java.security.SecureRandom;
 import java.net.URI;
 
@@ -24,12 +25,22 @@ public class MentorApplicationService {
     private final EmailService mail;
     private final ObjectMapper json;
     private final Clock clock;
+    private final NotificationService notifications;
+    private final MentorProfileRepository mentorProfiles;
+    private final SkillRepository skills;
+    private final MentorSkillRepository mentorSkills;
     private final SecureRandom random = new SecureRandom();
 
     public MentorApplicationService(UserRepository users, MentorApplicationRepository applications, AuthService auth,
-            PasswordEncoder passwords, EmailService mail, ObjectMapper json, Clock clock) {
+            PasswordEncoder passwords, EmailService mail, ObjectMapper json, Clock clock,
+            NotificationService notifications, MentorProfileRepository mentorProfiles,
+            SkillRepository skills, MentorSkillRepository mentorSkills) {
         this.users=users; this.applications=applications; this.auth=auth;
         this.passwords=passwords; this.mail=mail; this.json=json; this.clock=clock;
+        this.notifications=notifications;
+        this.mentorProfiles=mentorProfiles;
+        this.skills=skills;
+        this.mentorSkills=mentorSkills;
     }
     @Transactional(readOnly=true)
     public boolean existingEmail(String email) {
@@ -129,7 +140,7 @@ public class MentorApplicationService {
     @Transactional(readOnly=true)
     public List<MentorApplicationResponse> queue(Long reviewerId) {
         reviewer(reviewerId);
-        return applications.findTop100ByStatusOrderBySubmittedAtAsc("PENDING").stream()
+        return applications.findTop100ByStatusNotOrderBySubmittedAtDesc("DRAFT").stream()
             .map(a -> response(a, users.findById(a.getApplicantId()).orElseThrow())).toList();
     }
     @Transactional
@@ -146,7 +157,32 @@ public class MentorApplicationService {
             throw error(HttpStatus.BAD_REQUEST,"A rejection reason is required.");
         if (!Set.of("APPROVED","REJECTED").contains(decision)) throw error(HttpStatus.BAD_REQUEST,"Invalid decision.");
         a.review(decision,reason,reviewerId,LocalDateTime.now(clock));
-        if ("APPROVED".equals(decision)) user.approveMentor();
+        if ("APPROVED".equals(decision)) {
+            user.approveMentor();
+            if (a.getBiography() != null && !a.getBiography().isBlank()) {
+                user.setBio(a.getBiography());
+            }
+            users.save(user);
+
+            var now = LocalDateTime.now(clock);
+            syncApplicationToProfile(user, a, reviewerId, now);
+
+            notifications.create(user.getId(),
+                "Mentor Application Approved! 🎉",
+                "Congratulations! Your application to become a mentor has been verified and approved by our Staff team. You can now access your Mentor Workspace.",
+                "MENTOR_APPLICATION_APPROVED",
+                "#/mentor/dashboard"
+            );
+            mail.sendMentorApplicationApprovedEmail(user.getEmail(), user.getFullName());
+        } else if ("REJECTED".equals(decision)) {
+            notifications.create(user.getId(),
+                "Mentor Application Update",
+                "Our Staff team reviewed your application. Feedback: " + reason + ". You can update your application and resubmit.",
+                "MENTOR_APPLICATION_REJECTED",
+                "#/apply/mentor"
+            );
+            mail.sendMentorApplicationRejectedEmail(user.getEmail(), user.getFullName(), reason);
+        }
         return response(a,user);
     }
     public record Document(String fileName, byte[] content) {}
@@ -239,5 +275,63 @@ public class MentorApplicationService {
                 a.getOtpExpiresAt(),a.getOtpSentAt()==null ? null : a.getOtpSentAt().plusSeconds(60));
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) { throw new IllegalStateException("Invalid stored application snapshot",e); }
     }
+
+    private void syncApplicationToProfile(User user, MentorApplication a, Long reviewerId, LocalDateTime now) {
+        String jobTitle = "Software Engineer";
+        String company = null;
+        String skillsStr = "";
+        if (a.getProfileSnapshot() != null) {
+            try {
+                var node = json.readTree(a.getProfileSnapshot());
+                if (node.hasNonNull("jobTitle")) jobTitle = node.get("jobTitle").asText();
+                if (node.hasNonNull("company")) company = node.get("company").asText();
+                if (node.hasNonNull("skills")) skillsStr = node.get("skills").asText();
+                if (node.hasNonNull("linkedin") && user.getLinkedinUrl() == null) user.setLinkedinUrl(node.get("linkedin").asText());
+                if (node.hasNonNull("website") && user.getPortfolioUrl() == null) user.setPortfolioUrl(node.get("website").asText());
+            } catch (Exception ignored) {}
+        }
+
+        String headline = jobTitle + (company != null && !company.isBlank() ? " at " + company : " Mentor");
+        String bio = a.getBiography() != null && a.getBiography().length() >= 50
+            ? a.getBiography()
+            : "I am a passionate software engineer and mentor dedicated to helping learners grow their programming skills.";
+        BigDecimal yrs = a.getYearsExperience() != null ? a.getYearsExperience() : BigDecimal.valueOf(1.0);
+        String bg = a.getProfessionalBackground();
+
+        mentorProfiles.upsertApprovedProfile(
+            user.getId(),
+            reviewerId,
+            headline,
+            jobTitle,
+            company,
+            bio,
+            yrs,
+            bg,
+            now
+        );
+
+        if (!skillsStr.isBlank()) {
+            linkSkillsFromApplication(user.getId(), skillsStr, now);
+        }
+    }
+
+    private void linkSkillsFromApplication(Long userId, String skillsStr, LocalDateTime now) {
+        try {
+            var activeSkills = skills.findAllByActiveTrueOrderByNameAsc();
+            String[] tokens = skillsStr.split(",");
+            int order = 0;
+            for (String token : tokens) {
+                String clean = token.trim().toLowerCase(Locale.ROOT);
+                if (clean.isBlank()) continue;
+                for (var skill : activeSkills) {
+                    if (skill.getName().toLowerCase(Locale.ROOT).equals(clean)) {
+                        mentorSkills.linkSkill(userId, skill.getId(), order++, now);
+                        break;
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
     private static ResponseStatusException error(HttpStatus status, String message) { return new ResponseStatusException(status,message); }
 }

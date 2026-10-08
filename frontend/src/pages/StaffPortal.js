@@ -141,55 +141,84 @@ export async function mountStaffApplications(root, initialTab = 'PENDING') {
             ` : ''}
           </div>
 
-          <form id="app-decision-form" class="mt-4 space-y-3">
-            <label class="admin-field" for="review-reason">
-              Review feedback / note (Required if rejecting):
-              <textarea id="review-reason" rows="3" placeholder="Provide constructive feedback or state reason for rejection..."></textarea>
-            </label>
-            <p id="review-modal-error" class="text-xs text-rose-600 font-semibold hidden" role="alert"></p>
+          ${app.status === 'PENDING' ? `
+            <form id="app-decision-form" class="mt-4 space-y-3">
+              <label class="admin-field" for="review-reason">
+                Review feedback / note (Required if rejecting):
+                <textarea id="review-reason" rows="3" placeholder="Provide constructive feedback or state reason for rejection..."></textarea>
+              </label>
+              <p id="review-modal-error" class="text-xs text-rose-600 font-semibold hidden" role="alert"></p>
 
-            <div class="admin-actions">
-              <button type="button" id="btn-reject-app" class="btn btn-outline">
-                Reject candidate
-              </button>
-              <button type="button" id="btn-approve-app" class="btn btn-primary">
-                Approve & promote to Mentor
-              </button>
+              <div class="admin-actions">
+                <button type="button" id="btn-reject-app" class="btn btn-outline">
+                  Reject candidate
+                </button>
+                <button type="button" id="btn-approve-app" class="btn btn-primary">
+                  Approve & promote to Mentor
+                </button>
+              </div>
+            </form>
+          ` : `
+            <div class="mt-4 p-3.5 rounded-xl border ${app.status === 'APPROVED' ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900' : 'bg-rose-50/80 border-rose-200 text-rose-900'} text-xs space-y-1">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full ${app.status === 'APPROVED' ? 'bg-emerald-600' : 'bg-rose-600'}"></span>
+                <strong>Status: ${e(app.status)}</strong>
+              </div>
+              ${app.reviewNote ? `<p class="mt-1 text-ink/80 leading-relaxed">${e(app.reviewNote)}</p>` : ''}
             </div>
-          </form>
+            <div class="admin-actions mt-4">
+              <button type="button" id="btn-close-modal-footer" class="btn btn-outline">Close</button>
+            </div>
+          `}
         `;
 
         dialog.showModal();
 
         dialog.querySelector('#close-review-modal')?.addEventListener('click', () => dialog.close());
+        dialog.querySelector('#btn-close-modal-footer')?.addEventListener('click', () => dialog.close());
 
-        dialog.querySelector('#btn-approve-app')?.addEventListener('click', async () => {
+        const approveBtn = dialog.querySelector('#btn-approve-app');
+        const rejectBtn = dialog.querySelector('#btn-reject-app');
+        const errEl = dialog.querySelector('#review-modal-error');
+
+        approveBtn?.addEventListener('click', async () => {
+          if (errEl) errEl.classList.add('hidden');
+          approveBtn.disabled = true;
+          if (rejectBtn) rejectBtn.disabled = true;
+          approveBtn.textContent = 'Processing approval…';
           try {
             await staffService.approveApplication(app.id);
             dialog.close();
             applications = await staffService.getApplications();
             render();
           } catch (err) {
-            const errEl = dialog.querySelector('#review-modal-error');
-            if (errEl) { errEl.textContent = err.message; errEl.classList.remove('hidden'); }
+            approveBtn.disabled = false;
+            if (rejectBtn) rejectBtn.disabled = false;
+            approveBtn.textContent = 'Approve & promote to Mentor';
+            if (errEl) { errEl.textContent = err.message || 'Approval failed. Please check network or try again.'; errEl.classList.remove('hidden'); }
           }
         });
 
-        dialog.querySelector('#btn-reject-app')?.addEventListener('click', async () => {
+        rejectBtn?.addEventListener('click', async () => {
           const reason = dialog.querySelector('#review-reason')?.value.trim();
           if (!reason) {
-            const errEl = dialog.querySelector('#review-modal-error');
-            if (errEl) { errEl.textContent = 'Please provide a reason when rejecting an application.'; errEl.classList.remove('hidden'); }
+            if (errEl) { errEl.textContent = 'Please provide a constructive reason when rejecting an application.'; errEl.classList.remove('hidden'); }
             return;
           }
+          if (errEl) errEl.classList.add('hidden');
+          rejectBtn.disabled = true;
+          if (approveBtn) approveBtn.disabled = true;
+          rejectBtn.textContent = 'Processing rejection…';
           try {
             await staffService.rejectApplication(app.id, reason);
             dialog.close();
             applications = await staffService.getApplications();
             render();
           } catch (err) {
-            const errEl = dialog.querySelector('#review-modal-error');
-            if (errEl) { errEl.textContent = err.message; errEl.classList.remove('hidden'); }
+            rejectBtn.disabled = false;
+            if (approveBtn) approveBtn.disabled = false;
+            rejectBtn.textContent = 'Reject candidate';
+            if (errEl) { errEl.textContent = err.message || 'Rejection failed. Please try again.'; errEl.classList.remove('hidden'); }
           }
         });
       });

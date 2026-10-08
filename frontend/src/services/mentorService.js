@@ -23,8 +23,18 @@ export const mentorService = {
   },
 
   async updateMyProfile(profile) {
+    const headers = {};
+    try {
+      const csrf = await apiClient('/api/auth/csrf', { cache: 'no-store' });
+      if (csrf?.headerName && csrf?.token) {
+        headers[csrf.headerName] = csrf.token;
+      }
+    } catch (err) {
+      console.warn('Could not fetch csrf token:', err);
+    }
     return apiClient('/api/mentors/me/profile', {
       method: 'PUT',
+      headers,
       body: JSON.stringify(profile),
     });
   },

@@ -1,7 +1,7 @@
 import { Footer } from '../components/layout/Footer.js';
 import { BrowseAllMentorsLink } from '../components/ui/BrowseAllMentorsLink.js';
 import { authService } from '../services/authService.js';
-import { bindUserDropdown, getInitials, renderUserDropdown } from '../components/layout/Header.js';
+import { bindUserDropdown, getInitials, renderUserDropdown, renderNotificationBell } from '../components/layout/Header.js';
 
 const mentorSections = [
   { id: 'availability', label: 'Availability schedule', href: '#/mentor/availability' },
@@ -12,7 +12,7 @@ function mentorWorkspaceHeader() {
   const user = authService.getCurrentUser();
   const displayName = user?.name || user?.email || '';
   const accountNavigation = user
-    ? renderUserDropdown({ currentUser: user, displayName, initials: getInitials(displayName) })
+    ? `<div class="flex items-center gap-3">${renderNotificationBell()}${renderUserDropdown({ currentUser: user, displayName, initials: getInitials(displayName) })}</div>`
     : '<a href="#/login" class="btn btn-outline btn-sm">Log in</a>';
 
   return `<header class="directory-header"><div class="container flex h-[76px] items-center justify-between gap-4"><a href="#/" class="flex shrink-0 items-center gap-2.5" aria-label="HappyProgramming home"><span class="grid h-9 w-9 place-items-center rounded-[10px] bg-brand font-mono text-xl font-bold text-white">{h}</span><span class="text-[16px] font-semibold tracking-tight text-ink">Happy<span class="text-brand">Programming</span></span></a><nav class="flex items-center gap-6" aria-label="Main navigation">${BrowseAllMentorsLink()}${accountNavigation}</nav></div></header>`;

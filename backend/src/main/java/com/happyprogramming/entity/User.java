@@ -17,7 +17,11 @@ public class User {
         return java.util.Set.copyOf(roles);
     }
     public boolean hasRole(String value) { return getRoles().contains(value); }
-    public void approveMentor() { additionalRoles.add("MENTEE"); additionalRoles.add("MENTOR"); }
+    public void approveMentor() {
+        this.role = "MENTOR";
+        additionalRoles.add("MENTEE");
+        additionalRoles.add("MENTOR");
+    }
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     @Column(name = "email", updatable = false) private String email;
@@ -25,7 +29,7 @@ public class User {
     @Column(name = "full_name") private String fullName;
     @Column(name = "first_name") private String firstName;
     @Column(name = "last_name") private String lastName;
-    @Column(name = "role_code", updatable = false) private String role;
+    @Column(name = "role_code") private String role;
     @Column(name = "status") private String status;
     @Column(name = "email_verified_at") private LocalDateTime emailVerifiedAt;
     @Column(name = "password_hash") private String passwordHash;
@@ -88,12 +92,18 @@ public class User {
     @Column(name="learning_goals") private String learningGoals;
     @Column(name="github_url") private String githubUrl;
     @Column(name="portfolio_url") private String portfolioUrl;
+    @Column(name="linkedin_url") private String linkedinUrl;
     @Column(name="avatar_file_id") private Long avatarFileId;
     public String getBio() { return bio; }
+    public void setBio(String bio) { this.bio = bio; }
     public String getExperienceLevel() { return experienceLevel; }
     public String getLearningGoals() { return learningGoals; }
     public String getGithubUrl() { return githubUrl; }
+    public void setGithubUrl(String url) { this.githubUrl = url; }
     public String getPortfolioUrl() { return portfolioUrl; }
+    public void setPortfolioUrl(String url) { this.portfolioUrl = url; }
+    public String getLinkedinUrl() { return linkedinUrl; }
+    public void setLinkedinUrl(String url) { this.linkedinUrl = url; }
     public Long getAvatarFileId() { return avatarFileId; }
     public void setAvatarFileId(Long id, LocalDateTime now) { avatarFileId=id; updatedAt=now; }
     public void updateProfile(String first, String last, String bio, String level, String goals, String github, String portfolio, LocalDateTime now) {

@@ -26,4 +26,19 @@ public interface MentorSkillRepository extends JpaRepository<MentorSkill, Mentor
             order by mentorSkill.displayOrder, skill.name
             """)
     List<MentorSkill> findActiveSkillsByMentorId(@Param("mentorId") Long mentorId);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query(value = """
+        IF NOT EXISTS (SELECT 1 FROM dbo.mentor_skills WHERE mentor_id = :mentorId AND skill_id = :skillId)
+        BEGIN
+            INSERT INTO dbo.mentor_skills (mentor_id, skill_id, display_order, is_verified, created_at)
+            VALUES (:mentorId, :skillId, :displayOrder, 0, :now);
+        END
+    """, nativeQuery = true)
+    int linkSkill(
+        @Param("mentorId") Long mentorId,
+        @Param("skillId") Long skillId,
+        @Param("displayOrder") int displayOrder,
+        @Param("now") java.time.LocalDateTime now
+    );
 }

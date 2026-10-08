@@ -50,6 +50,9 @@ public class MentorApplication {
     }
     public Long getId() { return id; }
     public Long getApplicantId() { return applicantId; }
+    public String getBiography() { return biography; }
+    public BigDecimal getYearsExperience() { return yearsExperience; }
+    public String getProfessionalBackground() { return professionalBackground; }
     public String getProfileSnapshot() { return profileSnapshot; }
     public String getStatus() { return status; }
     public String getRejectionReason() { return rejectionReason; }

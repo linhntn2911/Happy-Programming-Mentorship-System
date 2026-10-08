@@ -1,14 +1,26 @@
 package com.happyprogramming.service;
 
 import com.happyprogramming.dto.MentorCard;
-
-import java.util.List;
-import java.util.Comparator;
-import java.util.Locale;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
+import java.util.*;
 
 @Service
 public class MentorCatalog {
+    private final JdbcTemplate jdbcTemplate;
+
+    public MentorCatalog() {
+        this(null);
+    }
+
+    @Autowired
+    public MentorCatalog(@Autowired(required = false) JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
     private static final List<MentorCard> MENTORS = List.of(
             new MentorCard("minh-an", "Minh An Nguyen", "MA", "Senior Backend Engineer", "FPT Software", "Backend", "6 years of experience", 6, "purple", List.of("Java", "Spring Boot", "SQL Server"), List.of("Vietnamese", "English"), "Vietnam", "2,500,000", 2500000, "500,000", 4.9, 38, true, "Build a solid Java foundation, design better APIs, and turn your Spring Boot project into work you are proud to share.", "mentor-1.jpg"),
             new MentorCard("thao-linh", "Thao Linh Tran", "TL", "Senior Frontend Developer", "NashTech", "Frontend", "5 years of experience", 5, "peach", List.of("React", "TypeScript", "Tailwind CSS"), List.of("Vietnamese", "English"), "Vietnam", "1,800,000", 1800000, "400,000", 4.8, 24, true, "Go from your first component to a thoughtful web experience with practical feedback on React, accessibility, and your portfolio.", "mentor-2.jpg"),
@@ -16,10 +28,104 @@ public class MentorCatalog {
             new MentorCard("david-pham", "David Pham", "DP", "Full-stack Developer", "Grab", "Full-stack", "8 years of experience", 8, "purple", List.of("JavaScript", "React", "Node.js"), List.of("English", "Vietnamese"), "Singapore", "2,400,000", 2400000, "500,000", 4.7, 19, false, "Connect frontend and backend with confidence. Work through architecture decisions and get hands-on feedback on your full-stack app.", "mentor-4.jpg"),
             new MentorCard("sofia-tran", "Sofia Tran", "ST", "Software Engineer", "KMS Technology", "Backend", "5 years of experience", 5, "peach", List.of("Java", "System Design", "SQL"), List.of("English", "Vietnamese"), "United States", "2,200,000", 2200000, "450,000", 4.9, 27, true, "Strengthen your problem-solving skills, understand system design, and learn to explain the reasoning behind your technical decisions.", "mentor-5.jpg"),
             new MentorCard("alex-nguyen", "Alex Nguyen", "AN", "DevOps Engineer", "Tiki", "DevOps", "6 years of experience", 6, "green", List.of("Docker", "CI/CD", "Cloud"), List.of("Vietnamese", "English"), "Vietnam", "2,600,000", 2600000, "550,000", 4.6, 16, true, "Take your project from a local setup to a reliable deployment. Learn containers, delivery pipelines, and practical cloud fundamentals.", "mentor-6.jpg")
-        );
+    );
 
     public List<MentorCard> featuredMentors() {
-        return MENTORS;
+        return allMentors();
+    }
+
+    public List<MentorCard> allMentors() {
+        if (jdbcTemplate == null) {
+            return MENTORS;
+        }
+        try {
+            Map<Long, List<String>> skillsByMentor = new HashMap<>();
+            jdbcTemplate.query(
+                "SELECT ms.mentor_id, s.name FROM dbo.mentor_skills ms " +
+                "JOIN dbo.skills s ON s.id = ms.skill_id WHERE s.is_active = 1 " +
+                "ORDER BY ms.mentor_id, ms.display_order, s.name",
+                rs -> {
+                    long mId = rs.getLong("mentor_id");
+                    String sName = rs.getString("name");
+                    skillsByMentor.computeIfAbsent(mId, k -> new ArrayList<>()).add(sName);
+                }
+            );
+
+            List<MentorCard> dbMentors = jdbcTemplate.query(
+                "SELECT mp.user_id, mp.slug, u.full_name, mp.headline, mp.job_title, " +
+                "mp.company_name, mp.biography, mp.years_experience, mp.accepting_mentees " +
+                "FROM dbo.mentor_profiles mp " +
+                "JOIN dbo.users u ON u.id = mp.user_id " +
+                "WHERE mp.is_public = 1 AND u.status = 'ACTIVE'",
+                (rs, rowNum) -> {
+                    long userId = rs.getLong("user_id");
+                    String slug = rs.getString("slug");
+                    String fullName = rs.getString("full_name");
+                    String jobTitle = rs.getString("job_title");
+                    String company = rs.getString("company_name");
+                    String bio = rs.getString("biography");
+                    BigDecimal yrs = rs.getBigDecimal("years_experience");
+                    boolean accepting = rs.getBoolean("accepting_mentees");
+
+                    int yearsExp = yrs != null ? yrs.intValue() : 1;
+                    List<String> mentorSkills = skillsByMentor.getOrDefault(userId, List.of());
+                    if (mentorSkills.isEmpty()) {
+                        mentorSkills = List.of("Software Engineering");
+                    }
+                    String id = slug != null && !slug.isBlank() ? slug : "mentor-" + userId;
+                    String role = jobTitle != null && !jobTitle.isBlank() ? jobTitle : "Software Engineer";
+                    String companyName = company != null && !company.isBlank() ? company : "Tech";
+                    String initials = getInitials(fullName);
+                    String specialty = !mentorSkills.isEmpty() ? mentorSkills.get(0) : "Backend";
+                    String portrait = "mentor-" + ((Math.abs(userId) % 6) + 1) + ".jpg";
+
+                    return new MentorCard(
+                        id,
+                        fullName,
+                        initials,
+                        role,
+                        companyName,
+                        specialty,
+                        yearsExp + " years of experience",
+                        yearsExp,
+                        "purple",
+                        mentorSkills,
+                        List.of("Vietnamese", "English"),
+                        "Vietnam",
+                        "2,000,000",
+                        2000000L,
+                        "400,000",
+                        5.0,
+                        0,
+                        accepting,
+                        bio != null ? bio : "Professional mentor.",
+                        portrait
+                    );
+                }
+            );
+
+            if (dbMentors.isEmpty()) {
+                return MENTORS;
+            }
+
+            Map<String, MentorCard> map = new LinkedHashMap<>();
+            for (MentorCard m : MENTORS) {
+                map.put(m.id(), m);
+            }
+            for (MentorCard m : dbMentors) {
+                map.putIfAbsent(m.id(), m);
+            }
+            return new ArrayList<>(map.values());
+        } catch (Exception ex) {
+            return MENTORS;
+        }
+    }
+
+    private static String getInitials(String name) {
+        if (name == null || name.isBlank()) return "MP";
+        String[] parts = name.trim().split("\\s+");
+        if (parts.length == 1) return parts[0].substring(0, Math.min(2, parts[0].length())).toUpperCase(Locale.ROOT);
+        return ("" + parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase(Locale.ROOT);
     }
 
     public List<MentorCard> search(String query, List<String> skills, List<String> jobTitles,
@@ -39,7 +145,7 @@ public class MentorCatalog {
                     .thenComparing(Comparator.comparingDouble(MentorCard::rating).reversed());
         };
 
-        return MENTORS.stream()
+        return allMentors().stream()
                 .filter(mentor -> normalizedQuery.isBlank() || searchableText(mentor).contains(normalizedQuery))
                 .filter(mentor -> normalizedSkills.isEmpty() || normalizedSkills.stream().allMatch(skill ->
                         mentor.skills().stream().map(MentorCatalog::normalize).anyMatch(value -> value.equals(skill))))

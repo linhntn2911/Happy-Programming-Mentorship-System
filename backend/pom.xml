@@ -79,6 +79,9 @@
                         <copy file="${project.basedir}/../docs/database/migration/004_20261007_mentor_application_approval.sql" tofile="${project.build.outputDirectory}/db/migration/V4__mentor_application_approval.sql" overwrite="true"/>
                         <copy file="${project.basedir}/../docs/database/migration/002_20261007_add_fresher_profile_level.sql" tofile="${project.build.outputDirectory}/db/migration/V5__add_fresher_profile_level.sql" overwrite="true"/>
                         <copy file="${project.basedir}/../docs/database/migration/003_20261007_add_my_profile.sql" tofile="${project.build.outputDirectory}/db/migration/V6__add_my_profile.sql" overwrite="true"/>
+                        <copy file="${project.basedir}/../docs/database/migration/010_20261008_add_notifications_table.sql" tofile="${project.build.outputDirectory}/db/migration/V7__add_notifications_table.sql" overwrite="true"/>
+                        <copy file="${project.basedir}/../docs/database/migration/011_20261008_sync_approved_mentors.sql" tofile="${project.build.outputDirectory}/db/migration/V8__sync_approved_mentors.sql" overwrite="true"/>
+                        <copy file="${project.basedir}/../docs/database/migration/012_20261008_publish_approved_mentors.sql" tofile="${project.build.outputDirectory}/db/migration/V9__publish_approved_mentors.sql" overwrite="true"/>
                     </target></configuration>
                 </execution></executions>
             </plugin>

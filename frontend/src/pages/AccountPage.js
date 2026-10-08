@@ -2,12 +2,12 @@ import { authService } from '../services/authService.js';
 import { profileService } from '../services/profileService.js';
 import { TextInput } from '../components/ui/Input.js';
 import { BrowseAllMentorsLink } from '../components/ui/BrowseAllMentorsLink.js';
-import { renderUserDropdown, bindUserDropdown, getInitials } from '../components/layout/Header.js';
+import { renderUserDropdown, bindUserDropdown, getInitials, renderNotificationBell } from '../components/layout/Header.js';
 
 const fields = ['firstName', 'lastName', 'bio', 'experienceLevel', 'learningGoals', 'githubUrl', 'portfolioUrl'];
 const controlClass = 'w-full rounded-lg border border-line bg-white px-3.5 py-2.5 text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20';
 const area = (name, label, max, hint) => `<div class="space-y-1.5"><label for="${name}" class="block text-xs font-semibold text-ink">${label}</label><textarea id="${name}" name="${name}" rows="4" maxlength="${max}" class="${controlClass}" aria-describedby="${name}-hint"></textarea><p id="${name}-hint" class="text-xs text-muted">${hint} Up to ${max} characters.</p></div>`;
-const header = user => `<header class="directory-header"><div class="container flex h-[76px] items-center justify-between gap-6"><a href="#/" class="flex items-center gap-2.5" aria-label="HappyProgramming home"><span class="grid h-9 w-9 place-items-center rounded-[10px] bg-brand font-mono text-xl font-bold text-white">{h}</span><span class="font-semibold text-ink">Happy<span class="text-brand">Programming</span></span></a><nav class="flex items-center gap-6" aria-label="Main navigation">${BrowseAllMentorsLink()}${renderUserDropdown({currentUser: user, displayName: user.name || user.email, initials: getInitials(user.name || user.email)})}</nav></div></header>`;
+const header = user => `<header class="directory-header"><div class="container flex h-[76px] items-center justify-between gap-6"><a href="#/" class="flex items-center gap-2.5" aria-label="HappyProgramming home"><span class="grid h-9 w-9 place-items-center rounded-[10px] bg-brand font-mono text-xl font-bold text-white">{h}</span><span class="font-semibold text-ink">Happy<span class="text-brand">Programming</span></span></a><nav class="flex items-center gap-6" aria-label="Main navigation">${BrowseAllMentorsLink()}${renderNotificationBell()}${renderUserDropdown({currentUser: user, displayName: user.name || user.email, initials: getInitials(user.name || user.email)})}</nav></div></header>`;
 
 export async function mountAccount(root) {
   document.title = 'My profile | HappyProgramming';
