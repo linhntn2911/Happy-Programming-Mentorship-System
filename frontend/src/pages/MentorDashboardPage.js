@@ -58,9 +58,6 @@ export function MentorDashboardPage() {
     <a href="#/mentor/profile" class="btn btn-outline self-start sm:self-auto">Edit mentor profile</a>
   </header>
 
-  <div id="dashboard-demo-notice" class="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" role="status" hidden>
-    Development preview: sample dashboard data is read-only and request decisions are disabled.
-  </div>
   <div id="dashboard-loading" class="rounded-xl border border-line bg-white p-6 text-sm text-muted" role="status">
     Loading your dashboard…
   </div>
@@ -322,11 +319,9 @@ export function initializeMentorDashboardPage() {
   const retry = document.querySelector('#dashboard-retry');
   const actionStatus = document.querySelector('#dashboard-action-status');
   const dialog = document.querySelector('#dashboard-request-dialog');
-  const demoNotice = document.querySelector('#dashboard-demo-notice');
   const requestsById = new Map();
   const busyRequestIds = new Set();
   let disposed = false;
-  let usingDemoData = false;
 
   function updateSlaTimers() {
     for (const timer of root.querySelectorAll('[data-sla-id]')) {
@@ -336,7 +331,6 @@ export function initializeMentorDashboardPage() {
       const deadlineTime = Date.parse(deadline);
       const disabled = !Number.isFinite(deadlineTime)
         || deadlineTime <= Date.now()
-        || usingDemoData
         || busyRequestIds.has(requestId);
       for (const button of root.querySelectorAll('[data-dashboard-action]')) {
         if (button.dataset.requestId === requestId && button.dataset.dashboardAction !== 'details') {
@@ -354,12 +348,9 @@ export function initializeMentorDashboardPage() {
       error.hidden = true;
     }
     try {
-      const dashboardResult = await mentorDashboardService.getMyDashboard();
-      const data = dashboardResult.data;
-      usingDemoData = dashboardResult.isMock;
+      const data = await mentorDashboardService.getMyDashboard();
       validateDashboard(data);
       if (disposed) return;
-      demoNotice.hidden = !usingDemoData;
       requestsById.clear();
       for (const request of data.incomingRequests) {
         requestsById.set(String(request.id), request);
@@ -423,8 +414,7 @@ export function initializeMentorDashboardPage() {
       openDetails(request);
       return;
     }
-    if (usingDemoData
-        || (action !== 'ACCEPTED' && action !== 'REJECTED')
+    if ((action !== 'ACCEPTED' && action !== 'REJECTED')
         || busyRequestIds.has(requestId)) return;
 
     busyRequestIds.add(requestId);

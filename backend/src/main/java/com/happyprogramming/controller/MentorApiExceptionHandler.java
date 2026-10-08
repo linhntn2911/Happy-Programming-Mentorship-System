@@ -16,7 +16,7 @@ import org.springframework.transaction.TransactionSystemException;
 import org.springframework.validation.method.MethodValidationException;
 import jakarta.validation.ConstraintViolationException;
 
-@RestControllerAdvice(assignableTypes = MentorController.class)
+@RestControllerAdvice(assignableTypes = {MentorController.class, MentorPlanController.class, MentorshipRequestController.class})
 public class MentorApiExceptionHandler {
     private static final Logger LOGGER = LoggerFactory.getLogger(MentorApiExceptionHandler.class);
 
