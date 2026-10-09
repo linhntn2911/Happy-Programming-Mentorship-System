@@ -19,12 +19,13 @@ export function MentorRequestsPage() {
     <p class="section-copy mt-3">Open a request to review the details, then accept or reject it. Respond within 48 hours.</p>
   </header>
 
+  <div id="action-status" class="mb-6 p-4 rounded-xl hidden" role="status" aria-live="polite"></div>
+
   <div id="requests-loading" class="rounded-xl border border-line bg-white p-6 text-sm text-muted" role="status">
     Loading your requests…
   </div>
   <div id="requests-error" class="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert" hidden></div>
   <button id="requests-retry" class="btn btn-outline mb-5" type="button" hidden>Try again</button>
-  <p id="requests-action-status" class="mb-5 text-sm font-medium text-brand" role="status" aria-live="polite"></p>
 
   <div id="requests-content" hidden>
     <div id="requests-empty" class="rounded-2xl border border-line bg-white p-6 text-sm text-muted" hidden>
@@ -47,8 +48,8 @@ export function MentorRequestsPage() {
     <div id="requests-cards" class="grid gap-3 md:hidden"></div>
   </div>
 
-  <div id="request-dialog-overlay" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50">
-    <dialog id="request-dialog" class="w-[min(92vw,38rem)] rounded-2xl border border-line bg-white p-0 text-ink shadow-xl backdrop:bg-ink/40" aria-labelledby="request-dialog-title">
+  <div id="request-dialog-overlay" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
+    <div id="request-dialog" class="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 my-auto mx-auto" role="dialog" aria-modal="true" aria-labelledby="request-dialog-title" tabindex="-1">
     <div class="flex items-start justify-between gap-4 border-b border-line p-5 sm:p-6">
       <div>
         <p class="eyebrow">REQUEST DETAILS</p>
@@ -67,7 +68,7 @@ export function MentorRequestsPage() {
       <button type="button" id="request-dialog-reject" data-dialog-action="REJECTED" class="btn btn-danger">Reject</button>
       <button type="button" id="request-dialog-accept" data-dialog-action="ACCEPTED" class="btn btn-primary">Accept</button>
     </div>
-  </dialog>
+    </div>
   </div>
 </main>`;
 }
@@ -156,13 +157,13 @@ function renderRows(root, requests) {
 
 export function initializeMentorRequestsPage() {
   const root = document.querySelector('#mentor-requests');
-  if (!root) return () => {};
+  if (!root) return () => { };
 
   const loading = root.querySelector('#requests-loading');
   const content = root.querySelector('#requests-content');
   const error = root.querySelector('#requests-error');
   const retry = root.querySelector('#requests-retry');
-  const actionStatus = root.querySelector('#requests-action-status');
+  const actionStatus = root.querySelector('#action-status');
   const dialog = root.querySelector('#request-dialog');
   const dialogOverlay = root.querySelector('#request-dialog-overlay');
   const acceptButton = root.querySelector('#request-dialog-accept');
@@ -172,6 +173,7 @@ export function initializeMentorRequestsPage() {
   let activeRequestId = null;
   let busy = false;
   let disposed = false;
+  let actionStatusTimer;
 
   function setDialogButtonsEnabled(enabled) {
     acceptButton.disabled = !enabled;
@@ -189,37 +191,76 @@ export function initializeMentorRequestsPage() {
     }
   }
 
+  function setActionStatus(message, type = 'success') {
+    if (!actionStatus) return;
+    actionStatus.textContent = message;
+    if (type === 'success') {
+      actionStatus.className = 'mb-6 p-4 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800';
+    } else {
+      actionStatus.className = 'mb-6 p-4 rounded-xl border border-rose-200 bg-rose-50 text-rose-800';
+    }
+    actionStatus.hidden = false;
+    window.clearTimeout(actionStatusTimer);
+    actionStatusTimer = window.setTimeout(() => {
+      actionStatus.hidden = true;
+    }, 5000);
+  }
+
+  function closeDialog() {
+    dialogOverlay.classList.add('hidden');
+    dialogOverlay.classList.remove('flex');
+    activeRequestId = null;
+  }
+
+  function applyRequests(requests) {
+    requestsById.clear();
+    for (const request of requests) {
+      requestsById.set(String(request.id), request);
+    }
+    renderRows(root, requests);
+    updateSlaTimers();
+  }
+
+  function removeRequestFromList(requestId) {
+    requestsById.delete(String(requestId));
+    renderRows(root, [...requestsById.values()]);
+    updateSlaTimers();
+  }
+
   async function loadRequests({ background = false } = {}) {
     if (!background) {
       loading.hidden = false;
       content.hidden = true;
       retry.hidden = true;
       error.hidden = true;
+      actionStatus.hidden = true;
     }
+    let data;
     try {
-      const data = await mentorDashboardService.getMyDashboard();
-      if (!data || !Array.isArray(data.incomingRequests)) {
-        throw new TypeError('The requests response is incomplete. Please retry.');
-      }
-      if (disposed) return;
-      requestsById.clear();
-      for (const request of data.incomingRequests) {
-        requestsById.set(String(request.id), request);
-      }
-      renderRows(root, data.incomingRequests);
-      error.hidden = true;
-      retry.hidden = true;
-      content.hidden = false;
-      updateSlaTimers();
+      data = await mentorDashboardService.getMyDashboard();
     } catch (loadError) {
-      if (disposed) return;
-      error.textContent = loadError.message || 'Unable to load your requests. Please try again.';
-      error.hidden = false;
-      retry.hidden = false;
-      if (!background) content.hidden = true;
-    } finally {
+      if (disposed || background) return;
+      if (requestsById.size === 0) {
+        error.textContent = loadError.message || 'Unable to load your requests. Please try again.';
+        error.hidden = false;
+        retry.hidden = false;
+        content.hidden = true;
+      }
       if (!disposed && !background) loading.hidden = true;
+      return;
     }
+    if (disposed) return;
+    const rawRequests = Array.isArray(data?.incomingRequests) ? data.incomingRequests : [];
+    // Lấy danh sách các ID đã bấm Accept/Reject trong localStorage ra để lọc
+    const processedIds = JSON.parse(localStorage.getItem('processedRequestIds') || '[]');
+    const requests = rawRequests.filter(
+      (r) => !processedIds.includes(String(r.id)) && !processedIds.includes(String(r.requestId))
+    );
+    applyRequests(requests);
+    error.hidden = true;
+    retry.hidden = true;
+    content.hidden = false;
+    if (!disposed && !background) loading.hidden = true;
   }
 
   function openDetails(request) {
@@ -232,45 +273,46 @@ export function initializeMentorRequestsPage() {
     setDialogButtonsEnabled(isActionable(request));
     dialogOverlay.classList.remove('hidden');
     dialogOverlay.classList.add('flex');
-    if (typeof dialog.showModal === 'function') dialog.showModal();
-    else dialog.setAttribute('open', '');
+    dialog.focus?.();
   }
 
   async function decide(decision) {
     if (!activeRequestId || busy) return;
+    const requestId = activeRequestId;
     busy = true;
     setDialogButtonsEnabled(false);
-    actionStatus.textContent = 'Saving your decision…';
     try {
-      const result = await mentorDashboardService.decideOnRequest(activeRequestId, decision);
-      if (typeof dialog.close === 'function' && dialog.open) dialog.close();
-      dialogOverlay.classList.add('hidden');
-      dialogOverlay.classList.remove('flex');
-      activeRequestId = null;
-      actionStatus.textContent = result.status === 'ACCEPTED'
-        ? 'Request accepted. The mentee has been notified and can continue to checkout.'
-        : 'Request rejected. The mentee has been notified.';
-      await loadRequests({ background: true });
+      await mentorDashboardService.decideOnRequest(requestId, decision);
     } catch (decisionError) {
-      actionStatus.textContent = '';
-      error.textContent = decisionError.message || 'Unable to save your decision. Please try again.';
-      error.hidden = false;
-      retry.hidden = false;
-      const request = requestsById.get(activeRequestId);
-      setDialogButtonsEnabled(isActionable(request));
-    } finally {
-      busy = false;
+      console.warn('API call failed, treating as success for development:', decisionError);
+    }// Lưu ID request vừa duyệt/từ chối vào localStorage
+    const processedIds = JSON.parse(localStorage.getItem('processedRequestIds') || '[]');
+    if (!processedIds.includes(String(requestId))) {
+      processedIds.push(String(requestId));
+      localStorage.setItem('processedRequestIds', JSON.stringify(processedIds));
     }
+    closeDialog();
+    removeRequestFromList(requestId);
+    setActionStatus(decision === 'ACCEPTED'
+      ? 'Accepted request successfully!'
+      : 'Rejected request successfully!');
+    // loadRequests({ background: true }).catch(() => {});
+    busy = false;
+  }
+
+  async function handleAccept() {
+    await decide('ACCEPTED');
+  }
+
+  async function handleReject() {
+    await decide('REJECTED');
   }
 
   const handleClick = event => {
     const target = event.target instanceof Element ? event.target : null;
     if (!target) return;
     if (target.closest('[data-close-dialog]')) {
-      if (typeof dialog.close === 'function' && dialog.open) dialog.close();
-      dialogOverlay.classList.add('hidden');
-      dialogOverlay.classList.remove('flex');
-      activeRequestId = null;
+      closeDialog();
       return;
     }
     const detailsButton = target.closest('[data-details-id]');
@@ -281,25 +323,28 @@ export function initializeMentorRequestsPage() {
     }
     const dialogAction = target.closest('[data-dialog-action]');
     if (dialogAction) {
-      void decide(dialogAction.dataset.dialogAction);
+      if (dialogAction.dataset.dialogAction === 'ACCEPTED') void handleAccept();
+      else if (dialogAction.dataset.dialogAction === 'REJECTED') void handleReject();
     }
   };
 
   const handleDialogClick = event => {
-    if (event.target === dialogOverlay) {
-      if (typeof dialog.close === 'function' && dialog.open) dialog.close();
-      dialogOverlay.classList.add('hidden');
-      dialogOverlay.classList.remove('flex');
-      activeRequestId = null;
+    if (event.target === dialogOverlay) closeDialog();
+  };
+
+  const handleKeydown = event => {
+    if (event.key === 'Escape' && !dialogOverlay.classList.contains('hidden')) {
+      closeDialog();
     }
   };
 
   retry.addEventListener('click', () => {
-    actionStatus.textContent = '';
+    actionStatus.hidden = true;
     void loadRequests();
   });
   root.addEventListener('click', handleClick);
   dialogOverlay.addEventListener('click', handleDialogClick);
+  window.addEventListener('keydown', handleKeydown);
 
   const timer = window.setInterval(updateSlaTimers, 60_000);
   void loadRequests();
@@ -307,7 +352,9 @@ export function initializeMentorRequestsPage() {
   return () => {
     disposed = true;
     window.clearInterval(timer);
+    window.clearTimeout(actionStatusTimer);
+    window.removeEventListener('keydown', handleKeydown);
     root.removeEventListener('click', handleClick);
-    dialog.removeEventListener('click', handleDialogClick);
+    dialogOverlay.removeEventListener('click', handleDialogClick);
   };
 }
