@@ -29,6 +29,8 @@ import org.springframework.web.server.ResponseStatusException;
 @WebMvcTest(MentorController.class)
 @AutoConfigureMockMvc(addFilters = false)
 class MentorDashboardControllerTest {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.happyprogramming.role.staff.StaffAccessService staffAccess;
     @Autowired
     private MockMvc mockMvc;
 

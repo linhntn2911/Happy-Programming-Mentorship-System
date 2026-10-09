@@ -1,5 +1,19 @@
 # Integration plan
 
+Local Staff demo amendment: user requests a persistent account for manual permission testing.
+Provision staff.demo@example.test as ACTIVE STAFF with no user_permissions via opt-in migration
+013. Generate random credentials in ignored local files; reject duplicates, never reset an
+existing account. Test actual Admin grant/revoke over HTTP with separate sessions, retain
+the Staff account with zero permissions afterward and keep its audit trail.
+
+2026-10-08 Staff merge validation: fast-forward luong to linh 9e38f03, which already includes
+0a5776f. Test the actual Admin permission endpoint with a logged-in Staff session before grant,
+after grant and after revoke, including audit persistence. Fixtures are transaction-rolled-back.
+For local validation use Flyway target 7 and validation enabled. Do not automatically execute
+upstream V8/V9: they rewrite primary roles, publish mentor profiles and assign arbitrary skills
+to existing mentors. Those changes exceed a permission integration test and need reconciliation.
+This validation does not claim all four Staff capabilities are implemented or protected.
+
 Latest upstream update: merge linh af838c0, preserving the admin work in a separate stash.
 Keep unified email/password login and role detection; route ADMIN to #/admin, STAFF to
 #/staff/mentor-applications. Keep the new mentee profile implementation and shared logout failure handling.

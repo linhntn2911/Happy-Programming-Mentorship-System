@@ -88,6 +88,55 @@ class AuthControllerTest {
             .andExpect(status().isForbidden());
     }
 
+    @Test void adminCanGrantAndRevokeAllStaffPermissionsInExistingSession() throws Exception {
+        db.update("UPDATE dbo.users SET role_code='ADMIN' WHERE email=?", email);
+        var adminResult = mvc.perform(post("/api/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content(body(password, "ADMIN"))).andExpect(status().isOk()).andReturn();
+        var adminSession = (MockHttpSession) adminResult.getRequest().getSession(false);
+        String staffEmail = "staff-permissions-" + UUID.randomUUID() + "@example.invalid";
+        db.update("INSERT INTO dbo.users(email,full_name,role_code,status,password_hash) VALUES (?, 'Permission Test', 'STAFF','ACTIVE',?)",
+            staffEmail, passwords.encode(password));
+        long staffId = db.queryForObject("SELECT id FROM dbo.users WHERE email=?", Long.class, staffEmail);
+        var staffResult = mvc.perform(post("/api/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("email",staffEmail,"password",password,"role","STAFF"))))
+            .andExpect(status().isOk()).andReturn();
+        var staffSession = (MockHttpSession) staffResult.getRequest().getSession(false);
+        mvc.perform(get("/api/staff/dashboard").session(staffSession)).andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.activeMenteesCount").isEmpty());
+        var matrix = Map.of("MENTOR_APPLICATION_MANAGE","mentor-applications","MENTEE_MANAGE","mentees",
+            "MENTORSHIP_REQUEST_MANAGE","requests","SKILL_MANAGE","skills");
+        for (var entry : matrix.entrySet()) {
+        mvc.perform(get("/api/staff/mentor-applications").session(staffSession)).andExpect(status().isForbidden());
+        String endpoint = "/api/admin/users/" + staffId + "/permissions";
+        String resource = "/api/staff/" + entry.getValue();
+        mvc.perform(get(resource)).andExpect(status().isUnauthorized());
+        mvc.perform(get(resource).session(staffSession)).andExpect(status().isForbidden());
+        String grant = json.writeValueAsString(Map.of("permissions", List.of(entry.getKey()), "reason", "Integration grant"));
+        mvc.perform(put(endpoint).session(adminSession).contentType(MediaType.APPLICATION_JSON).content(grant))
+            .andExpect(status().isForbidden());
+        mvc.perform(put(endpoint).session(staffSession).with(csrf()).contentType(MediaType.APPLICATION_JSON).content(grant))
+            .andExpect(status().isForbidden());
+        mvc.perform(put(endpoint).session(adminSession).with(csrf()).contentType(MediaType.APPLICATION_JSON).content(grant))
+            .andExpect(status().isOk());
+        mvc.perform(get(resource).session(staffSession)).andExpect(status().isOk());
+        for (var other : matrix.entrySet()) if (!other.getKey().equals(entry.getKey()))
+            mvc.perform(get("/api/staff/"+other.getValue()).session(staffSession)).andExpect(status().isForbidden());
+        mvc.perform(put(endpoint).session(adminSession).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("permissions", List.of(), "reason", "Integration revoke")))).andExpect(status().isOk());
+        mvc.perform(get("/api/staff/mentor-applications").session(staffSession)).andExpect(status().isForbidden());
+        mvc.perform(get(resource).session(staffSession)).andExpect(status().isForbidden());
+        }
+        assertEquals(0, db.queryForObject("SELECT COUNT(*) FROM dbo.user_permissions WHERE user_id=?", Integer.class, staffId));
+        assertEquals(8, db.queryForObject("SELECT COUNT(*) FROM dbo.audit_logs WHERE action='STAFF_PERMISSIONS_CHANGED' AND entity_id=?", Integer.class, Long.toString(staffId)));
+        entityManager.flush();
+        db.update("UPDATE dbo.users SET status='INACTIVE' WHERE id=?",staffId);
+        mvc.perform(get("/api/staff/access").session(staffSession)).andExpect(status().isForbidden());
+        db.update("UPDATE dbo.users SET status='ACTIVE',locked_until=DATEADD(hour,1,SYSUTCDATETIME()) WHERE id=?",staffId);
+        mvc.perform(get("/api/staff/dashboard").session(staffSession)).andExpect(status().isForbidden());
+        db.update("UPDATE dbo.users SET locked_until=NULL,role_code='MENTEE' WHERE id=?",staffId);
+        mvc.perform(get("/api/staff/access").session(staffSession)).andExpect(status().isForbidden());
+    }
+
     @Test void loginPersistsSessionRotatesIdAndLogoutInvalidatesIt() throws Exception {
         var initial = new MockHttpSession();
         String oldId = initial.getId();

@@ -8,6 +8,11 @@ Acceptance: ADMIN login -> admin session/workspace -> logout -> unauthorized; ST
 
 Scope excludes completing unrelated SRS dashboard/report/settings gaps and remote publishing.
 
+2026-10-08 user request: retrieve the current Staff implementation, merge and test integration.
+Validate Admin grant/revoke of mentor application review for the same Staff session, audit
+persistence, and rejection of Staff self-grant or mutations without CSRF. Do not claim the
+remaining Staff capabilities are complete based on a successful build alone.
+
 User amendment 2026-10-07: provision one local demo administrator so the user can log in manually.
 Generate a random password outside Git, store only BCrypt in SQL, never promote/replace an existing
 account, and record provisioning in audit. Verify login, workspace access and logout.

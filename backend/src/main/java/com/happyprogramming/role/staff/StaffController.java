@@ -1,38 +1,22 @@
 package com.happyprogramming.role.staff;
 
-import java.util.List;
-import org.springframework.web.bind.annotation.CrossOrigin;
+import com.happyprogramming.role.auth.AuthenticatedUser;
+import com.happyprogramming.role.shared.ApiResponse;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import com.happyprogramming.role.shared.ApiResponse;
-import com.happyprogramming.role.staff.StaffDashboardDto;
-import com.happyprogramming.role.staff.StaffMenteeDto;
-import com.happyprogramming.role.staff.StaffMentorDto;
-import com.happyprogramming.role.staff.StaffService;
 
 @RestController
 @RequestMapping("/api/staff")
-@CrossOrigin(origins = "*")
 public class StaffController {
-    private final StaffService staffService;
-
-    public StaffController(StaffService staffService) {
-        this.staffService = staffService;
-    }
-
-    @GetMapping("/dashboard")
-    public ApiResponse<StaffDashboardDto> getDashboard() {
-        return ApiResponse.ok(staffService.getDashboardOverview());
-    }
-
-    @GetMapping("/mentors")
-    public ApiResponse<List<StaffMentorDto>> getMentors() {
-        return ApiResponse.ok(staffService.getMentors());
-    }
-
-    @GetMapping("/mentees")
-    public ApiResponse<List<StaffMenteeDto>> getMentees() {
-        return ApiResponse.ok(staffService.getMentees());
-    }
+    private final StaffService service;
+    private final StaffAccessService access;
+    public StaffController(StaffService service, StaffAccessService access) { this.service = service; this.access = access; }
+    @GetMapping("/access") public ApiResponse<?> access(@AuthenticationPrincipal AuthenticatedUser user) { return ApiResponse.ok(java.util.Map.of("user", user, "permissions", access.permissions(user))); }
+    @GetMapping("/dashboard") public ApiResponse<?> dashboard(@AuthenticationPrincipal AuthenticatedUser user) { return ApiResponse.ok(service.getDashboardOverview(user)); }
+    @GetMapping("/mentors") public ApiResponse<?> mentors() { return ApiResponse.ok(service.getMentors()); }
+    @GetMapping("/mentees") public ApiResponse<?> mentees() { return ApiResponse.ok(service.getMentees()); }
+    @GetMapping("/skills") public ApiResponse<?> skills() { return ApiResponse.ok(service.getSkills()); }
+    @GetMapping("/requests") public ApiResponse<?> requests() { return ApiResponse.ok(service.getRequests()); }
 }

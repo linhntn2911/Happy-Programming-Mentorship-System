@@ -1,5 +1,18 @@
 # Integration tasks
 
+- [x] Provision user-requested persistent local Staff with no permissions through migration 013.
+- [x] Verify real HTTP Admin grant/Staff access/revoke/denial and audit; leave zero permissions.
+
+## Staff integration validation, 2026-10-08
+- [x] Fetch all branches; identify current Staff work in linh 9e38f03 and fast-forward luong.
+- [x] Test Admin grant/revoke through HTTP controllers with SQL-backed rollback fixtures.
+- [x] Verify CSRF, Staff self-grant denial, permission persistence and two audit entries.
+- [x] Run full backend tests and frontend tests/build, record migration limits.
+- [ ] Upstream follow-up: enforce permissions on Staff dashboard/mentor/mentee endpoints.
+- [ ] Upstream follow-up: replace Staff mock fallbacks with honest error/denied states and live data.
+- [ ] Upstream follow-up: reconcile automatic V8/V9 role/publication/skill backfills before enabling them locally.
+- [ ] Manual browser walkthrough of all four Staff permissions (not covered by this merge validation).
+
 ## Latest linh af838c0 merge
 - [x] Fetch and preserve local changes; reconcile login/profile conflicts.
 - [x] Preserve unified login, admin redirect and logout behavior; retain upstream profile.

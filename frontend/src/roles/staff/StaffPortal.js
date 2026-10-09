@@ -1,3 +1,4 @@
+import { StaffLayout } from './StaffLayout.js';
 /**
  * Staff Portal Controller / Mount Handlers - HappyProgramming
  * Strictly complies with AGENTS.md, CLAUDE.md, and Shared Workspace UI standards.
@@ -13,39 +14,36 @@ import { escapeHtml as e } from '../../shared/html.js';
 import { StatusBadge } from '../admin/AdminPrimitives.js';
 
 async function checkStaffAccess(root) {
-  let user = authService.getCurrentUser();
-  if (!user) {
-    try {
-      user = await authService.me();
-    } catch {
-      // unauthenticated
+  try {
+    const { user, permissions } = await staffService.access();
+    const section = location.hash.split('/')[2];
+    const needed = { 'mentor-applications':'MENTOR_APPLICATION_MANAGE', applications:'MENTOR_APPLICATION_MANAGE',
+      mentors:'MENTOR_APPLICATION_MANAGE', mentees:'MENTEE_MANAGE', requests:'MENTORSHIP_REQUEST_MANAGE', skills:'SKILL_MANAGE' }[section];
+    if (needed && !permissions.includes(needed)) {
+      staffError(root, {status:403, message:'You do not have permission to access this staff function.'});
+      return null;
     }
-  }
+    return user;
+  } catch (error) { staffError(root,error); return null; }
+}
 
-  const isStaff = user && (
-    user.role === 'STAFF' ||
-    user.role === 'ADMIN' ||
-    user.role_code === 'STAFF' ||
-    user.role_code === 'ADMIN' ||
-    (Array.isArray(user.roles) && user.roles.some(r => ['STAFF', 'ADMIN'].includes(r)))
-  );
-
-  if (!isStaff) {
-    document.title = 'Access Denied | HappyProgramming';
-    root.innerHTML = StaffAccessDeniedPage(user);
-    root.querySelector('#open-staff-login-btn')?.addEventListener('click', () => {
-      window.location.hash = '#/login?portal=staff&return=review';
-    });
-    return null;
-  }
-  return user;
+function staffError(root,error) {
+  if (!root.isConnected) return;
+  document.title = error.status === 403 ? 'Access denied | HappyProgramming' : 'Staff workspace | HappyProgramming';
+  root.innerHTML = StaffLayout('dashboard', `<section class="admin-panel"><div class="admin-panel-body">
+    <h1 class="section-title">${error.status===403?'Access denied':'Unable to load this page'}</h1>
+    <p role="alert" class="mt-4">${e(error.message || 'Please try again.')}</p>
+    <div class="admin-actions"><button id="staff-retry" class="btn btn-primary">Try again</button>
+    <a class="btn btn-outline" href="#/login">Log in</a></div></div></section>`);
+  root.querySelector('#staff-retry').onclick=()=>location.reload();
+  bindStaffGlobalEvents(root);
 }
 
 function bindStaffGlobalEvents(root) {
   // Bind Logout button in staff topbar
   root.querySelector('#staff-logout-btn')?.addEventListener('click', async () => {
-    await authService.logout();
-    window.location.hash = '#/login';
+    try { await authService.logout(); window.location.hash = '#/login'; }
+    catch (err) { staffError(root,err); }
   });
 
   // Mobile navigation rail toggle
@@ -75,8 +73,7 @@ export async function mountStaffDashboard(root) {
     bindStaffGlobalEvents(root);
   } catch (err) {
     if (!root.isConnected) return;
-    root.innerHTML = StaffDashboardPage({}, user);
-    bindStaffGlobalEvents(root);
+    staffError(root,err);
   }
 }
 
@@ -227,8 +224,8 @@ export async function mountStaffApplications(root, initialTab = 'PENDING') {
 
   try {
     applications = await staffService.getApplications();
-  } catch {
-    applications = [];
+  } catch (err) {
+    staffError(root,err); return;
   }
   if (root.isConnected) render();
 }
@@ -346,10 +343,8 @@ export async function mountStaffMentors(root) {
     statusFilter?.addEventListener('change', filterMentors);
     bindMentorDetailButtons();
 
-  } catch {
-    if (!root.isConnected) return;
-    root.innerHTML = StaffMentorsPage([], user);
-    bindStaffGlobalEvents(root);
+  } catch (err) {
+    staffError(root,err);
   }
 }
 
@@ -460,9 +455,23 @@ export async function mountStaffMentees(root) {
     statusFilter?.addEventListener('change', filterMentees);
     bindMenteeDetailButtons();
 
-  } catch {
-    if (!root.isConnected) return;
-    root.innerHTML = StaffMenteesPage([], user);
-    bindStaffGlobalEvents(root);
+  } catch (err) {
+    staffError(root,err);
   }
+}
+
+export async function mountStaffList(root, kind) {
+  document.title = `${kind === 'skills' ? 'Technical skills' : 'Mentorship requests'} | HappyProgramming`;
+  root.innerHTML='<p role="status">Loading…</p>';
+  const user=await checkStaffAccess(root); if (!user || !root.isConnected) return;
+  try {
+    const records=await (kind==='skills'?staffService.getSkills():staffService.getRequests());
+    const headings=kind==='skills'?['Name','Category','Status','Description']:['ID','Mentee','Mentor','Status','Learning goals','Created (UTC)'];
+    const rows=records.map(r=>kind==='skills'?[r.name,r.category,r.active?'Active':'Inactive',r.description]:[r.id,r.mentee,r.mentor,r.status,r.learningGoals,r.createdAt]);
+    if (!root.isConnected) return;
+    root.innerHTML=StaffLayout(kind,`<div class="admin-page-heading"><div><p class="eyebrow">STAFF WORKSPACE</p><h1>${kind==='skills'?'Technical skills':'Mentorship requests'}</h1><p>Read-only directory</p></div></div>
+      <section class="admin-panel"><div class="data-table-scroll"><table class="data-table"><caption class="sr-only">${e(kind)} directory</caption><thead><tr>${headings.map(h=>`<th scope="col">${e(h)}</th>`).join('')}</tr></thead><tbody>
+      ${rows.map(row=>`<tr>${row.map(v=>`<td>${e(v??'—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${!rows.length?'<p class="admin-panel-body">No records found.</p>':''}</section>`,user);
+    bindStaffGlobalEvents(root);
+  } catch(err) { staffError(root,err); }
 }
