@@ -92,11 +92,13 @@ export function renderNotificationBell({ isMobile = false } = {}) {
 }
 
 export function renderUserDropdown({ currentUser, displayName, initials, isMobile = false }) {
-  const roleLabel = currentUser?.role === 'MENTOR' ? 'Mentor' : 'Mentee';
   const avatarSize = isMobile ? 'h-7 w-7 text-[10px]' : 'h-8 w-8 text-xs';
   const triggerPadding = isMobile ? 'p-1 pr-2 text-xs' : 'py-1 pl-2 pr-3 text-xs';
   const textTruncate = isMobile ? 'max-w-[90px]' : 'max-w-[140px]';
-  const menuWidth = isMobile ? 'w-56' : 'w-64';
+
+  const isStaffOrAdmin = currentUser?.roles?.some(role => ['STAFF', 'ADMIN'].includes(role)) || ['STAFF', 'ADMIN'].includes(currentUser?.role);
+  const isMentor = currentUser?.roles?.includes('MENTOR') || currentUser?.role === 'MENTOR';
+  const isMentee = currentUser?.roles?.includes('MENTEE') || currentUser?.role === 'MENTEE';
 
   return `
     <div class="relative user-menu-container ${isMobile ? 'shrink-0 lg:hidden' : 'hidden lg:block'}">
@@ -107,11 +109,12 @@ export function renderUserDropdown({ currentUser, displayName, initials, isMobil
           <path d="m6 9 6 6 6-6"/>
         </svg>
       </button>
-      <div class="user-dropdown-menu absolute right-0 mt-2 w-44 origin-top-right rounded-xl border border-line bg-white p-1.5 shadow-xl ring-1 ring-black/5 z-50 hidden transition-all" role="menu">
-        ${currentUser?.roles?.includes('MENTEE') || currentUser?.role === 'MENTEE' ? '<a href="#/account" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">My profile</a>' : ''}
-        <a href="#/apply/mentor" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Mentor application</a>
+      <div class="user-dropdown-menu absolute right-0 mt-2 w-48 origin-top-right rounded-xl border border-line bg-white p-1.5 shadow-xl ring-1 ring-black/5 z-50 hidden transition-all" role="menu">
+        ${isMentee ? '<a href="#/account" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">My profile</a>' : ''}
+        ${isMentor ? '<a href="#/mentor/dashboard" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Mentor dashboard</a>' : ''}
+        ${isStaffOrAdmin ? '<a href="#/staff/mentor-applications" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Review applications</a>' : '<a href="#/apply/mentor" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Apply as a mentor</a>'}
         <a href="#/wishlist" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Wishlist</a>
-        ${currentUser?.roles?.some(role => ['STAFF','ADMIN'].includes(role)) || ['STAFF','ADMIN'].includes(currentUser?.role) ? '<a href="#/staff/dashboard" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Staff Dashboard</a>' : ''}
+        ${isStaffOrAdmin ? '<a href="#/staff/dashboard" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Staff Dashboard</a>' : ''}
         <button type="button" class="user-logout-btn flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer text-left" role="menuitem">
           <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>

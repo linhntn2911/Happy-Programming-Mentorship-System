@@ -42,7 +42,8 @@ public class StaffAccessConfig implements WebMvcConfigurer {
                         "mentors", "MENTOR_APPLICATION_MANAGE",
                         "mentees", "MENTEE_MANAGE",
                         "requests", "MENTORSHIP_REQUEST_MANAGE",
-                        "skills", "SKILL_MANAGE"
+                        "skills", "SKILL_MANAGE",
+                        "skill-categories", "SKILL_MANAGE"
                     ).get(section);
                     if (required == null || !permissions.contains(required))
                         throw new ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "You do not have permission to access this staff function.");

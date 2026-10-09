@@ -11,4 +11,8 @@ public interface SkillRepository extends JpaRepository<Skill, Long> {
     List<Skill> findAllByActiveTrueOrderByNameAsc();
 
     List<Skill> findAllByActiveTrueAndIdInOrderByNameAsc(Collection<Long> ids);
+
+    boolean existsByNameIgnoreCase(String name);
+
+    boolean existsByNameIgnoreCaseAndIdNot(String name, Long id);
 }

@@ -42,6 +42,31 @@ export const staffService = {
   getMentees: () => apiClient('/api/staff/mentees'),
   getRequests: () => apiClient('/api/staff/requests'),
   getSkills: () => apiClient('/api/staff/skills'),
+  getSkillCategories: () => apiClient('/api/staff/skill-categories'),
+
+  async createSkill(data) {
+    return apiClient('/api/staff/skills', {
+      method: 'POST',
+      headers: await withCsrf(),
+      body: JSON.stringify(data)
+    });
+  },
+
+  async updateSkill(id, data) {
+    return apiClient(`/api/staff/skills/${id}`, {
+      method: 'PUT',
+      headers: await withCsrf(),
+      body: JSON.stringify(data)
+    });
+  },
+
+  async toggleSkillStatus(id, active) {
+    return apiClient(`/api/staff/skills/${id}/status`, {
+      method: 'PATCH',
+      headers: await withCsrf(),
+      body: JSON.stringify({ active })
+    });
+  },
 
   async getApplications() {
     const data = await apiClient('/api/staff/mentor-applications');
