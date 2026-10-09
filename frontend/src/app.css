@@ -149,12 +149,13 @@
 .auth-home > span:first-child {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
   background: var(--color-brand);
   color: white;
   font-family: monospace;
+  font-size: 20px;
   font-weight: 700;
 }
 

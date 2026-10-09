@@ -2,6 +2,7 @@ import { mentorService } from '../../shared/mentorService.js';
 import { MentorLayout, bindMentorLayout } from './MentorLayout.js';
 import { MentorAvatar } from '../../shared/MentorAvatar.js';
 import { BrowseAllMentorsLink } from '../../shared/BrowseAllMentorsLink.js';
+import { BrandLogo } from '../../shared/BrandLogo.js';
 import { Footer } from '../../shared/Footer.js';
 import { MentorPricingCard, bindMentorPricingCardEvents, planToTier } from '../../shared/MentorPricingCard.js';
 import { mentorPlanService } from './mentorPlanService.js';
@@ -277,7 +278,7 @@ const esc = v => String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').
 const profileHeader = () => {
   const user = authService.getCurrentUser();
   const displayName = user?.name || user?.email || '';
-  return `<header class="directory-header"><div class="container flex h-[76px] items-center justify-between gap-4"><a href="#/" class="flex shrink-0 items-center gap-2.5" aria-label="HappyProgramming home"><span class="grid h-9 w-9 place-items-center rounded-[10px] bg-brand font-mono text-xl font-bold text-white">{h}</span><span class="text-[16px] font-semibold tracking-tight text-ink">Happy<span class="text-brand">Programming</span></span></a><nav class="flex items-center gap-6" aria-label="Main navigation">${BrowseAllMentorsLink()}${user ? renderUserDropdown({ currentUser: user, displayName, initials: getInitials(displayName) }) : '<a href="#/login" class="btn btn-outline btn-sm">Log in</a>'}</nav></div></header>`;
+  return `<header class="directory-header"><div class="container flex h-[76px] items-center justify-between gap-4">${BrandLogo()}<nav class="flex items-center gap-6" aria-label="Main navigation">${BrowseAllMentorsLink()}${user ? renderUserDropdown({ currentUser: user, displayName, initials: getInitials(displayName) }) : '<a href="#/login" class="btn btn-outline btn-sm">Log in</a>'}</nav></div></header>`;
 };
 const layout = body => `${profileHeader()}<main class="profile-page"><div class="container py-8 sm:py-12">${body}</div></main>${Footer()}`;
 export function ProfilePage(m, tiers = []) {

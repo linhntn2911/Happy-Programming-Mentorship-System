@@ -155,6 +155,10 @@ Frontend rules:
 - Use the existing color tokens and component classes: brand purple `#8b46e8`, dark purple `#7431d0`, ink `#25143f`, lavender `#f1e8ff`, cream `#fbf9ff`, and border `#e8e0f1`. Do not introduce another palette or hardcoded colors when an existing token applies.
 - New pages and components must reuse the current buttons, inputs, cards, badges, spacing, borders, radii, shadows, and states so the interface remains visually synchronized across homepage, directory, profile, and future modules.
 - When a new visual treatment is genuinely needed, add it to the shared design system and component showcase before using it in a feature page.
+- **Brand Logo Synchronization**: All public, authentication, mentee, mentor, staff, and admin pages must use the single canonical HappyProgramming brand logo presentation (`frontend/src/shared/BrandLogo.js` or `.admin-logo`):
+  - Mark: A rounded square purple badge (`bg-brand`, `rounded-[10px]`, `font-mono`, `text-white`, `font-bold`) enclosing `{h}`.
+  - Wordmark: `Happy<span class="text-brand">Programming</span>` in ink font-semibold (`text-ink`).
+  - Never render the logo as unstyled plain text (e.g. `{h} HappyProgramming`), missing the badge, or with competing colors/formatting.
 
 ### Shared Admin, Staff, and Mentor workspace UI
 

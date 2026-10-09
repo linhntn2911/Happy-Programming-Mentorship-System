@@ -1,4 +1,5 @@
 import { Footer } from '../../shared/Footer.js';
+import { BrandLogo } from '../../shared/BrandLogo.js';
 import { OtpVerificationForm } from './OtpVerificationForm.js';
 import { authService } from './authService.js';
 import { mentorApplicationService, fileBase64 } from './mentorApplicationService.js';
@@ -84,10 +85,7 @@ export function mountMentorApplication(root) {
     root.innerHTML = `
       <header class="border-b border-line bg-white/90 backdrop-blur-md sticky top-0 z-30">
         <div class="container max-w-4xl flex h-16 items-center justify-between">
-          <a href="#/" class="flex items-center gap-2.5" aria-label="HappyProgramming home">
-            <span class="grid h-8 w-8 place-items-center rounded-[9px] bg-brand font-mono text-base font-bold text-white">{h}</span>
-            <span class="text-sm font-semibold tracking-tight text-ink">Happy<span class="text-brand">Programming</span></span>
-          </a>
+          ${BrandLogo()}
           <div class="flex items-center gap-4">
             <a href="#/login" class="text-xs font-semibold text-muted hover:text-ink transition-colors">Log in</a>
             <a href="#/" class="auth-back-btn" aria-label="Back to homepage">

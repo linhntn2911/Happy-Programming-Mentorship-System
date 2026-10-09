@@ -1,4 +1,5 @@
 import { BrowseAllMentorsLink } from '../../shared/BrowseAllMentorsLink.js';
+import { BrandLogo } from '../../shared/BrandLogo.js';
 import { DirectoryMentorCard } from '../../shared/DirectoryMentorCard.js';
 import { MENTOR_CATEGORIES, mentorMatchesCategory, mentorSkillOptions } from './mentorDiscovery.js';
 import { Footer } from '../../shared/Footer.js';
@@ -50,10 +51,7 @@ export function MentorSearchPage(mentors = [], state = {}) {
   return `
   <header class="directory-header">
     <div class="container flex h-[76px] items-center justify-between gap-5">
-      <a href="#/" class="flex items-center gap-2.5" aria-label="HappyProgramming home">
-        <span class="grid h-9 w-9 place-items-center rounded-[10px] bg-brand font-mono text-xl font-bold text-white">{h}</span>
-        <span class="hidden text-[16px] font-semibold tracking-tight sm:block">Happy<span class="text-brand">Programming</span></span>
-      </a>
+      ${BrandLogo({ hideTextOnMobile: true })}
       <nav class="flex items-center gap-3" aria-label="Main navigation">
         ${BrowseAllMentorsLink({ current: true })}
         ${currentUser

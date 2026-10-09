@@ -1,13 +1,12 @@
+import { BrandLogo } from './BrandLogo.js';
+
 export function Footer() {
   return `
 <footer class="border-t border-line bg-white pt-12">
   <div class="container">
     <div class="grid gap-9 pb-12 sm:grid-cols-2 lg:grid-cols-[1.6fr_1fr_1fr_1fr]">
       <div>
-        <a href="/" class="flex items-center gap-2 text-[16px] font-semibold">
-          <span class="grid h-9 w-9 place-items-center rounded-[10px] bg-brand font-mono text-lg text-white">{h}</span>
-          HappyProgramming
-        </a>
+        ${BrandLogo({ href: '#/' })}
         <p class="mt-4 max-w-[280px] text-[12px] leading-6 text-muted">A more personal way to learn programming.<br>The right guidance for your next chapter.</p>
       </div>
       <div>

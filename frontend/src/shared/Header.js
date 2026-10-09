@@ -1,4 +1,5 @@
 import { BrowseAllMentorsLink } from './BrowseAllMentorsLink.js';
+import { BrandLogo } from './BrandLogo.js';
 import { mentorSkillOptions } from '../roles/guest/mentorDiscovery.js';
 import { authService } from '../roles/auth/authService.js';
 import { notificationService } from '../roles/mentee/notificationService.js';
@@ -152,10 +153,7 @@ export function Header(mentors = [], user = null) {
   return `
 <header class="relative z-10 hero-shell">
   <div class="container flex h-[86px] items-center justify-between gap-6">
-    <a href="#/" class="flex shrink-0 items-center gap-2.5" aria-label="HappyProgramming home">
-      <span class="grid h-9 w-9 place-items-center rounded-[10px] bg-brand font-mono text-xl font-bold text-white">{h}</span>
-      <span class="text-[16px] font-semibold tracking-tight">Happy<span class="text-brand">Programming</span></span>
-    </a>
+    ${BrandLogo()}
     <nav class="hidden items-center gap-6 lg:flex" aria-label="Main navigation">
       <a class="nav-link" href="#how-it-works">How it works</a>
       ${authDesktopNav}

@@ -1,4 +1,5 @@
 import { Button } from './Button.js';
+import { BrandLogo } from './BrandLogo.js';
 import { StatCard, StatusBadge, DataTable, Notice } from '../roles/admin/AdminPrimitives.js';
 import { LoginForm } from '../roles/auth/LoginForm.js';
 import { MenteeSignupForm } from '../roles/auth/MenteeSignupForm.js';
@@ -28,11 +29,10 @@ export function ComponentShowcasePage() {
   return `
 <header class="border-b border-line bg-white sticky top-0 z-30">
   <div class="container flex min-h-[72px] items-center justify-between gap-5">
-    <a href="#/" class="flex items-center gap-2.5">
-      <span class="grid h-9 w-9 place-items-center rounded-[10px] bg-brand font-mono text-lg font-bold text-white">{h}</span>
-      <span class="text-[16px] font-semibold text-ink">Happy<span class="text-brand">Programming</span></span>
-      <span class="ml-2 rounded bg-lilac px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand">UI Kit</span>
-    </a>
+    <div class="flex items-center gap-2.5">
+      ${BrandLogo()}
+      <span class="rounded bg-lilac px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand">UI Kit</span>
+    </div>
     <a href="#/" class="btn btn-outline btn-sm">← Back to Homepage</a>
   </div>
 </header>

@@ -1,4 +1,5 @@
 import { mentorshipRequestService } from './mentorshipRequestService.js';
+import { BrandLogo } from '../../shared/BrandLogo.js';
 
 const esc = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 const GOALS = ['Do not wish to disclose.', "I'm a student and looking for help with my studies.", 'I just graduated and need help with my career start.', 'I want to change careers or get a new job.', 'I want to enhance or extend my skillset.', 'I need mentorship for a personal project.', 'I need mentorship for my business / product.'];
@@ -11,7 +12,7 @@ function readDraft(id, fallback) { try { const value = JSON.parse(sessionStorage
 function writeDraft(state) { try { sessionStorage.setItem(keyFor(state.mentorId), JSON.stringify(state)); } catch { /* memory fallback */ } }
 function clearDraft(id) { try { sessionStorage.removeItem(keyFor(id)); } catch { /* memory fallback */ } }
 function shell(content, mentorId) {
-  return '<header class="directory-header"><div class="container flex h-[76px] items-center justify-between gap-3"><a href="#/" class="font-semibold text-brand" aria-label="HappyProgramming home">{h} HappyProgramming</a><a href="#/mentors/' + encodeURIComponent(mentorId || '') + '" class="btn btn-outline btn-sm">Back to profile</a></div></header><main class="min-h-[calc(100vh-76px)] bg-cream py-10 sm:py-16"><div class="container max-w-2xl px-5 sm:px-8">' + content + '</div></main>';
+  return '<header class="directory-header"><div class="container flex h-[76px] items-center justify-between gap-3">' + BrandLogo() + '<a href="#/mentors/' + encodeURIComponent(mentorId || '') + '" class="btn btn-outline btn-sm">Back to profile</a></div></header><main class="min-h-[calc(100vh-76px)] bg-cream py-10 sm:py-16"><div class="container max-w-2xl px-5 sm:px-8">' + content + '</div></main>';
 }
 function progress(step) {
   return '<div class="mb-10 grid grid-cols-3 gap-1.5" aria-label="Application progress">' + [1,2,3].map(n => '<span class="h-1.5 rounded-full ' + (n <= step ? 'bg-brand' : 'bg-line') + '" aria-label="Step ' + n + (n === step ? ', current' : '') + '"></span>').join('') + '</div>';

@@ -1,8 +1,8 @@
 @layer components {
   .admin-shell { min-height: 100dvh; display: grid; grid-template-columns: 246px minmax(0, 1fr); }
   .admin-sidebar { background: white; border-right: 1px solid var(--color-line); padding: 30px 20px; display: flex; flex-direction: column; gap: 34px; position: sticky; top: 0; height: 100dvh; }
-  .admin-logo { display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 700; letter-spacing: -.4px; }
-  .admin-logo-mark { display: grid; place-items: center; width: 34px; height: 36px; border-radius: 10px; color: white; background: var(--color-brand); font: bold 20px monospace; flex-shrink: 0; }
+  .admin-logo { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; letter-spacing: -.4px; }
+  .admin-logo-mark { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; color: white; background: var(--color-brand); font: bold 20px monospace; flex-shrink: 0; }
   .admin-sidebar nav { display: grid; gap: 7px; }
   .admin-nav-link { display: flex; align-items: center; gap: 12px; padding: 13px; border-radius: 9px; color: var(--color-muted); font-size: 12px; font-weight: 500; }
   .admin-nav-link:hover { background: var(--color-cream); color: var(--color-brand-dark); }

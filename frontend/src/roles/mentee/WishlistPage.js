@@ -1,4 +1,5 @@
 import { BrowseAllMentorsLink } from '../../shared/BrowseAllMentorsLink.js';
+import { BrandLogo } from '../../shared/BrandLogo.js';
 import { DirectoryMentorCard } from '../../shared/DirectoryMentorCard.js';
 import { wishlistService } from './wishlistService.js';
 import { mentorService } from '../../shared/mentorService.js';
@@ -19,7 +20,7 @@ export async function mountWishlist(root) {
   if (!user) { root.innerHTML = '<main class="min-h-screen bg-cream"><div class="container py-24 text-center"><h1 class="font-display text-4xl">Your wishlist</h1><p class="mx-auto mt-4 max-w-md text-muted">Log in to save mentors and access your wishlist from any device.</p><a href="#/login" class="btn btn-primary mt-7">Log in</a></div></main>'; return; }
   const name = user.name || user.email || 'Account';
   const initials = name.trim().split(/\s+/).map(part => part[0]).join('').slice(0,2).toUpperCase();
-  root.innerHTML = `<header class="directory-header"><div class="container flex h-[76px] items-center justify-between gap-4"><a href="#/" class="font-semibold text-brand">{h} HappyProgramming</a><nav class="flex items-center gap-3">${BrowseAllMentorsLink()}${renderNotificationBell()}${renderUserDropdown({ currentUser:user, displayName:name, initials })}</nav></div></header><main class="min-h-screen bg-cream"><section class="container py-12 sm:py-16"><p class="eyebrow">YOUR SHORTLIST</p><h1 class="mt-3 font-display text-4xl sm:text-5xl">Saved mentors</h1><p class="mt-4 max-w-2xl text-sm leading-7 text-muted">Keep the mentors you want to compare before sending an application.</p><div id="wishlist-state" class="mt-10" role="status">Loading your wishlist…</div></section></main>`;
+  root.innerHTML = `<header class="directory-header"><div class="container flex h-[76px] items-center justify-between gap-4">${BrandLogo()}<nav class="flex items-center gap-3">${BrowseAllMentorsLink()}${renderNotificationBell()}${renderUserDropdown({ currentUser:user, displayName:name, initials })}</nav></div></header><main class="min-h-screen bg-cream"><section class="container py-12 sm:py-16"><p class="eyebrow">YOUR SHORTLIST</p><h1 class="mt-3 font-display text-4xl sm:text-5xl">Saved mentors</h1><p class="mt-4 max-w-2xl text-sm leading-7 text-muted">Keep the mentors you want to compare before sending an application.</p><div id="wishlist-state" class="mt-10" role="status">Loading your wishlist…</div></section></main>`;
   bindUserDropdown(root, () => { location.hash = '#/'; location.reload(); });
   const state = root.querySelector('#wishlist-state');
   try {

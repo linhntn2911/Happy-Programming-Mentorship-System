@@ -71,6 +71,7 @@ All active feature work, API endpoints, and client modules must target `backend/
 - Reuse the established color tokens: brand purple `#8b46e8`, dark purple `#7431d0`, ink `#25143f`, lavender `#f1e8ff`, cream `#fbf9ff`, and border `#e8e0f1`. Do not create a competing palette or hardcode a different color when a token exists.
 - Reuse shared buttons, inputs, cards, badges, spacing, borders, radii, shadows, and loading/error states so all pages remain synchronized with the homepage and component showcase.
 - Add genuinely new visual patterns to the shared design system and showcase before using them in feature pages.
+- **Brand Logo Synchronization**: Every page (public directory, mentee, mentor, auth, staff, admin) must render the canonical HappyProgramming logo (`frontend/src/shared/BrandLogo.js` or `.admin-logo`): purple rounded-square badge with `{h}` and `Happy<span class="text-brand">Programming</span>`. Never use unstyled plain text `{h} HappyProgramming`.
 
 ### Shared Admin, Staff, and Mentor workspace UI
 

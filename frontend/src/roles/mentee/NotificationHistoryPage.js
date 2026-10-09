@@ -1,4 +1,5 @@
 import { BrowseAllMentorsLink } from '../../shared/BrowseAllMentorsLink.js';
+import { BrandLogo } from '../../shared/BrandLogo.js';
 import { bindUserDropdown, getInitials, renderNotificationBell, renderUserDropdown } from '../../shared/Header.js';
 import { authService } from '../auth/authService.js';
 import { notificationService } from './notificationService.js';
@@ -24,7 +25,7 @@ export async function mountNotificationHistory(root) {
     return;
   }
   const name = user.name || user.email || 'Account';
-  root.innerHTML = `<header class="directory-header"><div class="container flex h-[76px] items-center justify-between gap-4"><a href="#/" class="font-semibold text-brand">{h} HappyProgramming</a><nav class="flex items-center gap-3">${BrowseAllMentorsLink()}${renderNotificationBell()}${renderUserDropdown({ currentUser: user, displayName: name, initials: getInitials(name) })}</nav></div></header>
+  root.innerHTML = `<header class="directory-header"><div class="container flex h-[76px] items-center justify-between gap-4">${BrandLogo()}<nav class="flex items-center gap-3">${BrowseAllMentorsLink()}${renderNotificationBell()}${renderUserDropdown({ currentUser: user, displayName: name, initials: getInitials(name) })}</nav></div></header>
     <main class="min-h-screen bg-cream"><section class="container max-w-4xl py-12 sm:py-16"><p class="eyebrow">YOUR UPDATES</p><h1 class="mt-3 font-display text-4xl sm:text-5xl">Notification history</h1><p class="mt-4 text-sm text-muted">Review your updates and keep track of what you have read.</p>
     <div class="mt-9 flex flex-wrap items-center justify-between gap-3"><div class="flex gap-2" role="group" aria-label="Filter notifications"><button type="button" data-notification-filter="all" class="btn btn-primary btn-sm" aria-pressed="true">All</button><button type="button" data-notification-filter="unread" class="btn btn-outline btn-sm" aria-pressed="false">Unread</button></div><button type="button" id="notifications-mark-all" class="btn btn-outline btn-sm" disabled>Mark all as read</button></div>
     <div id="notification-history-state" class="mt-6" role="status" aria-live="polite">Loading notifications…</div></section></main>`;
