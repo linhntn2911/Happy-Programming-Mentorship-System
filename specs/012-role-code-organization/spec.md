@@ -1,3 +1,5 @@
+> Historical note: backend role-folder placement was superseded by `specs/013-backend-package-diagram`; the frontend role layout remains current.
+
 # Role code organization
 
 ## Outcome

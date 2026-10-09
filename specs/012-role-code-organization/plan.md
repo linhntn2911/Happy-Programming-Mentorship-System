@@ -1,3 +1,5 @@
+> Historical note: backend role-folder placement in this plan was superseded by `specs/013-backend-package-diagram`; frontend flat role folders remain current.
+
 # Plan
 
 Move frontend modules to flat `roles/<role>/` or `shared/` directories and rewrite relative imports. Move backend Java classes and colocated tests to `com.happyprogramming.role.<role>` packages, updating package declarations and imports. Keep `config`, `security`, and the application root unchanged. No routes, HTTP contracts, persistence schema, or behavior changes are planned. The requested flat role layout supersedes the prior package-alignment artifact for physical placement while retaining controller/service/repository and DTO/entity responsibilities. Validate with frontend tests/build and backend Maven tests.
