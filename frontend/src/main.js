@@ -1,7 +1,35 @@
+import {
+  mountMentorProfile,
+  initializeMentorProfilePage,
+  MentorProfilePage,
+} from './pages/MentorProfilePage.js';
+import { mountLogin } from './pages/LoginPage.js';
+import { mountAdmin } from './pages/AdminPage.js';
+import { mountMenteeSignup } from './pages/MenteeSignupPage.js';
+import { mountAccount } from './pages/AccountPage.js';
+import { mountMentorApplication } from './pages/MentorApplicationPage.js';
+import {
+  mountStaffDashboard,
+  mountStaffApplications,
+  mountStaffMentors,
+  mountStaffMentees
+} from './pages/StaffPortal.js';
+import { mountMonthlyMentorshipApplication } from './pages/MonthlyMentorshipApplicationPage.js';
+import { mountWishlist } from './pages/WishlistPage.js';
+import { bindAuthInfo } from './components/auth/LoginForm.js';
 import './app.css';
 import { HomePage } from './pages/HomePage.js';
 import { ComponentShowcasePage } from './pages/ComponentShowcasePage.js';
+import { initializeMentorDashboardPage, MentorDashboardPage } from './pages/MentorDashboardPage.js';
+import { initializeMentorRequestsPage, MentorRequestsPage } from './pages/MentorRequestsPage.js';
+import { mountMentorWorkspacePage } from './pages/MentorWorkspacePage.js';
+import { MentorSearchPage } from './pages/MentorSearchPage.js';
+import { DirectoryMentorCard } from './components/mentor/DirectoryMentorCard.js';
+import { bindMentorPricingCardEvents } from './components/mentor/MentorPricingCard.js';
 import { mentorService } from './services/mentorService.js';
+import { authService } from './services/authService.js';
+import { wishlistService } from './services/wishlistService.js';
+import { bindUserDropdown } from './components/layout/Header.js';
 
 const INITIAL_MENTORS = [
   {
@@ -86,17 +114,27 @@ const INITIAL_MENTORS = [
 
 let currentMentors = [...INITIAL_MENTORS];
 const appEl = document.querySelector('#app');
+let cleanupCurrentPage = () => {};
+let directoryRenderToken = 0;
+
+function openMentorDirectory(keyword = '') {
+  const url = new URL(window.location.href);
+  url.search = '';
+  const query = keyword.trim();
+  if (query) url.searchParams.set('q', query);
+  history.pushState(null, '', `${url.pathname}${url.search}#/mentors`);
+  router();
+}
 
 function renderApp(mentors) {
   currentMentors = mentors;
-  appEl.innerHTML = HomePage(mentors);
+  appEl.innerHTML = HomePage(mentors, authService.getCurrentUser());
   initInteractions();
 }
 
 function initInteractions() {
   const cards = [...document.querySelectorAll('.mentor-card')];
   const searchInputs = [...document.querySelectorAll('[data-search-input]')];
-  const storageKey = 'hpms.homepage.saved-mentors.v1';
   let saved = new Set();
   let activeFilter = 'all';
   let query = '';
@@ -114,14 +152,14 @@ function initInteractions() {
   const scrollBehavior = () =>
     window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth';
 
-  function validSaved(value) {
-    return Array.isArray(value) ? value.filter(id => cards.some(card => card.dataset.id === id)) : [];
-  }
-
-  try {
-    saved = new Set(validSaved(JSON.parse(localStorage.getItem(storageKey) || '[]')));
-  } catch {
-    /* fallback to memory */
+  async function hydrateSaved() {
+    try {
+      saved = new Set(await wishlistService.list());
+      updateSavedButtons();
+      filterCards();
+    } catch (error) {
+      if (error.status !== 401) toast(error.message || 'Unable to load your wishlist.');
+    }
   }
 
   function toast(message) {
@@ -194,11 +232,7 @@ function initInteractions() {
     form.addEventListener('submit', event => {
       event.preventDefault();
       const input = form.querySelector('[data-search-input]');
-      query = input ? input.value.trim() : '';
-      activeFilter = 'all';
-      syncInputs();
-      filterCards();
-      showDiscovery();
+      openMentorDirectory(input ? input.value : '');
     })
   );
 
@@ -232,23 +266,23 @@ function initInteractions() {
   cards.forEach(card => {
     const saveBtn = card.querySelector('[data-save]');
     if (saveBtn) {
-      saveBtn.addEventListener('click', () => {
+      saveBtn.addEventListener('click', async () => {
+        if (!authService.getCurrentUser()) { toast('Please log in to save mentors to your wishlist.'); return; }
         const id = card.dataset.id;
         const removing = saved.has(id);
-        if (removing) saved.delete(id);
-        else saved.add(id);
-        let persistent = true;
+        saveBtn.disabled = true;
         try {
-          localStorage.setItem(storageKey, JSON.stringify([...saved]));
-        } catch {
-          persistent = false;
-        }
+          if (removing) await wishlistService.remove(id); else await wishlistService.save(id);
+          if (removing) saved.delete(id); else saved.add(id);
+        } catch (error) { toast(error.message || 'Unable to update your wishlist.'); return; }
+        finally { saveBtn.disabled = false; }
         updateSavedButtons();
         filterCards();
-        toast((removing ? 'Mentor removed from your saved list.' : 'Mentor saved to your favorites.') + (persistent ? '' : ' Saved for this visit only.'));
+        toast(removing ? 'Mentor removed from your wishlist.' : 'Mentor saved to your wishlist.');
       });
     }
   });
+  hydrateSaved();
 
   // Modal dialog handling
   function openDialog(id) {
@@ -263,10 +297,6 @@ function initInteractions() {
     button.addEventListener('click', () => openDialog(button.dataset.dialog))
   );
 
-  const loginNavBtn = document.querySelector('#login-nav-btn');
-  if (loginNavBtn) {
-    loginNavBtn.addEventListener('click', () => openDialog('login-dialog'));
-  }
 
   document.querySelectorAll('dialog').forEach(dialog => {
     dialog.querySelectorAll('[data-close]').forEach(button =>
@@ -323,7 +353,7 @@ function initInteractions() {
   document.querySelectorAll('[data-mentor-id]').forEach(button =>
     button.addEventListener('click', () => {
       const mentor = currentMentors.find(m => m.id === button.dataset.mentorId);
-      if (mentor) showMentorModal(mentor);
+      if (mentor) window.location.hash = `/mentors/${encodeURIComponent(mentor.id)}`;
     })
   );
 
@@ -386,33 +416,340 @@ function initInteractions() {
 
   updateSavedButtons();
   filterCards();
+  bindUserDropdown(appEl, () => {
+    renderApp(currentMentors);
+  });
 }
 
+let disposeAdmin;
 function router() {
+  disposeAdmin?.();
+  disposeAdmin = undefined;
+  cleanupCurrentPage();
+  cleanupCurrentPage = () => {};
   const hash = window.location.hash;
-  if (hash === '#/components' || hash === '#/showcase') {
+  if (hash === '#/admin' || hash.startsWith('#/admin/')) {
+    disposeAdmin = mountAdmin(appEl, hash.split('/')[2] || 'overview');
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/login' || hash.startsWith('#/login?')) {
+    mountLogin(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/staff/dashboard') {
+    mountStaffDashboard(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/staff/mentor-applications' || hash === '#/staff/applications') {
+    mountStaffApplications(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/staff/mentors') {
+    mountStaffMentors(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/staff/mentees') {
+    mountStaffMentees(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash.startsWith('#/staff/')) {
+    mountStaffDashboard(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/wishlist') {
+    mountWishlist(appEl, currentMentors);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/signup' || hash.startsWith('#/signup?') || hash === '#/signup/mentee') {
+    mountMenteeSignup(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/apply/mentor' || hash.startsWith('#/apply/mentor') || hash === '#/signup/mentor') {
+    mountMentorApplication(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash.startsWith('#/apply/monthly')) {
+    const query = new URLSearchParams(hash.split('?')[1] || '');
+    mountMonthlyMentorshipApplication(appEl, query.get('mentor') || '', query.get('name') || 'your mentor');
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/account') {
+    mountAccount(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash.startsWith('#/mentors/')) {
+    let id;
+    try { id = decodeURIComponent(hash.slice('#/mentors/'.length)); } catch { id = ''; }
+    mountMentorProfile(appEl, id);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/components' || hash === '#/showcase') {
     appEl.innerHTML = ComponentShowcasePage();
+    bindAuthInfo(appEl);
+    appEl.querySelector('#login-form')?.addEventListener('submit', event => event.preventDefault());
+    bindMentorPricingCardEvents(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash.startsWith('#/mentors')) {
+    const params = new URLSearchParams(window.location.search);
+    const initialFilters = {
+      q: params.get('q') || '', skills: params.getAll('skills'), categories: params.getAll('categories'),
+      jobTitles: params.getAll('jobTitles'), companies: params.getAll('companies'),
+      languages: params.getAll('languages'), countries: params.getAll('countries'),
+      minExperience: params.get('minExperience') || '', minPrice: params.get('minPrice') || '', maxPrice: params.get('maxPrice') || '',
+      minRating: params.get('minRating') || '', available: params.get('available') || '',
+      sort: params.get('sort') || 'recommended'
+    };
+    void mountMentorDirectory(initialFilters);
+  } else if (hash === '#/mentor/profile') {
+    appEl.innerHTML = MentorProfilePage();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    cleanupCurrentPage = initializeMentorProfilePage() || (() => {});
+  } else if (hash === '#/mentor/dashboard') {
+    appEl.innerHTML = MentorDashboardPage();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    cleanupCurrentPage = initializeMentorDashboardPage();
+  } else if (hash === '#/mentor/requests') {
+    appEl.innerHTML = MentorRequestsPage();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    cleanupCurrentPage = initializeMentorRequestsPage() || (() => {});
+  } else if (hash === '#/mentor/availability' || hash === '#/mentor/packages') {
+    mountMentorWorkspacePage(appEl, hash === '#/mentor/packages' ? 'packages' : 'availability');
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else {
     renderApp(currentMentors);
   }
 }
 
+async function mountMentorDirectory(initialFilters) {
+  const token = ++directoryRenderToken;
+  appEl.innerHTML = MentorSearchPage([], initialFilters);
+  const loadingEl = document.querySelector('#directory-loading');
+  if (loadingEl) loadingEl.hidden = false;
+  window.scrollTo({ top: 0, behavior: 'instant' });
+
+  let mentors = [];
+  let failed = false;
+  try {
+    const result = await mentorService.getFeaturedMentors();
+    mentors = Array.isArray(result) ? result : [];
+  } catch (error) {
+    failed = true;
+  }
+  if (token !== directoryRenderToken) return;
+
+  if (!failed) currentMentors = mentors;
+  appEl.innerHTML = MentorSearchPage(mentors, initialFilters);
+  if (failed) {
+    const emptyEl = document.querySelector('#directory-empty');
+    const errorEl = document.querySelector('#directory-error');
+    const countEl = document.querySelector('#result-count');
+    if (emptyEl) emptyEl.hidden = true;
+    if (errorEl) errorEl.hidden = false;
+    if (countEl) countEl.textContent = 'Mentor search unavailable';
+  }
+  initMentorDirectory();
+}
+
+function initMentorDirectory() {
+  const form = document.querySelector('#directory-search');
+  const panel = document.querySelector('#filter-panel');
+  const results = document.querySelector('#mentor-results');
+  const loading = document.querySelector('#directory-loading');
+  const empty = document.querySelector('#directory-empty');
+  const error = document.querySelector('#directory-error');
+  const resultCount = document.querySelector('#result-count');
+  const activeFilters = document.querySelector('#active-filters');
+  const sort = document.querySelector('#sort');
+  const mobileButton = document.querySelector('#mobile-filter-button');
+  let requestNumber = 0;
+  let toastTimer;
+
+  const getFilters = () => ({
+    q: document.querySelector('#directory-query')?.value.trim() || '',
+    categories: [...document.querySelectorAll('input[name="categories"]:checked')].map(input => input.value),
+    skills: [...document.querySelectorAll('input[name="skills"]:checked')].map(input => input.value),
+    jobTitles: [...document.querySelectorAll('input[name="jobTitles"]:checked')].map(input => input.value),
+    companies: [...document.querySelectorAll('input[name="companies"]:checked')].map(input => input.value),
+    languages: [...document.querySelectorAll('input[name="languages"]:checked')].map(input => input.value),
+    countries: [...document.querySelectorAll('input[name="countries"]:checked')].map(input => input.value),
+    minExperience: document.querySelector('input[name="minExperience"]:checked')?.value || '',
+    minPrice: document.querySelector('input[name="minPrice"]')?.value || '',
+    maxPrice: document.querySelector('input[name="maxPrice"]')?.value || '',
+    minRating: document.querySelector('input[name="minRating"]:checked')?.value || '',
+    available: document.querySelector('input[name="available"]')?.checked || false,
+    sort: sort?.value || 'recommended'
+  });
+
+  const filterLabels = filters => {
+    const labels = [...filters.categories, ...filters.skills, ...filters.jobTitles, ...filters.companies, ...filters.languages, ...filters.countries];
+    if (filters.q) labels.unshift(`Search: ${filters.q}`);
+    if (filters.minExperience) labels.push(`${filters.minExperience}+ years`);
+    if (filters.minPrice) labels.push(`From ${Number(filters.minPrice).toLocaleString('en-US')} VND`);
+    if (filters.maxPrice) labels.push(`Up to ${Number(filters.maxPrice).toLocaleString('en-US')} VND`);
+    if (filters.minRating) labels.push(`${filters.minRating}+ stars`);
+    if (filters.available) labels.push('Available now');
+    return labels;
+  };
+
+  function syncFilterSummary(filters) {
+    const labels = filterLabels(filters);
+    activeFilters.hidden = labels.length === 0;
+    activeFilters.replaceChildren(...labels.map(label => {
+      const chip = document.createElement('span');
+      chip.className = 'active-filter';
+      chip.textContent = label;
+      return chip;
+    }));
+    const count = document.querySelector('#mobile-filter-count');
+    if (count) count.textContent = labels.length ? `(${labels.length})` : '';
+    const url = new URL(window.location.href);
+    url.search = '';
+    Object.entries(filters).forEach(([key, value]) => {
+      if (Array.isArray(value)) value.forEach(item => url.searchParams.append(key, item));
+      else if (value !== '' && value !== false && !(key === 'sort' && value === 'recommended')) url.searchParams.set(key, value);
+    });
+    history.replaceState(null, '', `${url.pathname}${url.search}#/mentors`);
+  }
+
+  async function wireCards() {
+    let saved = new Set();
+    try { saved = new Set(await wishlistService.list()); } catch (error) { if (error.status !== 401) console.info('Wishlist unavailable:', error.message); }
+    document.querySelectorAll('[data-mentor-id]').forEach(card => {
+      const id = card.dataset.mentorId;
+      const button = card.querySelector('[data-save]');
+      button?.setAttribute('aria-pressed', String(saved.has(id)));
+      button?.addEventListener('click', async () => {
+        const user = authService.getCurrentUser();
+        if (!user) { toast('Please log in to save mentors to your wishlist.'); return; }
+        const removing = saved.has(id);
+        button.disabled = true;
+        try {
+          if (removing) await wishlistService.remove(id); else await wishlistService.save(id);
+          removing ? saved.delete(id) : saved.add(id);
+        } catch (error) { toast(error.message || 'Unable to update your wishlist.'); return; }
+        finally { button.disabled = false; }
+        button.setAttribute('aria-pressed', String(saved.has(id)));
+        const toast = document.querySelector('#toast');
+        if (toast) {
+          clearTimeout(toastTimer);
+          toast.textContent = saved.has(id) ? 'Mentor saved to your wishlist.' : 'Mentor removed from your wishlist.';
+          toast.hidden = false;
+          toastTimer = setTimeout(() => { toast.hidden = true; }, 2500);
+        }
+      });
+    });
+  }
+
+  async function search() {
+    const activeRequest = ++requestNumber;
+    const filters = getFilters();
+    syncFilterSummary(filters);
+    loading.hidden = false;
+    results.hidden = true;
+    empty.hidden = true;
+    error.hidden = true;
+    try {
+      const mentors = await mentorService.searchMentors(filters);
+      if (activeRequest !== requestNumber) return;
+      results.innerHTML = mentors.map(DirectoryMentorCard).join('');
+      results.hidden = mentors.length === 0;
+      empty.hidden = mentors.length > 0;
+      resultCount.textContent = `${mentors.length} mentor${mentors.length === 1 ? '' : 's'} found`;
+      wireCards();
+    } catch {
+      if (activeRequest !== requestNumber) return;
+      error.hidden = false;
+      resultCount.textContent = 'Mentor search unavailable';
+    } finally {
+      if (activeRequest === requestNumber) loading.hidden = true;
+    }
+  }
+
+  function clearFilters() {
+    form.reset();
+    form.querySelector('[name="q"]').value = '';
+    panel.querySelectorAll('input[type="checkbox"]').forEach(input => { input.checked = false; });
+    panel.querySelectorAll('input[type="number"], input[type="search"]').forEach(input => { input.value = ''; });
+    panel.querySelectorAll('.filter-option').forEach(option => { option.hidden = option.classList.contains('is-extra'); });
+    panel.querySelectorAll('[data-show-options]').forEach(button => { button.setAttribute('aria-expanded', 'false'); button.textContent = 'Show more'; });
+    sort.value = 'recommended';
+    search();
+  }
+
+  form?.addEventListener('submit', event => { event.preventDefault(); search(); });
+  panel?.addEventListener('change', () => { if (window.innerWidth >= 1024) search(); });
+  sort?.addEventListener('change', search);
+  document.querySelector('#clear-filters')?.addEventListener('click', clearFilters);
+  document.querySelector('#empty-clear')?.addEventListener('click', clearFilters);
+  document.querySelector('#retry-search')?.addEventListener('click', search);
+  document.querySelector('#apply-mobile-filters')?.addEventListener('click', () => { panel.classList.remove('is-open'); mobileButton.setAttribute('aria-expanded', 'false'); search(); });
+  mobileButton?.addEventListener('click', () => {
+    const open = panel.classList.toggle('is-open');
+    mobileButton.setAttribute('aria-expanded', String(open));
+  });
+  panel?.querySelectorAll('[data-option-search]').forEach(input => {
+    input.addEventListener('input', () => {
+      const term = input.value.trim().toLowerCase();
+      panel.querySelectorAll(`[data-filter-options="${input.dataset.optionSearch}"] .filter-option`).forEach(option => {
+        const expanded = panel.querySelector(`[data-show-options="${input.dataset.optionSearch}"]`)?.getAttribute('aria-expanded') === 'true';
+        option.hidden = term ? !option.dataset.optionLabel.includes(term) : option.classList.contains('is-extra') && !expanded && !option.querySelector('input').checked;
+      });
+    });
+  });
+  panel?.querySelectorAll('[data-show-options]').forEach(button => {
+    button.addEventListener('click', () => {
+      const expanded = button.getAttribute('aria-expanded') === 'true';
+      button.setAttribute('aria-expanded', String(!expanded));
+      button.textContent = expanded ? 'Show more' : 'Show less';
+      const term = panel.querySelector(`[data-option-search="${button.dataset.showOptions}"]`)?.value.trim().toLowerCase() || '';
+      panel.querySelectorAll(`[data-filter-options="${button.dataset.showOptions}"] .filter-option`).forEach(option => {
+        option.hidden = term ? !option.dataset.optionLabel.includes(term) : expanded && option.classList.contains('is-extra') && !option.querySelector('input').checked;
+      });
+    });
+  });
+  wireCards();
+  bindUserDropdown(appEl, () => router());
+  if (filterLabels(getFilters()).length > 0 || getFilters().sort !== 'recommended') search();
+}
+
+// Browse-all navigation must clear query filters even on the current directory route.
+document.addEventListener('click', event => {
+  const link = event.target.closest?.('a[data-browse-all-mentors]');
+  if (!link || event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || link.hasAttribute('download') || (link.target && link.target !== '_self')) return;
+  event.preventDefault();
+  openMentorDirectory();
+});
+
 window.addEventListener('hashchange', router);
+window.addEventListener('popstate', router);
 
 // Initial route
 router();
 
+// Revalidate session in background
+authService.me().then(user => {
+  if (user && (!window.location.hash || window.location.hash === '#/' || window.location.hash === '#')) {
+    renderApp(currentMentors);
+  }
+}).catch(() => {});
+
 // Hydrate / fetch from Spring Boot REST API
 mentorService
   .getFeaturedMentors()
-  .then(res => {
-    if (res && res.data && Array.isArray(res.data) && res.data.length > 0) {
-      currentMentors = res.data;
-      if (!window.location.hash.startsWith('#/components') && !window.location.hash.startsWith('#/showcase')) {
-        renderApp(currentMentors);
-      }
+  .then(mentors => {
+    if (!Array.isArray(mentors) || mentors.length === 0) return;
+    currentMentors = mentors;
+
+    const hash = window.location.hash;
+    if (hash === '#/wishlist') {
+      mountWishlist(appEl, currentMentors);
+      return;
     }
+    const routeIsMountedIndependently = [
+      '#/admin',
+      '#/login',
+      '#/signup',
+      '#/apply',
+      '#/staff/',
+      '#/account',
+      '#/components',
+      '#/showcase',
+      '#/mentor/',
+      '#/mentors/',
+    ].some(prefix => hash.startsWith(prefix));
+
+    if (routeIsMountedIndependently) return;
+    // The directory route loads its own catalog via mountMentorDirectory; only
+    // the homepage needs a re-render from the freshly hydrated currentMentors.
+    if (hash.startsWith('#/mentors')) return;
+    renderApp(currentMentors);
   })
   .catch(err => {
     console.info('Using local catalog (backend API unreachable or offline):', err.message);

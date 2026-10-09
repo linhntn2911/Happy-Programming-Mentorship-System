@@ -1,8 +1,9 @@
+import { MENTOR_CATEGORIES } from '../constants/mentorDiscovery.js';
 import { Header } from '../components/layout/Header.js';
 import { Footer } from '../components/layout/Footer.js';
 import { MentorCard } from '../components/mentor/MentorCard.js';
 
-export function HomePage(mentors = []) {
+export function HomePage(mentors = [], user = null) {
   const mentorCardsHtml = mentors.length > 0
     ? mentors.map(m => MentorCard(m)).join('')
     : '<div class="col-span-full py-12 text-center text-muted">Loading mentors...</div>';
@@ -21,8 +22,8 @@ export function HomePage(mentors = []) {
 
   return `
 <a href="#main" class="sr-only z-50 rounded-lg bg-brand p-3 text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Skip to main content</a>
-<div class="hero-shell relative overflow-hidden">
-  ${Header()}
+<div class="hero-shell relative z-20">
+  ${Header(mentors, user)}
 </div>
 <main id="main">
   <div class="hero-shell relative overflow-hidden">
@@ -31,18 +32,14 @@ export function HomePage(mentors = []) {
         <p class="mb-5 text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">A HUMAN CONNECTION. A BETTER WAY TO LEARN.</p>
         <h1 id="hero-title" class="hero-title">1-on-1 mentorship for<br><em>your next chapter in code.</em></h1>
         <p class="mx-auto mt-6 max-w-xl text-[14px] leading-7 text-muted">Build your skills. Get unstuck. Bring your ideas to life.<br class="hidden sm:block"> Find a programming mentor who gets where you want to go.</p>
-        <form id="mentor-search" data-search-form class="search-form mx-auto mt-7 max-w-[640px] border-brand/20 bg-white text-ink shadow-lg shadow-brand/10" role="search" action="#mentors">
+        <form id="mentor-search" data-search-form class="search-form mx-auto mt-7 max-w-[640px] border-brand/20 bg-white text-ink shadow-lg shadow-brand/10" role="search" action="#/mentors">
           <span class="ml-3 text-muted"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg></span>
           <label class="sr-only" for="search-input">Search by skill, name or role</label>
           <input id="search-input" data-search-input name="q" type="search" placeholder="Try Java, React, or a mentor's name" class="placeholder:text-muted" maxlength="100" autocomplete="off">
           <button class="btn btn-light shrink-0 !px-4 sm:!px-6" type="submit">Find mentors <span class="hidden sm:inline-flex"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></span></button>
         </form>
         <div class="mx-auto mt-5 flex max-w-2xl flex-wrap justify-center gap-2">
-          <button class="topic-pill" data-quick-search="Java">Java & Spring Boot</button>
-          <button class="topic-pill" data-quick-search="React">Frontend Development</button>
-          <button class="topic-pill" data-quick-search="Python">Python & Data</button>
-          <button class="topic-pill" data-quick-search="System Design">System Design</button>
-          <button class="topic-pill" data-quick-search="Full-stack">Full-stack Development</button>
+          ${MENTOR_CATEGORIES.map(({ label }) => `<a class="topic-pill" href="?${new URLSearchParams({ categories: label })}#/mentors">${label.replaceAll('&', '&amp;')}</a>`).join('') }
         </div>
       </div>
       <div class="mt-6 sm:mt-9">
@@ -162,7 +159,7 @@ export function HomePage(mentors = []) {
           <p class="mt-2 text-sm text-muted">Try another skill or clear your filters to explore again.</p>
           <button id="reset-search" class="btn btn-outline mt-5">Clear filters</button>
         </div>
-        <p id="saved-note" class="mt-4 text-xs text-muted" hidden>Your saved mentors stay in this browser and are not linked to an account yet.</p>
+        <p id="saved-note" class="mt-4 text-xs text-muted" hidden>Your saved mentors are linked to your account and available from the Wishlist page.</p>
       </div>
     </section>
 
@@ -237,7 +234,7 @@ export function HomePage(mentors = []) {
           <h2 id="become-title" class="section-title mt-4">Someone's next step<br>could start with your experience.</h2>
           <p class="mt-5 max-w-xl text-[13px] leading-7 text-white/65">Help another developer find their footing. Share what you know, give meaningful feedback, and grow alongside the people you mentor.</p>
         </div>
-        <button class="btn btn-light shrink-0" data-dialog="become-dialog">Become a mentor <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg></button>
+        <a href="#/apply/mentor" class="btn btn-light shrink-0">Become a mentor <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg></a>
       </div>
     </section>
 
@@ -289,14 +286,6 @@ ${Footer()}
   </div>
   <p class="mt-5 text-xs leading-6 text-muted">This is a sample profile. Applications and session bookings will be available in a future release.</p>
   <button class="btn btn-primary mt-5" data-close>Keep exploring <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></button>
-</dialog>
-
-<dialog id="login-dialog" class="modal" aria-labelledby="login-dialog-title">
-  <button class="modal-close" data-close aria-label="Close"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button>
-  <span class="grid h-12 w-12 place-items-center rounded-2xl bg-lilac text-brand"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg></span>
-  <h2 id="login-dialog-title" class="mt-5 font-display text-3xl">Your next chapter starts here.</h2>
-  <p class="mt-4 text-sm leading-7 text-muted">Account registration and login are coming in a future release. For now, explore our sample mentor profiles, compare learning options, and save your favorites in this browser.</p>
-  <button class="btn btn-primary mt-6" data-close data-go-mentors>Explore mentors <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></button>
 </dialog>
 
 <dialog id="become-dialog" class="modal" aria-labelledby="become-dialog-title">

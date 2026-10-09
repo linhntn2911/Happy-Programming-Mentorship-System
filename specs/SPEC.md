@@ -87,14 +87,18 @@ sequenceDiagram
   - **When** a user attempts to register with `alice@example.com`,
   - **Then** the system rejects the submission with validation error `MSG_EMAIL_EXISTS`.
 
-#### US-02: Role-based Sign In
-- **As a** registered user,  
-  **I want to** select my role tab ("I'm a mentee" / "I'm a mentor") and sign in,  
-  **So that** I am routed to my relevant workspace.
+#### US-02: Unified Sign In & Role Routing
+- **As a** registered user (Mentee, Mentor, Staff, or Admin),  
+  **I want to** sign in using my email and password without manual role tabs,  
+  **So that** the system automatically authenticates my account and routes me to my relevant workspace.
 - **Scenario 1: Locked Account Prevention**
   - **Given** an account has experienced 5 consecutive failed login attempts,
   - **When** a 6th login attempt occurs,
   - **Then** the account is locked for 15 minutes and displays a security lockout message.
+- **Scenario 2: Automatic Role-based Routing**
+  - **Given** valid credentials for an active account,
+  - **When** the user signs in,
+  - **Then** Staff and Admin users are automatically routed to the Staff portal (`#/staff/mentor-applications`), while Mentees and Mentors proceed to their intended workspace.
 
 ---
 
@@ -257,7 +261,7 @@ sequenceDiagram
 
 ### 7.3 Design System & Accessibility
 - Canonical color scheme: Primary Purple (`#8b46e8`), Dark Purple (`#7431d0`), Ink (`#25143f`), Lilac (`#f1e8ff`), Cream (`#fbf9ff`).
-- Fully responsive across mobile ($320\text{px}$), tablet ($768\text{px}$), and desktop ($1024\text{px}+$).
+- Desktop web layout is the delivery target. Existing responsive CSS may remain, but mobile/tablet-specific screen implementation and viewport validation are out of scope unless explicitly requested.
 - WCAG 2.1 Level AA conformance (sufficient contrast ratios, semantic HTML, visible focus states).
 
 ---

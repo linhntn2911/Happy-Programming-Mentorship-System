@@ -1,8 +1,13 @@
 import { Button } from '../components/ui/Button.js';
+import { StatCard, StatusBadge, DataTable, Notice } from '../components/ui/AdminPrimitives.js';
+import { LoginForm } from '../components/auth/LoginForm.js';
+import { MenteeSignupForm } from '../components/auth/MenteeSignupForm.js';
 import { Badge, TopicPill } from '../components/ui/Badge.js';
 import { SearchForm, TextInput } from '../components/ui/Input.js';
 import { EmptyState } from '../components/ui/EmptyState.js';
 import { MentorCard } from '../components/mentor/MentorCard.js';
+import { DashboardMetricCard } from '../components/mentor/DashboardMetricCard.js';
+import { MentorPricingCard, planToTier } from '../components/mentor/MentorPricingCard.js';
 
 export function ComponentShowcasePage() {
   const sampleMentor = {
@@ -41,6 +46,12 @@ export function ComponentShowcasePage() {
   </section>
 
   <div class="container space-y-16 py-14">
+    <section aria-label="Administration components">
+      <h2 class="section-title">Administration</h2>
+      ${Notice({ message: 'Sample administration components' })}
+      ${StatCard({ label: 'Accounts', value: 0, note: 'Sample metric' })}
+      ${DataTable({ caption: 'Account states', headings: ['Status'], rows: [[StatusBadge('ACTIVE')]] })}
+    </section>
     <!-- 1. Color Palette Tokens -->
     <section aria-labelledby="colors-title">
       <p class="eyebrow">TOKENS</p>
@@ -159,15 +170,71 @@ export function ComponentShowcasePage() {
       </div>
     </section>
 
-    <!-- 5. Cards -->
-    <section aria-labelledby="cards-title">
-      <p class="eyebrow">CARDS & PROFILES</p>
-      <h2 id="cards-title" class="section-title mt-2">Mentor Card</h2>
-      <div class="mt-6 max-w-sm">
-        ${MentorCard(sampleMentor)}
+    <section aria-labelledby="dashboard-metrics-title">
+      <p class="eyebrow">MENTOR DASHBOARD</p>
+      <h2 id="dashboard-metrics-title" class="section-title mt-2">Summary metric cards</h2>
+      <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        ${DashboardMetricCard({
+          label: 'Net earnings',
+          value: '₫1,250,000',
+          description: 'Lifetime after successful refunds and payment commission.',
+          icon: '₫',
+        })}
+        ${DashboardMetricCard({
+          label: 'Pending invitations',
+          value: '3',
+          description: 'Requests waiting for a decision within the 48-hour SLA.',
+          icon: '⌛',
+        })}
+        ${DashboardMetricCard({
+          label: 'Average rating',
+          value: 'No published reviews',
+          description: '0 published reviews.',
+          icon: '★',
+        })}
       </div>
     </section>
 
+    <!-- Cards & Pricing Plans -->
+    <section aria-labelledby="cards-title">
+      <p class="eyebrow">CARDS & PACKAGES</p>
+      <h2 id="cards-title" class="section-title mt-2">Mentor Card & Pricing Plans</h2>
+      <p class="section-copy mt-2 max-w-2xl">Interactive cards for mentor discovery and monthly mentorship tiers (Lite, Standard, Pro) with free trial, call scheduling and one-off session options.</p>
+      <div class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+        <div>
+          <h3 class="text-sm font-bold uppercase tracking-wider text-muted mb-4">Catalog Mentor Card</h3>
+          <div class="max-w-sm">
+            ${MentorCard(sampleMentor)}
+          </div>
+        </div>
+        <div>
+          <h3 class="text-sm font-bold uppercase tracking-wider text-muted mb-4">Mentorship Package Tier Card (Lite / Standard / Pro)</h3>
+          ${MentorPricingCard({
+            tiers: [
+              planToTier({ id: 1, planTier: 'LITE', name: 'Lite', price: 2500000, sessionDurationMinutes: 60, callsPerPeriod: 1, trialDays: 7, responseTimeHours: 24, chatIncluded: true, description: 'Entry-level monthly guidance for self-driven mentees.' }),
+              planToTier({ id: 2, planTier: 'STANDARD', name: 'Standard', price: 4500000, sessionDurationMinutes: 60, callsPerPeriod: 2, trialDays: 7, responseTimeHours: 12, chatIncluded: true, description: 'Balanced monthly mentorship with regular calls.' }),
+              planToTier({ id: 3, planTier: 'PRO', name: 'Pro', price: 8000000, sessionDurationMinutes: 60, callsPerPeriod: 4, trialDays: 7, responseTimeHours: 6, chatIncluded: true, description: 'Intensive monthly support with priority access.' }),
+            ],
+            oneOffPrice: sampleMentor.session,
+          })}
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="login-preview-title">
+      <p class="eyebrow">AUTHENTICATION</p>
+      <h2 id="login-preview-title" class="section-title mt-2">Login & Sign up Forms</h2>
+      <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+        <div>
+          <h3 class="text-sm font-bold uppercase tracking-wider text-muted mb-4">Login Form</h3>
+          <div class="auth-panel rounded-2xl border border-line bg-white p-6">${LoginForm({ preview: true })}</div>
+        </div>
+        <div>
+          <h3 class="text-sm font-bold uppercase tracking-wider text-muted mb-4">Mentee Sign Up Form</h3>
+          <div class="auth-panel rounded-2xl border border-line bg-white p-6">${MenteeSignupForm({ preview: true })}</div>
+        </div>
+      </div>
+    </section>
     <!-- 6. Empty States & Feedback -->
     <section aria-labelledby="feedback-title">
       <p class="eyebrow">FEEDBACK</p>
