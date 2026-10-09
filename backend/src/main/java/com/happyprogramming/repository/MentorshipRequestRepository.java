@@ -32,4 +32,15 @@ public interface MentorshipRequestRepository extends JpaRepository<MentorshipReq
     MentorRequestDecisionProjection findDecisionByIdAndMentorId(
             @Param("requestId") Long requestId,
             @Param("mentorId") Long mentorId);
+
+    @Query(value = """
+            SELECT r.mentee_id AS menteeId, mu.full_name AS mentorName, so.name AS packageName
+            FROM dbo.mentorship_requests r
+            JOIN dbo.users mu ON mu.id = r.mentor_id
+            LEFT JOIN dbo.service_offerings so ON so.id = r.service_id
+            WHERE r.id = :requestId AND r.mentor_id = :mentorId
+            """, nativeQuery = true)
+    MentorDecisionContextProjection findDecisionContextByIdAndMentorId(
+            @Param("requestId") Long requestId,
+            @Param("mentorId") Long mentorId);
 }

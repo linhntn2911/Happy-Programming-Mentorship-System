@@ -38,13 +38,15 @@ class MentorDashboardServiceTest {
     private MentorDashboardRepository dashboardRepository;
     @Mock
     private MentorshipRequestRepository requestRepository;
+    @Mock
+    private NotificationService notificationService;
 
     private MentorDashboardService service;
 
     @BeforeEach
     void setUp() {
         service = new MentorDashboardService(
-                mentorService, dashboardRepository, requestRepository);
+                mentorService, dashboardRepository, requestRepository, notificationService);
         when(mentorService.requireCurrentActiveMentorId()).thenReturn(42L);
     }
 
@@ -112,6 +114,30 @@ class MentorDashboardServiceTest {
         assertEquals("ACCEPTED", response.status());
         assertEquals(respondedAt.toInstant(java.time.ZoneOffset.UTC), response.respondedAt());
         verify(requestRepository).transitionPendingRequest(52L, 42L, "ACCEPTED");
+    }
+
+    @Test
+    void acceptingARequestNotifiesTheMenteeWithPaymentNextStep() {
+        LocalDateTime respondedAt = LocalDateTime.parse("2026-10-07T09:30:00");
+        when(requestRepository.transitionPendingRequest(52L, 42L, "ACCEPTED")).thenReturn(1);
+        when(requestRepository.findDecisionByIdAndMentorId(52L, 42L))
+                .thenReturn(new DecisionProjection(52L, "ACCEPTED", respondedAt));
+        com.happyprogramming.repository.MentorDecisionContextProjection context =
+                org.mockito.Mockito.mock(
+                        com.happyprogramming.repository.MentorDecisionContextProjection.class);
+        when(context.getMenteeId()).thenReturn(99L);
+        when(context.getMentorName()).thenReturn("Nam Nguyễn");
+        when(context.getPackageName()).thenReturn("Pro Mentorship");
+        when(requestRepository.findDecisionContextByIdAndMentorId(52L, 42L)).thenReturn(context);
+
+        service.decideOnRequest(52L, new MentorRequestDecisionRequest("ACCEPTED"));
+
+        verify(notificationService).create(
+                org.mockito.ArgumentMatchers.eq(99L),
+                org.mockito.ArgumentMatchers.eq("Mentorship request accepted"),
+                org.mockito.ArgumentMatchers.contains("Nam Nguyễn"),
+                org.mockito.ArgumentMatchers.eq("MENTORSHIP_REQUEST_ACCEPTED"),
+                org.mockito.ArgumentMatchers.eq("#/account"));
     }
 
     @Test

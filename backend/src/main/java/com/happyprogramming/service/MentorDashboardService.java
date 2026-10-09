@@ -30,14 +30,17 @@ public class MentorDashboardService {
     private final MentorService mentorService;
     private final MentorDashboardRepository dashboardRepository;
     private final MentorshipRequestRepository requestRepository;
+    private final NotificationService notificationService;
 
     public MentorDashboardService(
             MentorService mentorService,
             MentorDashboardRepository dashboardRepository,
-            MentorshipRequestRepository requestRepository) {
+            MentorshipRequestRepository requestRepository,
+            NotificationService notificationService) {
         this.mentorService = mentorService;
         this.dashboardRepository = dashboardRepository;
         this.requestRepository = requestRepository;
+        this.notificationService = notificationService;
     }
 
     @Transactional(readOnly = true)
@@ -93,10 +96,30 @@ public class MentorDashboardService {
         if (result == null || result.getRespondedAt() == null) {
             throw new IllegalStateException("Updated request decision could not be reloaded.");
         }
+
+        notifyMenteeOfDecision(requestId, mentorId, result.getStatus());
+
         return new MentorRequestDecisionResponse(
                 result.getId(),
                 result.getStatus(),
                 toInstant(result.getRespondedAt()));
+    }
+
+    private void notifyMenteeOfDecision(long requestId, long mentorId, String status) {
+        var context = requestRepository.findDecisionContextByIdAndMentorId(requestId, mentorId);
+        if (context == null || context.getMenteeId() == null) {
+            return;
+        }
+        String mentorName = context.getMentorName() == null ? "The mentor" : context.getMentorName();
+        String packageName = context.getPackageName() == null ? "your mentorship request" : context.getPackageName();
+        boolean accepted = "ACCEPTED".equals(status);
+        String title = accepted ? "Mentorship request accepted" : "Mentorship request declined";
+        String message = accepted
+                ? mentorName + " accepted your request for " + packageName
+                        + ". You can now complete payment to start."
+                : mentorName + " declined your request for " + packageName + ".";
+        String type = accepted ? "MENTORSHIP_REQUEST_ACCEPTED" : "MENTORSHIP_REQUEST_REJECTED";
+        notificationService.create(context.getMenteeId(), title, message, type, "#/account");
     }
 
     private static MentorDashboardRequest toRequest(MentorDashboardRequestProjection request) {

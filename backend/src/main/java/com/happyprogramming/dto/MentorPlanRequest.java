@@ -11,7 +11,8 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 
 public record MentorPlanRequest(
-        @NotBlank @Size(max = 200) String name,
+        @NotBlank @Pattern(regexp = "LITE|STANDARD|PRO") String planTier,
+        @Size(max = 200) String name,
         @NotNull @DecimalMin(value = "0.0", inclusive = true) @Digits(integer = 16, fraction = 2) BigDecimal price,
         @NotNull @Min(1) @Max(1440) Integer sessionDurationMinutes,
         @NotNull @Min(0) @Max(365) Integer callsPerPeriod,

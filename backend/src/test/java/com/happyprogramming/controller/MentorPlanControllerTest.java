@@ -1,6 +1,5 @@
 package com.happyprogramming.controller;
 
-import com.happyprogramming.dto.MentorPlanRequest;
 import com.happyprogramming.dto.MentorPlanResponse;
 import com.happyprogramming.service.MentorPlanService;
 
@@ -35,7 +34,7 @@ class MentorPlanControllerTest {
 
     private static MentorPlanResponse samplePlan() {
         return new MentorPlanResponse(
-                11L, "Monthly Mentorship", "MONTHLY", "Four calls a month plus chat.",
+                11L, "Standard Mentorship", "MONTHLY", "STANDARD", "Four calls a month plus chat.",
                 new BigDecimal("2500000.00"), "VND", 60, 4, 7, 24, true, "ACTIVE");
     }
 
@@ -47,36 +46,48 @@ class MentorPlanControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.data[0].name").value("Monthly Mentorship"))
+                .andExpect(jsonPath("$.data[0].name").value("Standard Mentorship"))
+                .andExpect(jsonPath("$.data[0].planTier").value("STANDARD"))
                 .andExpect(jsonPath("$.data[0].price").value(2500000.00))
                 .andExpect(jsonPath("$.data[0].serviceType").value("MONTHLY"));
     }
 
     @Test
-    void saveMonthlyPlanReturnsSavedPackage() throws Exception {
-        when(mentorPlanService.saveMonthlyPlan(ArgumentMatchers.any(MentorPlanRequest.class)))
-                .thenReturn(samplePlan());
+    void getMentorPlansReturnsOnlyActivePublicPackages() throws Exception {
+        when(mentorPlanService.getPublicPlans("11")).thenReturn(List.of(samplePlan()));
 
-        mockMvc.perform(put("/api/mentors/me/plans")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"name":"Monthly Mentorship","price":2500000,"sessionDurationMinutes":60,
-                                 "callsPerPeriod":4,"description":"Four calls a month plus chat."}
-                                """))
+        mockMvc.perform(get("/api/mentors/11/plans").accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.message").value("Mentorship package saved."))
-                .andExpect(jsonPath("$.data.name").value("Monthly Mentorship"))
-                .andExpect(jsonPath("$.data.callsPerPeriod").value(4));
+                .andExpect(jsonPath("$.data[0].planTier").value("STANDARD"));
     }
 
     @Test
-    void saveMonthlyPlanRejectsInvalidPayload() throws Exception {
+    void savePlansPersistsTheTierSet() throws Exception {
+        when(mentorPlanService.savePlans(ArgumentMatchers.anyList()))
+                .thenReturn(List.of(samplePlan()));
+
         mockMvc.perform(put("/api/mentors/me/plans")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"name":"","price":-5,"sessionDurationMinutes":0,
-                                 "callsPerPeriod":-1,"description":""}
+                                {"plans":[{"planTier":"STANDARD","price":2500000,"sessionDurationMinutes":60,
+                                 "callsPerPeriod":4,"description":"Four calls a month plus chat.","status":"ACTIVE"}]}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Mentorship packages saved."))
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data[0].planTier").value("STANDARD"))
+                .andExpect(jsonPath("$.data[0].callsPerPeriod").value(4));
+    }
+
+    @Test
+    void savePlansRejectsInvalidTierPayload() throws Exception {
+        mockMvc.perform(put("/api/mentors/me/plans")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"plans":[{"planTier":"ULTRA","price":-5,"sessionDurationMinutes":0,
+                                 "callsPerPeriod":-1,"description":""}]}
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false));

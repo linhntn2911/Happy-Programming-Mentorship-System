@@ -11,14 +11,17 @@ test('availability module keeps an honest not-ready state', () => {
   assert.doesNotMatch(availability, /mentor-packages-form/);
 });
 
-test('packages module renders the mentorship package management form', () => {
+test('packages module renders one card per tier with enable toggles', () => {
   const packages = MentorWorkspacePage('packages');
 
   assert.match(packages, /Mentorship packages/);
   assert.match(packages, /aria-current="page"/);
   assert.match(packages, /id="mentor-packages-form"/);
-  assert.match(packages, /id="package-price"/);
-  assert.match(packages, /id="package-calls"/);
-  assert.match(packages, /id="package-minutes"/);
+  assert.match(packages, /data-tier="LITE"/);
+  assert.match(packages, /data-tier="STANDARD"/);
+  assert.match(packages, /data-tier="PRO"/);
+  assert.match(packages, /id="tier-lite-active"/);
+  assert.match(packages, /id="tier-standard-price"/);
+  assert.match(packages, /id="tier-pro-description"/);
   assert.doesNotMatch(packages, /Package management is not available yet/);
 });

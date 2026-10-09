@@ -21,6 +21,7 @@ import './app.css';
 import { HomePage } from './pages/HomePage.js';
 import { ComponentShowcasePage } from './pages/ComponentShowcasePage.js';
 import { initializeMentorDashboardPage, MentorDashboardPage } from './pages/MentorDashboardPage.js';
+import { initializeMentorRequestsPage, MentorRequestsPage } from './pages/MentorRequestsPage.js';
 import { mountMentorWorkspacePage } from './pages/MentorWorkspacePage.js';
 import { MentorSearchPage } from './pages/MentorSearchPage.js';
 import { DirectoryMentorCard } from './components/mentor/DirectoryMentorCard.js';
@@ -494,6 +495,10 @@ function router() {
     appEl.innerHTML = MentorDashboardPage();
     window.scrollTo({ top: 0, behavior: 'instant' });
     cleanupCurrentPage = initializeMentorDashboardPage();
+  } else if (hash === '#/mentor/requests') {
+    appEl.innerHTML = MentorRequestsPage();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    cleanupCurrentPage = initializeMentorRequestsPage() || (() => {});
   } else if (hash === '#/mentor/availability' || hash === '#/mentor/packages') {
     mountMentorWorkspacePage(appEl, hash === '#/mentor/packages' ? 'packages' : 'availability');
     window.scrollTo({ top: 0, behavior: 'instant' });

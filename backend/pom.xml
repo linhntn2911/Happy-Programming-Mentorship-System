@@ -83,6 +83,7 @@
                         <copy file="${project.basedir}/../docs/database/migration/011_20261008_sync_approved_mentors.sql" tofile="${project.build.outputDirectory}/db/migration/V8__sync_approved_mentors.sql" overwrite="true"/>
                         <copy file="${project.basedir}/../docs/database/migration/012_20261008_publish_approved_mentors.sql" tofile="${project.build.outputDirectory}/db/migration/V9__publish_approved_mentors.sql" overwrite="true"/>
                         <copy file="${project.basedir}/../docs/database/migration/013_20261008_approval_first_request_lifecycle.sql" tofile="${project.build.outputDirectory}/db/migration/V10__approval_first_request_lifecycle.sql" overwrite="true"/>
+                        <copy file="${project.basedir}/../docs/database/migration/014_20261009_add_service_offering_plan_tier.sql" tofile="${project.build.outputDirectory}/db/migration/V11__add_service_offering_plan_tier.sql" overwrite="true"/>
                     </target></configuration>
                 </execution></executions>
             </plugin>
