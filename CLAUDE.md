@@ -49,9 +49,10 @@ All active feature work, API endpoints, and client modules must target `backend/
 ## Backend Expectations
 
 - Use Java 17 and Spring Boot 3.5.x. Keep `HpmsApplication` in the root package.
-- Put each role's Java classes directly in `com.happyprogramming.role.{admin,staff,mentor,mentee,auth,shared}`. Do not add layer subpackages inside a role. Mirror these packages in tests. Cross-role infrastructure stays in `config` and `security`.
-- This flat role layout supersedes the older physical layer folders in `Package Diagram1.docx` and `specs/003-package-alignment`. Preserve controller → service → repository responsibilities, DTO/entity separation, authorization checks, and API contracts regardless of folder placement.
-- Use Bean Validation and the shared exception response format. Never serialize JPA entities as API responses.
+- Follow `Package Diagram1.docx`: place backend classes directly in the technical-layer packages `config`, `constant`, `controller`, `dto`, `entity`, `repository`, `service`, `security`, `integration`, `scheduler`, and `utils` under `com.happyprogramming`. Create only packages with implemented code. Mirror production packages in tests.
+- This layered backend layout supersedes the temporary backend `role/*` layout from `specs/012-role-code-organization`. Frontend remains grouped in flat role folders. Do not create backend role packages or layer subfolders inside roles.
+- Controllers delegate to services; services own business rules and coordinate repositories. Keep DTOs separate from entities, apply authorization and ownership checks, and never serialize JPA entities directly.
+- Use Bean Validation and the shared exception response format.
 - Use versioned Flyway migration scripts under `docs/database/migration/` for schema changes; never edit the immutable `docs/database/init/schema_31_tables.sql` baseline. Preserve the documented `NNN_YYYYMMDD_<description>.sql` sequence format.
 - Temporary development seed records must use a versioned migration and Repository/API reads; remove only seed data and seed mechanism when real flows exist.
 - Make payment and other callback-driven operations idempotent and verifiable. Add focused coverage for changed behavior.

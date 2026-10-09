@@ -1,0 +1,3 @@
+# Plan
+
+Use the pre-role-refactor tree and class responsibilities to map current backend Java sources and tests to `controller`, `dto`, `entity`, `repository`, and `service`; keep root, `config`, and `security` in place. Rewrite package declarations, imports, and any fully qualified class references while preserving source behavior and API contracts. The backend layout in Package Diagram1 and `specs/003-package-alignment` takes precedence over the temporary backend role layout in spec 012. Frontend flat role folders are unaffected. No database migration is needed. Validate with Maven compilation and tests, source-file counts, stale-package search, and diff review.

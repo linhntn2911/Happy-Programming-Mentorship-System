@@ -85,24 +85,25 @@ For bugs, preserve separate evidence for observed behavior, assessed cause, scop
 
 ### Backend
 
-The target backend is Java 17 and Spring Boot 3.5.x. It exposes REST endpoints under `/api` and does not render frontend pages. Follow the flat role packages under `com.happyprogramming.role` while preserving the controller/service/repository dependency direction.
-
-Place role-owned backend classes directly in one package per role, with no nested controller/service/dto/repository/entity folders. This repository-wide role layout supersedes the older layer-folder placement in `Package Diagram1.docx` and `specs/003-package-alignment`; class responsibilities and dependency direction still apply.
+The target backend is Java 17 and Spring Boot 3.5.x. It exposes REST endpoints under `/api` and does not render frontend pages. Follow `Package Diagram1.docx`: organize Java packages by technical responsibility under `com.happyprogramming`, not by user role. This layer layout supersedes the temporary flat `role/*` backend layout from `specs/012-role-code-organization`.
 
 ```text
 backend/src/main/java/com/happyprogramming/
 ├── HpmsApplication.java
-├── role/{admin,staff,mentor,mentee,auth,shared}/  # flat Java packages
-├── config/       # application wiring
-└── security/     # cross-role security
+├── config/
+├── constant/
+├── controller/
+├── dto/
+├── entity/
+├── repository/
+├── service/
+├── security/
+├── integration/
+├── scheduler/
+└── utils/
 ```
 
-Each role package may contain controllers, services, DTOs, entities, and repositories directly. Identify responsibility by class name and annotations, not by a nested folder. Keep cross-role contracts and infrastructure in `role/shared`, `config`, or `security`. Tests mirror the role packages; root application and configuration tests stay by their production package. Never create another nested `pages/components/services`-style hierarchy inside a role. Keep `HpmsApplication` at the root for component, entity, and repository scanning.
-
-- Controllers handle HTTP and delegate to services; never call repositories or external providers directly.
-- DTOs represent API requests/responses; entities represent persistence; repositories own queries.
-- Services own business rules and transactions; `config` and `security` remain cross-role infrastructure.
-- A class used by multiple roles belongs in `role/shared` only when the behavior is genuinely shared. Role-specific flows that involve another role remain with the role that owns the action.
+Create only packages with implemented code. Place every role's HTTP handlers in `controller`, API types in `dto`, persistence models in `entity`, queries in `repository`, and business rules in `service`. `config` and `security` retain infrastructure and access-control concerns. Put external adapters in `integration`, timed jobs in `scheduler`, shared constants in `constant`, and pure helpers in `utils` when needed. Keep `HpmsApplication` in the root package for component, entity, and repository scanning. Tests mirror production packages under `backend/src/test/java/com/happyprogramming/`. Do not recreate backend `role/*` packages or place multiple technical layers inside a role folder. Frontend role folders are a separate convention and remain valid.
 
 Backend rules:
 

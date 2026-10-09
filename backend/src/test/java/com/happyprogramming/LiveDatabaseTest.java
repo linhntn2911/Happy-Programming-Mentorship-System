@@ -1,8 +1,9 @@
 package com.happyprogramming;
 
-import com.happyprogramming.role.admin.AdminDtos;
-import com.happyprogramming.role.admin.AdminRepository;
-import com.happyprogramming.role.admin.AdminService;
+import com.happyprogramming.dto.AdminDtos;
+import com.happyprogramming.repository.AdminRepository;
+import com.happyprogramming.service.AdminService;
+
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;

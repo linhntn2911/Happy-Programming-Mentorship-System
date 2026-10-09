@@ -1,6 +1,7 @@
 package com.happyprogramming.security;
 
-import com.happyprogramming.role.auth.AuthenticatedUser;
+import com.happyprogramming.dto.AuthenticatedUser;
+
 import jakarta.servlet.http.*;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;

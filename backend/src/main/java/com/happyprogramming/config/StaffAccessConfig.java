@@ -1,9 +1,10 @@
 package com.happyprogramming.config;
 
+import com.happyprogramming.dto.ApiResponse;
+import com.happyprogramming.dto.AuthenticatedUser;
+import com.happyprogramming.service.StaffAccessService;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.happyprogramming.role.shared.ApiResponse;
-import com.happyprogramming.role.auth.AuthenticatedUser;
-import com.happyprogramming.role.staff.StaffAccessService;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.core.Authentication;
