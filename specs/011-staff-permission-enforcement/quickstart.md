@@ -37,3 +37,23 @@ Mentor profile fee/CV fields absent from the directory projection remain unavail
 than fabricated. Recent dashboard activity is not yet implemented. No push performed.
 
 Local provisioning follow-up: applied opt-in migration 015 to HappyProgramming. All four new accounts authenticated successfully through port 5174; Admin workspace returned all three new Staff. Each Staff received HTTP 403 for mentors, mentees, requests and skills before assignment (12 checks). All verification sessions logged out. Staff remain without grants for the user's manual review. Credentials are in ignored .system_generated/accounts-credentials.txt; no application code or schema changed.
+
+## Team local testing
+
+Each teammate runs their own backend, frontend and SQL Server database. Git does not copy the local database or credentials.
+
+Use opt-in `docs/database/migration/015_20261008_provision_local_permission_accounts.sql` to create these local accounts:
+- `admin.luong@example.test` (ADMIN)
+- `staff.mentor@example.test` (STAFF)
+- `staff.mentee@example.test` (STAFF)
+- `staff.support@example.test` (STAFF)
+
+Generate a separate password and BCrypt hash (Spring BCryptPasswordEncoder, strength 12) for each account on that machine. Set process environment variables `HPMS_ACCOUNT_HASH_0` through `HPMS_ACCOUNT_HASH_3` to the four hashes in the order above, then run:
+
+```powershell
+sqlcmd -S localhost -E -C -d HappyProgramming -b -i docs/database/migration/015_20261008_provision_local_permission_accounts.sql
+```
+
+This requires the project's existing user/role/audit schema and first_name/last_name columns. It is not a database initialization script and is not run automatically by Flyway. It refuses to overwrite existing accounts. Staff start without permissions; sign in as Admin, then use Staff & permissions to assign access. Keep passwords and hashes out of Git. The credential file on the original development machine is ignored and is not distributed.
+
+Verification on 2026-10-09 through frontend port 5174: Admin login/workspace, all four Staff grant/revoke mappings, unrelated permission denial, Staff denial from Admin API, deactivate/reactivate, audit and logout passed against local SQL Server. Original Staff permissions/status restored afterward. Backend is on 8083; Vite uses VITE_API_PROXY_TARGET=http://127.0.0.1:8083. Database was held at Flyway V7 with validation enabled; V8-V10 backfills/payment lifecycle are not covered by this local walkthrough and must be reviewed before applying to another database with existing data.
