@@ -1,5 +1,18 @@
 # Merged authentication validation (2026-10-07)
 
+## Latest linh merge e64ef9d, 2026-10-08
+Merged Mentor workspace/package, notification history and approval-first request updates.
+Resolved staffService conflict by preserving live requests and propagating errors; upstream
+mock fallback is not reintroduced. Existing four-permission tests remain passing.
+Full backend suite: 115 discovered, 110 passed, 5 skipped. Frontend: 36 passed, build passed.
+Added StaffAccessService mocks to the two new Mentor/Request MVC slices for merged config.
+Renamed opt-in Staff account script to 014_20261008_provision_local_demo_staff.sql to avoid
+upstream schema migration 013 collision. No account reset or provisioning rerun.
+Local backend continues with Flyway target 7 and validation enabled. Upstream V8/V9 data
+backfills and V10 approval-first lifecycle have not been applied. New checkout/request flow
+has controller/unit coverage but is not verified end-to-end against this local V7 database.
+Merge is local only; no push requested in this update.
+
 2026-10-08 follow-up: the Staff authorization/mock-data gaps below are superseded for current
 read routes by specs/011-staff-permission-enforcement/quickstart.md. All four permission
 read boundaries are now tested; full skill/request mutation workflows remain out of scope.

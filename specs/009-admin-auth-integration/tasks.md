@@ -1,5 +1,9 @@
 # Integration tasks
 
+- [x] Merge linh e64ef9d, preserve Staff fail-closed behavior and resolve script numbering collision.
+- [x] Run merged full backend/frontend tests and frontend build (110 backend pass, 36 frontend pass).
+- [ ] Reconcile and validate upstream V8-V10 on a disposable database before applying to local real data.
+
 - [x] Provision user-requested persistent local Staff with no permissions through migration 013.
 - [x] Verify real HTTP Admin grant/Staff access/revoke/denial and audit; leave zero permissions.
 

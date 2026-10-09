@@ -28,6 +28,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(MentorPlanController.class)
 @AutoConfigureMockMvc(addFilters = false)
 class MentorPlanControllerTest {
+    @MockitoBean
+    private com.happyprogramming.service.StaffAccessService staffAccess;
     @Autowired
     private MockMvc mockMvc;
 
