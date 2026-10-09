@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { staffService } from '../src/services/staffService.js';
+import { staffService } from '../src/roles/staff/staffService.js';
 
 test('all staff reads propagate denied and unavailable responses without sample fallbacks', async () => {
   const original=globalThis.fetch;

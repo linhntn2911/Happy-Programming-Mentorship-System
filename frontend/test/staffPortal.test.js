@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { staffService } from '../src/services/staffService.js';
-import { mountStaffDashboard, mountStaffApplications, mountStaffMentors, mountStaffMentees, mountStaffList } from '../src/pages/StaffPortal.js';
+import { staffService } from '../src/roles/staff/staffService.js';
+import { mountStaffDashboard, mountStaffApplications, mountStaffMentors, mountStaffMentees, mountStaffList } from '../src/roles/staff/StaffPortal.js';
 
 test('Staff pages render request failures as alerts, never as empty successful lists', async () => {
   const originals = { ...staffService };

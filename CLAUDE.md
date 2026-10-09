@@ -48,31 +48,21 @@ All active feature work, API endpoints, and client modules must target `backend/
 
 ## Backend Expectations
 
-- Use Java 17 and Spring Boot 3.5.x.
-- Follow `Package Diagram1.docx` and the canonical layered layout under `com.happyprogramming` (`config`, `constant`, `controller`, `dto`, `entity`, `repository`, `service`, `security`, `integration`, `scheduler`, `utils`). Do not use the former `vn.happyprogramming` package layout.
-- Keep `HpmsApplication` in the root package and mirror production packages in tests. Create packages only as implementations require them.
-- Controllers delegate to services; services coordinate repositories and integrations. Keep DTOs separate from entities.
-- Keep controllers thin and business rules in services.
-- Use DTOs at API boundaries; do not serialize JPA entities directly.
-- Use Bean Validation and the shared exception response format.
-- Use Flyway for persistent schema changes. Never rely on manual database edits.
-- Database Schema (`docs/database/`):
-  - `docs/database/init/`: Contains baseline `schema_31_tables.sql`; never edit, overwrite, or append to this file.
-  - `docs/database/migration/`: For every database change made during development, create a separate script named `NNN_YYYYMMDD_<description>.sql` with a zero-padded 3-digit sequence number, 8-digit date, and snake_case description (e.g. `001_20261006_add_user_first_last_name.sql`, `002_20261007_add_fresher_profile_level.sql`) to guarantee unambiguous execution order, and apply changes through that migration.
-- Temporary development seed records may be added through a versioned migration for development only. Read them through Repository/API code, never through a hardcoded frontend array; remove the seed records and seed mechanism once the real create/update flow is available, while preserving real data, official catalog data, and schema.
-- Apply authorization and ownership checks in the backend.
-- Make VNPay and other callback-driven operations idempotent and verifiable.
-- Add focused unit or integration coverage for changed behavior.
+- Use Java 17 and Spring Boot 3.5.x. Keep `HpmsApplication` in the root package.
+- Put each role's Java classes directly in `com.happyprogramming.role.{admin,staff,mentor,mentee,auth,shared}`. Do not add layer subpackages inside a role. Mirror these packages in tests. Cross-role infrastructure stays in `config` and `security`.
+- This flat role layout supersedes the older physical layer folders in `Package Diagram1.docx` and `specs/003-package-alignment`. Preserve controller → service → repository responsibilities, DTO/entity separation, authorization checks, and API contracts regardless of folder placement.
+- Use Bean Validation and the shared exception response format. Never serialize JPA entities as API responses.
+- Use versioned Flyway migration scripts under `docs/database/migration/` for schema changes; never edit the immutable `docs/database/init/schema_31_tables.sql` baseline. Preserve the documented `NNN_YYYYMMDD_<description>.sql` sequence format.
+- Temporary development seed records must use a versioned migration and Repository/API reads; remove only seed data and seed mechanism when real flows exist.
+- Make payment and other callback-driven operations idempotent and verifiable. Add focused coverage for changed behavior.
 
 ## Frontend Expectations
 
-- Use the established Tailwind tokens and UI components.
-- Keep the interface English and preserve the bright purple/white visual identity.
-- Add reusable styles to the design system, then demonstrate them in the showcase.
-- Keep page code responsible for composition and orchestration.
-- Put HTTP logic in service modules and shared request behavior in `apiClient`.
-- Render loading, empty, error, disabled, and success states where relevant.
-- Preserve accessibility, keyboard behavior, and reduced-motion support. Do not add a separate mobile viewport build/check unless the user explicitly requests it.
+- Put role-owned modules directly in `frontend/src/roles/{admin,staff,mentor,mentee,auth,guest}/`. Do not nest `pages/components/services` inside role folders. Put reusable cross-role modules directly in `frontend/src/shared/`; keep `main.js`, `app.css`, and global `styles/` at the root.
+- Keep test files beside their module. Preserve route URLs, API paths, exports, and behavior during file moves.
+- Use established Tailwind tokens and UI components, English copy, and the purple/white identity. Add reusable styles to the design system and showcase.
+- Keep page code responsible for composition and orchestration. Put HTTP logic in the owning role module and common request behavior in `shared/apiClient.js`.
+- Render relevant loading, empty, error, disabled, and success states. Preserve accessibility, keyboard behavior, and reduced-motion support. No separate mobile viewport check unless requested.
 
 ## Visual Consistency
 

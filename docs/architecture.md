@@ -1,48 +1,24 @@
 # HappyProgramming Architecture Overview
 
-## Repository Structure
+`backend/` is a Spring Boot REST API; `frontend/` is a Vite JavaScript client. `specs/` contains bounded Spec Kit artifacts and `docs/` contains operational guidance.
+
+## Role layout
+
+Both applications group role-owned code in flat role folders. `admin`, `staff`, `mentor`, `mentee`, `auth`, and `guest` (frontend only) own their flows. Reusable cross-role code belongs in `shared`; backend configuration and security remain in `config` and `security`.
+
 ```text
-HappyProgramming/
-├── backend/       # Spring Boot 3.5.x REST API
-├── frontend/      # Vite + Tailwind CSS 4 + Modular JavaScript client
-├── specs/         # Spec Kit feature artifacts
-├── docs/          # Architecture and operational documentation
-├── AGENTS.md
-└── CLAUDE.md
+frontend/src/roles/{admin,staff,mentor,mentee,auth,guest}/*.js
+frontend/src/shared/*.js
+frontend/src/main.js
+frontend/src/app.css
+frontend/src/styles/admin.css
+
+backend/src/main/java/com/happyprogramming/role/{admin,staff,mentor,mentee,auth,shared}/*.java
+backend/src/test/java/com/happyprogramming/role/{admin,staff,mentor,mentee,auth,shared}/*Test.java
+backend/src/main/java/com/happyprogramming/{config,security}/*.java
+backend/src/main/java/com/happyprogramming/HpmsApplication.java
 ```
 
-## Backend Architecture
-- **Language & Runtime:** Java 25, Spring Boot 3.5.x
-- **Communication:** RESTful APIs under `/api/`
-- **Package Convention:** Layered packages under `com.happyprogramming`, following [Package Diagram1.docx](../Package%20Diagram1.docx).
-- **Entry point:** `com.happyprogramming.HpmsApplication`; tests mirror production packages.
+There are no `pages/components/services` subfolders within a role. Class responsibility remains explicit: controllers delegate to services, services own business rules and use repositories, DTOs define API contracts, and entities map persistence. Moving a file must preserve routes, exports, API paths, and database behavior. The role-folder layout supersedes the old physical package arrangement in `Package Diagram1.docx` and `specs/003-package-alignment`; it does not change the layer responsibilities described there.
 
-| Package | Responsibility | Current implementation |
-| --- | --- | --- |
-| `config` | Infrastructure and Spring bean configuration | Planned |
-| `constant` | Shared constants and status/role enums | Planned |
-| `controller` | HTTP requests and service delegation | `RootController`, `MentorController` |
-| `dto` | Request/response data, separate from entities | `ApiResponse`, `MentorCard` |
-| `entity` | SQL Server JPA mappings | Planned |
-| `repository` | Spring Data persistence queries | Planned |
-| `service` | Business rules and transaction orchestration | `MentorCatalog` (prototype in-memory catalog) |
-| `security` | Authentication, authorization, ownership | Planned |
-| `integration` | External service adapters | Planned |
-| `scheduler` | Timed work delegated to services | Planned |
-| `utils` | Shared utility functions | Planned |
-
-Dependencies: controller → service → repository → entity; controller/service use DTOs; service uses integration adapters; scheduler calls service; config wires infrastructure. Constants and utilities must not depend on controllers. The document's external integrations and security capabilities are target design, not evidence that they already work. Current mentor reads still use `MentorCatalog`, not SQL Server repositories.
-
-Use `*Controller`, `*Service`, `*Repository`, `*Request`/`*Response`, `*Status`, `*Client`, `*Config`, and `*Scheduler` names for new types according to responsibility. Retain existing DTO/catalog names during this structural move. Do not create empty packages for planned features. Maven coordinates remain `vn.happyprogramming:happyprogramming-backend`; artifact coordinates are independent of Java package names.
-
-## Frontend Architecture
-- **Tooling:** Vite, Tailwind CSS 4
-- **Language:** ES Modules JavaScript
-- **Design Tokens:**
-  - Primary purple: `#8b46e8`
-  - Dark purple: `#7431d0`
-  - Ink: `#25143f`
-  - Lavender: `#f1e8ff`
-  - Cream background: `#fbf9ff`
-  - Border: `#e8e0f1`
-- **Network Layer:** Centralized `services/apiClient.js`
+The client uses shared design tokens in `app.css` and shared operational workspace styles in `styles/admin.css`. HTTP behavior is centralized in `shared/apiClient.js` with role-specific service modules.
