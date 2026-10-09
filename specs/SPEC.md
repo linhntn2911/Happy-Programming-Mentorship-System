@@ -151,10 +151,10 @@ sequenceDiagram
   - **Given** an accepted application awaiting payment,
   - **When** VNPay returns payment code `00` (Success),
   - **Then** the system marks the booking `ACTIVE`, deposits the fee into Escrow, records an audit log, and starts the 7-day trial.
-- **Scenario 2: 7-Day Trial Refund**
+- **Scenario 2: 7-Day Trial Prorated Refund (Option A)**
   - **Given** a Mentee within day 1 to 7 of their paid monthly cycle,
-  - **When** the Mentee cancels the mentorship,
-  - **Then** access is terminated immediately and a 100% refund is initiated via VNPay gateway.
+  - **When** the Mentee cancels the mentorship during the trial window,
+  - **Then** access is terminated immediately, the fee for utilized days ($D_{\text{used}} \times \frac{\text{Price}}{30}$) is retained and allocated to the mentor net of platform commission, and a prorated refund for remaining unutilized days ($\frac{30 - D_{\text{used}}}{30} \times \text{Price}$) is issued to the Mentee via VNPay gateway.
 
 ---
 
@@ -296,7 +296,7 @@ The complete SQL Server schema script is maintained at [`docs/database/init/sche
 6. **Review Timeout / Unpaid Cancellation:**
    - Pending requests exceeding 48 hours $\rightarrow$ `EXPIRED` (`JOB-02`). No refund needed (no funds collected).
    - Cancel accepted unpaid request $\rightarrow$ close pending payment attempts before setting request to `CANCELLED`.
-7. **Paid Cancellation (7-Day Trial Window):** Mentee cancels during trial $\rightarrow$ `subscriptions.status = CANCELLED`, issuance of 100% refund via `refunds` table and `escrow_ledger_entries` with `REFUND_OUT`.
+7. **Paid Cancellation (7-Day Trial Window):** Mentee cancels during trial $\rightarrow$ `subscriptions.status = CANCELLED`, issuance of prorated refund for unutilized days via `refunds` table and `escrow_ledger_entries` with `REFUND_OUT`, while utilized days portion is released (`RELEASE_OUT`) to mentor earnings.
 8. **Trial Progression:** After 7 days, background job transitions eligible `TRIALING` subscription to `ACTIVE`. Renewal charges apply to `subscriptions` with `billing_cycle_no >= 2`.
 
 ---

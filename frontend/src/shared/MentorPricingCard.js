@@ -127,8 +127,8 @@ export function planToTier(plan) {
 
   if (plan.trialDays) {
     features.push({
-      title: `${plan.trialDays}-day free trial`,
-      description: 'No charge during the trial. Cancel anytime with zero fees.',
+      title: `${plan.trialDays}-day satisfaction trial`,
+      description: 'Cancel within 7 days and only pay for days used. Unused days are fully refunded.',
     });
   }
 
@@ -233,7 +233,7 @@ export function MentorPricingCard({
       </svg>
     </button>
 
-    ${currentTier.trialDays ? `<p class="mt-3 text-xs text-muted">${currentTier.trialDays}-day free trial, cancel anytime.</p>` : ''}
+    ${currentTier.trialDays ? `<p class="mt-3 text-xs text-muted">${currentTier.trialDays}-day trial: prorated refund for unused days.</p>` : ''}
     <p class="mt-3 text-xs text-muted">
       Pay after your mentor accepts. Cancel anytime between billing cycles.
       <a href="#/what-is-included" class="font-medium text-brand underline decoration-brand/40 underline-offset-2 hover:decoration-brand">What's included?</a>
