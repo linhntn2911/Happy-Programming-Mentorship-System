@@ -3,10 +3,12 @@ import { MentorLayout, bindMentorLayout } from './MentorLayout.js';
 import { MentorAvatar } from '../../shared/MentorAvatar.js';
 import { BrowseAllMentorsLink } from '../../shared/BrowseAllMentorsLink.js';
 import { Footer } from '../../shared/Footer.js';
-import { MentorPricingCard, bindMentorPricingCardEvents } from '../../shared/MentorPricingCard.js';
+import { MentorPricingCard, bindMentorPricingCardEvents, planToTier } from '../../shared/MentorPricingCard.js';
+import { mentorPlanService } from './mentorPlanService.js';
 import { wishlistService } from '../mentee/wishlistService.js';
 import { authService } from '../auth/authService.js';
 import { bindUserDropdown, getInitials, renderUserDropdown } from '../../shared/Header.js';
+
 
 export function MentorProfilePage() {
   return MentorLayout(`
@@ -278,7 +280,7 @@ const profileHeader = () => {
   return `<header class="directory-header"><div class="container flex h-[76px] items-center justify-between gap-4"><a href="#/" class="flex shrink-0 items-center gap-2.5" aria-label="HappyProgramming home"><span class="grid h-9 w-9 place-items-center rounded-[10px] bg-brand font-mono text-xl font-bold text-white">{h}</span><span class="text-[16px] font-semibold tracking-tight text-ink">Happy<span class="text-brand">Programming</span></span></a><nav class="flex items-center gap-6" aria-label="Main navigation">${BrowseAllMentorsLink()}${user ? renderUserDropdown({ currentUser: user, displayName, initials: getInitials(displayName) }) : '<a href="#/login" class="btn btn-outline btn-sm">Log in</a>'}</nav></div></header>`;
 };
 const layout = body => `${profileHeader()}<main class="profile-page"><div class="container py-8 sm:py-12">${body}</div></main>${Footer()}`;
-export function ProfilePage(m) {
+export function ProfilePage(m, tiers = []) {
   return layout(`<nav class="mb-8 text-xs text-muted" aria-label="Breadcrumb"><a href="#/">Home</a> / <a href="?#/mentors" data-browse-all-mentors>Browse all mentors</a> / <span aria-current="page">${esc(m.name)}</span></nav>
     <div class="profile-columns"><div class="min-w-0">
       <section class="profile-intro">${MentorAvatar(m, 'profile-photo', 168)}<div><p class="eyebrow">PROGRAMMING MENTOR</p><h1 class="mt-3 font-display text-4xl sm:text-5xl">${esc(m.name)}</h1><p class="mt-3 text-base">${esc(m.role)}${m.company ? ` at <strong>${esc(m.company)}</strong>` : ''}</p><div class="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted"><span>${esc(m.country)}</span><span>${esc(m.experience)}</span></div><p class="mt-4 text-sm text-brand">${m.acceptingMentees ? 'Accepting new mentees' : 'Not accepting new mentees'}</p><button type="button" class="save-btn profile-save-btn mt-5" data-profile-save data-mentor-id="${esc(m.id)}" aria-pressed="false" aria-label="Save ${esc(m.name)} to wishlist"><svg class="icon h-4 w-4" viewBox="0 0 24 24"><path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg><span>Save to wishlist</span></button></div></section>
@@ -289,10 +291,8 @@ export function ProfilePage(m) {
       <section class="profile-block" id="profile-reviews"><h2>What mentees say</h2><div class="profile-empty"><span aria-hidden="true">☆</span><h3 class="font-semibold">Reviews are not available yet</h3><p class="mt-2 text-sm text-muted">Moderated learner reviews will appear here when available.</p></div></section>
     </div><aside class="profile-sidebar" aria-label="Mentorship services">
       ${MentorPricingCard({
-        mentorName: m.name,
-        mentorSlug: m.id,
-        oneOffPrice: m.session || "500,000",
-        currencyMode: "VND",
+        tiers,
+        oneOffPrice: m.session || '',
         onApplyClick: `window.location.hash = '#/apply/monthly?mentor=${encodeURIComponent(m.id)}&name=${encodeURIComponent(m.name)}'`
       })}
       <div class="profile-note mt-6"><h3 class="text-sm font-semibold">A thoughtful match comes first</h3><p class="mt-2 text-xs leading-6 text-muted">Monthly mentorship follows mentor approval before payment.</p></div>
@@ -311,7 +311,13 @@ export async function mountMentorProfile(app, id) {
     const m = await mentorService.getProfile(id);
     if (app.firstElementChild !== marker) return;
     if (!m) { app.innerHTML = state('Mentor not found','This profile is not available.'); return; }
-    app.innerHTML = ProfilePage(m);
+    let tiers = [];
+    try {
+      const plans = await mentorPlanService.getMentorPlans(m.id);
+      tiers = plans.map(planToTier);
+    } catch { tiers = []; }
+    if (app.firstElementChild !== marker) return;
+    app.innerHTML = ProfilePage(m, tiers);
     bindMentorPricingCardEvents(app);
     bindUserDropdown(app, () => { location.hash = '#/'; location.reload(); });
     const saveButton = app.querySelector('[data-profile-save]');

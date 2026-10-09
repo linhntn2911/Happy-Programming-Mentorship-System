@@ -18,12 +18,18 @@ export const mentorPlanService = {
     return Array.isArray(plans) ? plans : [];
   },
 
-  async saveMonthlyPlan(plan) {
+  async getMentorPlans(mentorId) {
+    const plans = await apiClient(`/api/mentors/${mentorId}/plans`);
+    return Array.isArray(plans) ? plans : [];
+  },
+
+  async savePlans(plans) {
     const headers = await withCsrf();
-    return apiClient('/api/mentors/me/plans', {
+    const saved = await apiClient('/api/mentors/me/plans', {
       method: 'PUT',
       headers,
-      body: JSON.stringify(plan),
+      body: JSON.stringify({ plans }),
     });
+    return Array.isArray(saved) ? saved : [];
   },
 };

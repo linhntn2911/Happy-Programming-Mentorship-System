@@ -6,6 +6,7 @@ public record MentorPlanResponse(
         Long id,
         String name,
         String serviceType,
+        String planTier,
         String description,
         BigDecimal price,
         String currency,

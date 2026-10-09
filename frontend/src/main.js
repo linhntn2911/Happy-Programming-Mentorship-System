@@ -23,6 +23,7 @@ import './app.css';
 import { HomePage } from './roles/guest/HomePage.js';
 import { ComponentShowcasePage } from './shared/ComponentShowcasePage.js';
 import { initializeMentorDashboardPage, MentorDashboardPage } from './roles/mentor/MentorDashboardPage.js';
+import { initializeMentorRequestsPage, MentorRequestsPage } from './roles/mentor/MentorRequestsPage.js';
 import { mountMentorWorkspacePage } from './roles/mentor/MentorWorkspacePage.js';
 import { MentorSearchPage } from './roles/guest/MentorSearchPage.js';
 import { DirectoryMentorCard } from './shared/DirectoryMentorCard.js';
@@ -514,6 +515,10 @@ function router() {
     appEl.innerHTML = MentorDashboardPage();
     window.scrollTo({ top: 0, behavior: 'instant' });
     cleanupCurrentPage = initializeMentorDashboardPage();
+  } else if (hash === '#/mentor/requests') {
+    appEl.innerHTML = MentorRequestsPage();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    cleanupCurrentPage = initializeMentorRequestsPage() || (() => {});
   } else if (hash === '#/mentor/availability' || hash === '#/mentor/packages') {
     cleanupCurrentPage = mountMentorWorkspacePage(appEl, hash === '#/mentor/packages' ? 'packages' : 'availability');
     window.scrollTo({ top: 0, behavior: 'instant' });
