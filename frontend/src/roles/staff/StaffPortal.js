@@ -7,6 +7,7 @@ import { StaffDashboardPage } from './StaffDashboardPage.js';
 import { StaffApplicationsPage } from './StaffApplicationsPage.js';
 import { StaffMentorsPage } from './StaffMentorsPage.js';
 import { StaffMenteesPage } from './StaffMenteesPage.js';
+import { StaffSkillsPage } from './StaffSkillsPage.js';
 import { StaffAccessDeniedPage } from './StaffAccessDeniedPage.js';
 import { staffService } from './staffService.js';
 import { authService } from '../auth/authService.js';
@@ -461,6 +462,9 @@ export async function mountStaffMentees(root) {
 }
 
 export async function mountStaffList(root, kind) {
+  if (kind === 'skills') {
+    return mountStaffSkills(root);
+  }
   document.title = `${kind === 'skills' ? 'Technical skills' : 'Mentorship requests'} | HappyProgramming`;
   root.innerHTML='<p role="status">Loading…</p>';
   const user=await checkStaffAccess(root); if (!user || !root.isConnected) return;
@@ -474,4 +478,195 @@ export async function mountStaffList(root, kind) {
       ${rows.map(row=>`<tr>${row.map(v=>`<td>${e(v??'—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${!rows.length?'<p class="admin-panel-body">No records found.</p>':''}</section>`,user);
     bindStaffGlobalEvents(root);
   } catch(err) { staffError(root,err); }
+}
+
+export async function mountStaffSkills(root) {
+  document.title = 'Technical skills | HappyProgramming';
+  root.innerHTML = '<div class="min-h-screen bg-[#fbf9ff] flex items-center justify-center p-8 text-muted text-xs font-medium">Loading technical skills…</div>';
+
+  const user = await checkStaffAccess(root);
+  if (!user || !root.isConnected) return;
+
+  let skills = [];
+  let categories = [];
+
+  const refreshData = async () => {
+    try {
+      const [s, c] = await Promise.all([
+        staffService.getSkills(),
+        staffService.getSkillCategories()
+      ]);
+      skills = Array.isArray(s) ? s : [];
+      categories = Array.isArray(c) ? c : [];
+    } catch (err) {
+      staffError(root, err);
+      return false;
+    }
+    return true;
+  };
+
+  const render = () => {
+    if (!root.isConnected) return;
+    root.innerHTML = StaffSkillsPage(skills, categories, user);
+    bindStaffGlobalEvents(root);
+
+    const searchInput = root.querySelector('#skill-search-input');
+    const categoryFilter = root.querySelector('#skill-category-filter');
+    const statusFilter = root.querySelector('#skill-status-filter');
+    const container = root.querySelector('#skills-table-container');
+
+    const dialog = root.querySelector('#skill-form-dialog');
+    const form = root.querySelector('#skill-modal-form');
+    const modalTitle = root.querySelector('#skill-modal-title');
+    const editIdInput = root.querySelector('#skill-edit-id');
+    const nameInput = root.querySelector('#skill-name-input');
+    const categoryInput = root.querySelector('#skill-category-input');
+    const descInput = root.querySelector('#skill-description-input');
+    const activeInput = root.querySelector('#skill-active-input');
+    const errorEl = root.querySelector('#skill-form-error');
+    const saveBtn = root.querySelector('#btn-save-skill');
+
+    const filterSkills = () => {
+      const q = (searchInput?.value || '').trim().toLowerCase();
+      const categoryId = categoryFilter?.value || 'ALL';
+      const status = statusFilter?.value || 'ALL';
+
+      const filtered = skills.filter(s => {
+        const matchesQ = !q || (s.name && s.name.toLowerCase().includes(q)) || (s.slug && s.slug.toLowerCase().includes(q));
+        const matchesCategory = categoryId === 'ALL' || String(s.categoryId) === String(categoryId);
+        const matchesStatus = status === 'ALL' || (status === 'ACTIVE' ? s.active : !s.active);
+        return matchesQ && matchesCategory && matchesStatus;
+      });
+
+      const rows = filtered.map(s => {
+        return [
+          `<div class="font-semibold text-ink">${e(s.name)} <span class="badge !text-[9px] !py-0.5 ml-1 text-muted font-normal">${e(s.slug || '')}</span></div>`,
+          `<span class="badge !text-[10px] !py-0.5">${e(s.category || 'General')}</span>`,
+          `<span class="text-xs text-muted max-w-xs truncate block">${e(s.description || '—')}</span>`,
+          StatusBadge(s.active ? 'ACTIVE' : 'INACTIVE'),
+          `<div class="flex items-center gap-2">
+            <button class="btn btn-outline btn-sm" data-edit-skill="${s.id}">Edit</button>
+            <button class="btn btn-outline btn-sm ${s.active ? '!text-amber-700 hover:!bg-amber-50' : '!text-emerald-700 hover:!bg-emerald-50'}" data-toggle-skill="${s.id}">
+              ${s.active ? 'Deactivate' : 'Activate'}
+            </button>
+          </div>`
+        ];
+      });
+
+      if (container) {
+        if (rows.length === 0) {
+          container.innerHTML = '<div class="p-12 text-center text-muted text-xs">No technical skills found matching the criteria.</div>';
+        } else {
+          container.innerHTML = `
+            <div class="data-table-scroll" role="region" aria-label="Skills directory" tabindex="0">
+              <table class="data-table">
+                <caption class="sr-only">Technical skills directory</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Skill Name & Slug</th>
+                    <th scope="col">Domain Category</th>
+                    <th scope="col">Description</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}
+                </tbody>
+              </table>
+            </div>
+          `;
+        }
+        bindTableActionButtons();
+      }
+    };
+
+    const openModal = (skill = null) => {
+      if (!dialog) return;
+      if (errorEl) errorEl.classList.add('hidden');
+      if (skill) {
+        modalTitle.textContent = `Edit skill: ${skill.name}`;
+        editIdInput.value = skill.id;
+        nameInput.value = skill.name || '';
+        categoryInput.value = skill.categoryId || '';
+        descInput.value = skill.description || '';
+        activeInput.checked = Boolean(skill.active);
+      } else {
+        modalTitle.textContent = 'Add new skill';
+        editIdInput.value = '';
+        form.reset();
+        activeInput.checked = true;
+      }
+      dialog.showModal();
+    };
+
+    root.querySelector('#btn-open-add-skill')?.addEventListener('click', () => openModal(null));
+    dialog?.querySelector('#close-skill-modal')?.addEventListener('click', () => dialog.close());
+    dialog?.querySelector('#btn-cancel-skill')?.addEventListener('click', () => dialog.close());
+
+    form?.addEventListener('submit', async event => {
+      event.preventDefault();
+      const id = editIdInput.value;
+      const name = nameInput.value.trim();
+      const categoryId = Number(categoryInput.value);
+      const description = descInput.value.trim();
+      const active = activeInput.checked;
+
+      if (!name || !categoryId) {
+        if (errorEl) { errorEl.textContent = 'Please fill in all required fields.'; errorEl.classList.remove('hidden'); }
+        return;
+      }
+
+      if (errorEl) errorEl.classList.add('hidden');
+      saveBtn.disabled = true;
+      saveBtn.textContent = id ? 'Saving changes…' : 'Creating skill…';
+
+      try {
+        if (id) {
+          await staffService.updateSkill(id, { name, categoryId, description, active });
+        } else {
+          await staffService.createSkill({ name, categoryId, description, active });
+        }
+        dialog.close();
+        if (await refreshData()) render();
+      } catch (err) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save skill';
+        if (errorEl) { errorEl.textContent = err.message || 'Operation failed. Please try again.'; errorEl.classList.remove('hidden'); }
+      }
+    });
+
+    function bindTableActionButtons() {
+      root.querySelectorAll('[data-edit-skill]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.dataset.editSkill;
+          const skill = skills.find(s => String(s.id) === String(id));
+          if (skill) openModal(skill);
+        });
+      });
+
+      root.querySelectorAll('[data-toggle-skill]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.toggleSkill;
+          const skill = skills.find(s => String(s.id) === String(id));
+          if (!skill) return;
+          btn.disabled = true;
+          try {
+            await staffService.toggleSkillStatus(id, !skill.active);
+            if (await refreshData()) render();
+          } catch (err) {
+            alert(err.message || 'Unable to update skill status.');
+            btn.disabled = false;
+          }
+        });
+      });
+    }
+
+    searchInput?.addEventListener('input', filterSkills);
+    categoryFilter?.addEventListener('change', filterSkills);
+    statusFilter?.addEventListener('change', filterSkills);
+    filterSkills();
+  };
+
+  if (await refreshData()) render();
 }

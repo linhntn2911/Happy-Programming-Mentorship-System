@@ -43,7 +43,7 @@ public class Skill {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    protected Skill() {
+    public Skill() {
     }
 
     @PrePersist
