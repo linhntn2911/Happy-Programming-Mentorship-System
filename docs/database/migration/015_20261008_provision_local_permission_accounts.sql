@@ -1,0 +1,42 @@
+-- Opt-in local development only; not packaged into Flyway. All four inserts are atomic.
+-- Supply HPMS_ACCOUNT_HASH_0 through HPMS_ACCOUNT_HASH_3 using sqlcmd environment variables.
+-- Existing accounts are never replaced. Staff start with no grants.
+SET XACT_ABORT ON;
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_NULLS ON;
+SET ANSI_PADDING ON;
+SET ANSI_WARNINGS ON;
+SET CONCAT_NULL_YIELDS_NULL ON;
+SET ARITHABORT ON;
+SET NUMERIC_ROUNDABORT OFF;
+BEGIN TRANSACTION;
+IF DB_NAME() <> 'HappyProgramming' THROW 51030, 'Unexpected target database.', 1;
+DECLARE @hash0 VARCHAR(255) = '$(HPMS_ACCOUNT_HASH_0)';
+IF LEN(@hash0) <> 60 OR LEFT(@hash0,4) <> '$2a$' THROW 51031, 'Supply generated BCrypt hashes.', 1;
+IF EXISTS (SELECT 1 FROM dbo.users WITH (UPDLOCK,HOLDLOCK) WHERE email_normalized=N'admin.luong@example.test') THROW 51032, 'Account exists; no changes applied.', 1;
+DECLARE @hash1 VARCHAR(255) = '$(HPMS_ACCOUNT_HASH_1)';
+IF LEN(@hash1) <> 60 OR LEFT(@hash1,4) <> '$2a$' THROW 51031, 'Supply generated BCrypt hashes.', 1;
+IF EXISTS (SELECT 1 FROM dbo.users WITH (UPDLOCK,HOLDLOCK) WHERE email_normalized=N'staff.mentor@example.test') THROW 51032, 'Account exists; no changes applied.', 1;
+DECLARE @hash2 VARCHAR(255) = '$(HPMS_ACCOUNT_HASH_2)';
+IF LEN(@hash2) <> 60 OR LEFT(@hash2,4) <> '$2a$' THROW 51031, 'Supply generated BCrypt hashes.', 1;
+IF EXISTS (SELECT 1 FROM dbo.users WITH (UPDLOCK,HOLDLOCK) WHERE email_normalized=N'staff.mentee@example.test') THROW 51032, 'Account exists; no changes applied.', 1;
+DECLARE @hash3 VARCHAR(255) = '$(HPMS_ACCOUNT_HASH_3)';
+IF LEN(@hash3) <> 60 OR LEFT(@hash3,4) <> '$2a$' THROW 51031, 'Supply generated BCrypt hashes.', 1;
+IF EXISTS (SELECT 1 FROM dbo.users WITH (UPDLOCK,HOLDLOCK) WHERE email_normalized=N'staff.support@example.test') THROW 51032, 'Account exists; no changes applied.', 1;
+INSERT INTO dbo.users(email,full_name,first_name,last_name,password_hash,role_code,status,email_verified_at) VALUES(N'admin.luong@example.test',N'Luong Administrator',N'Local',N'Luong Administrator',@hash0,'ADMIN','ACTIVE',SYSUTCDATETIME());
+DECLARE @id0 BIGINT = SCOPE_IDENTITY();
+INSERT INTO dbo.user_roles(user_id,role_code) VALUES(@id0,'ADMIN');
+INSERT INTO dbo.audit_logs(actor_id,action,entity_type,entity_id,reason,ip_address) VALUES(@id0,'LOCAL_ACCOUNT_PROVISIONED','USER',CONVERT(VARCHAR(30),@id0),N'User-requested local permission review accounts','127.0.0.1');
+INSERT INTO dbo.users(email,full_name,first_name,last_name,password_hash,role_code,status,email_verified_at) VALUES(N'staff.mentor@example.test',N'Mentor Operations',N'Local',N'Mentor Operations',@hash1,'STAFF','ACTIVE',SYSUTCDATETIME());
+DECLARE @id1 BIGINT = SCOPE_IDENTITY();
+INSERT INTO dbo.user_roles(user_id,role_code) VALUES(@id1,'STAFF');
+INSERT INTO dbo.audit_logs(actor_id,action,entity_type,entity_id,reason,ip_address) VALUES(@id1,'LOCAL_ACCOUNT_PROVISIONED','USER',CONVERT(VARCHAR(30),@id1),N'User-requested local permission review accounts','127.0.0.1');
+INSERT INTO dbo.users(email,full_name,first_name,last_name,password_hash,role_code,status,email_verified_at) VALUES(N'staff.mentee@example.test',N'Mentee Operations',N'Local',N'Mentee Operations',@hash2,'STAFF','ACTIVE',SYSUTCDATETIME());
+DECLARE @id2 BIGINT = SCOPE_IDENTITY();
+INSERT INTO dbo.user_roles(user_id,role_code) VALUES(@id2,'STAFF');
+INSERT INTO dbo.audit_logs(actor_id,action,entity_type,entity_id,reason,ip_address) VALUES(@id2,'LOCAL_ACCOUNT_PROVISIONED','USER',CONVERT(VARCHAR(30),@id2),N'User-requested local permission review accounts','127.0.0.1');
+INSERT INTO dbo.users(email,full_name,first_name,last_name,password_hash,role_code,status,email_verified_at) VALUES(N'staff.support@example.test',N'Community Support',N'Local',N'Community Support',@hash3,'STAFF','ACTIVE',SYSUTCDATETIME());
+DECLARE @id3 BIGINT = SCOPE_IDENTITY();
+INSERT INTO dbo.user_roles(user_id,role_code) VALUES(@id3,'STAFF');
+INSERT INTO dbo.audit_logs(actor_id,action,entity_type,entity_id,reason,ip_address) VALUES(@id3,'LOCAL_ACCOUNT_PROVISIONED','USER',CONVERT(VARCHAR(30),@id3),N'User-requested local permission review accounts','127.0.0.1');
+COMMIT;

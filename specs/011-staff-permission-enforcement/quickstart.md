@@ -35,3 +35,5 @@ Scope boundary: skills and mentorship requests are read-only views. This change 
 implement skill creation/editing/status changes or payment-sensitive request transitions.
 Mentor profile fee/CV fields absent from the directory projection remain unavailable rather
 than fabricated. Recent dashboard activity is not yet implemented. No push performed.
+
+Local provisioning follow-up: applied opt-in migration 015 to HappyProgramming. All four new accounts authenticated successfully through port 5174; Admin workspace returned all three new Staff. Each Staff received HTTP 403 for mentors, mentees, requests and skills before assignment (12 checks). All verification sessions logged out. Staff remain without grants for the user's manual review. Credentials are in ignored .system_generated/accounts-credentials.txt; no application code or schema changed.
