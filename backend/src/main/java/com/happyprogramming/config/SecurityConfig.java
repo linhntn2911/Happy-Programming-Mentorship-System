@@ -1,9 +1,11 @@
 package com.happyprogramming.config;
 
+import com.happyprogramming.role.auth.AuthenticatedUser;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.happyprogramming.dto.ApiResponse;
+import com.happyprogramming.role.shared.ApiResponse;
 import com.happyprogramming.security.SessionLogin;
-import com.happyprogramming.service.AuthService;
+import com.happyprogramming.role.auth.AuthService;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.*;
@@ -60,7 +62,7 @@ public class SecurityConfig {
                     var oidc = authentication.getPrincipal() instanceof OidcUser u ? u : null;
                     var user = oidc != null && Boolean.TRUE.equals(oidc.getEmailVerified())
                         ? auth.google(oidc.getSubject(), oidc.getEmail(), oidc.getFullName(), oidc.getGivenName(), oidc.getFamilyName(), role)
-                        : java.util.Optional.<com.happyprogramming.dto.AuthenticatedUser>empty();
+                        : java.util.Optional.<com.happyprogramming.role.auth.AuthenticatedUser>empty();
                     String redirectTarget = (frontendBaseUrl != null && !frontendBaseUrl.isBlank()) ? frontendBaseUrl : "";
                     if (user.isPresent()) {
                         SessionLogin.establish(user.get(), req, res);

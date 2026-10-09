@@ -85,35 +85,24 @@ For bugs, preserve separate evidence for observed behavior, assessed cause, scop
 
 ### Backend
 
-The target backend is Java 17 and Spring Boot 3.5.x. It exposes REST endpoints under `/api` and does not render frontend pages. Follow the canonical layered `com.happyprogramming` package layout.
+The target backend is Java 17 and Spring Boot 3.5.x. It exposes REST endpoints under `/api` and does not render frontend pages. Follow the flat role packages under `com.happyprogramming.role` while preserving the controller/service/repository dependency direction.
 
-Follow `Package Diagram1.docx`: organize backend code by layer under `com.happyprogramming`. This is the single canonical Java package layout:
+Place role-owned backend classes directly in one package per role, with no nested controller/service/dto/repository/entity folders. This repository-wide role layout supersedes the older layer-folder placement in `Package Diagram1.docx` and `specs/003-package-alignment`; class responsibilities and dependency direction still apply.
 
 ```text
 backend/src/main/java/com/happyprogramming/
 ├── HpmsApplication.java
-├── config/
-├── constant/
-├── controller/
-├── dto/
-├── entity/
-├── repository/
-├── service/
-├── security/
-├── integration/
-├── scheduler/
-└── utils/
+├── role/{admin,staff,mentor,mentee,auth,shared}/  # flat Java packages
+├── config/       # application wiring
+└── security/     # cross-role security
 ```
 
-Create packages only when they contain implemented code; the diagram also describes planned capabilities. Do not add a competing capability-first root layout. Tests mirror production packages under `backend/src/test/java/com/happyprogramming/`. Keep the Spring Boot entry point in the root package so component, entity, and repository scanning covers its descendants.
+Each role package may contain controllers, services, DTOs, entities, and repositories directly. Identify responsibility by class name and annotations, not by a nested folder. Keep cross-role contracts and infrastructure in `role/shared`, `config`, or `security`. Tests mirror the role packages; root application and configuration tests stay by their production package. Never create another nested `pages/components/services`-style hierarchy inside a role. Keep `HpmsApplication` at the root for component, entity, and repository scanning.
 
-- `controller` handles HTTP and delegates to `service`; never call repositories or external providers directly from controllers.
-- `dto` contains API request/response types; `entity` contains persistence models; `repository` contains persistence queries.
-- `service` owns business rules and transactions, and coordinates repositories and integration adapters.
-- `config` wires application infrastructure; `security` enforces authentication, authorization, and ownership.
-- `integration` wraps external services; `scheduler` invokes services for timed work; `constant` holds shared constants/enums; `utils` contains helpers without business orchestration.
-- Use names such as `MentorController`, `MentorService`, `MentorRepository`, `CreateMentorshipRequest`, `MentorResponse`, `PaymentStatus`, and `VnPayClient`. Existing DTO/catalog names may remain when moving packages to preserve scope.
-- The package diagram defines placement, not permission to implement all listed integrations. Implement only the active feature scope, and distinguish planned components from working code in documentation.
+- Controllers handle HTTP and delegate to services; never call repositories or external providers directly.
+- DTOs represent API requests/responses; entities represent persistence; repositories own queries.
+- Services own business rules and transactions; `config` and `security` remain cross-role infrastructure.
+- A class used by multiple roles belongs in `role/shared` only when the behavior is genuinely shared. Role-specific flows that involve another role remain with the role that owns the action.
 
 Backend rules:
 
@@ -140,23 +129,19 @@ The target frontend is Vite, Tailwind CSS 4, and modular JavaScript unless an ap
 
 ```text
 frontend/src/
-├── components/
-│   ├── layout/
-│   ├── ui/
-│   └── mentor/
-├── pages/
-├── services/
-├── utils/
-├── constants/
-├── styles/
+├── roles/{admin,staff,mentor,mentee,auth,guest}/  # one flat folder per role
+├── shared/                                 # reusable cross-role modules
+├── styles/                                 # global workspace styles
 ├── app.css
-└── main.js
+└── main.js                                 # route composition
 ```
+
+Keep pages, components, services, tests, constants, and role-specific helpers directly inside the owning role folder; do not add `pages/`, `components/`, or `services/` beneath it. Put genuinely cross-role modules (API client, public mentor cards, site header, common UI and helpers) directly in `shared/`. `auth` owns login/signup/application entry flows; `guest` owns public discovery. Keep tests next to their module and update imports when moving files. Route URLs, API paths, behavior, and public component contracts must not change solely because a file moves.
 
 Frontend rules:
 
 - Page modules compose reusable components; they do not duplicate component markup or styles.
-- All HTTP calls go through `services/apiClient.js` and feature service modules.
+- All HTTP calls go through `shared/apiClient.js` and feature service modules.
 - Keep authentication token handling centralized.
 - Every async view needs loading, empty, error, and success behavior.
 - Use semantic HTML, associated labels, keyboard-accessible controls, visible focus states, and meaningful alternative text.
@@ -206,7 +191,7 @@ The canonical design source is:
 
 ```text
 frontend/src/app.css
-frontend/src/components/
+frontend/src/shared/
 ```
 
 Design requirements:

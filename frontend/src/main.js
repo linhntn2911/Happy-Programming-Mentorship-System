@@ -2,34 +2,34 @@ import {
   mountMentorProfile,
   initializeMentorProfilePage,
   MentorProfilePage,
-} from './pages/MentorProfilePage.js';
-import { mountLogin } from './pages/LoginPage.js';
-import { mountAdmin } from './pages/AdminPage.js';
-import { mountMenteeSignup } from './pages/MenteeSignupPage.js';
-import { mountAccount } from './pages/AccountPage.js';
-import { mountMentorApplication } from './pages/MentorApplicationPage.js';
+} from './roles/mentor/MentorProfilePage.js';
+import { mountLogin } from './roles/auth/LoginPage.js';
+import { mountAdmin } from './roles/admin/AdminPage.js';
+import { mountMenteeSignup } from './roles/auth/MenteeSignupPage.js';
+import { mountAccount } from './roles/mentee/AccountPage.js';
+import { mountMentorApplication } from './roles/auth/MentorApplicationPage.js';
 import {
   mountStaffDashboard,
   mountStaffApplications,
   mountStaffMentors,
   mountStaffMentees
-} from './pages/StaffPortal.js';
-import { mountMonthlyMentorshipApplication } from './pages/MonthlyMentorshipApplicationPage.js';
-import { mountWishlist } from './pages/WishlistPage.js';
-import { mountNotificationHistory } from './pages/NotificationHistoryPage.js';
-import { bindAuthInfo } from './components/auth/LoginForm.js';
+} from './roles/staff/StaffPortal.js';
+import { mountMonthlyMentorshipApplication } from './roles/mentee/MonthlyMentorshipApplicationPage.js';
+import { mountWishlist } from './roles/mentee/WishlistPage.js';
+import { mountNotificationHistory } from './roles/mentee/NotificationHistoryPage.js';
+import { bindAuthInfo } from './roles/auth/LoginForm.js';
 import './app.css';
-import { HomePage } from './pages/HomePage.js';
-import { ComponentShowcasePage } from './pages/ComponentShowcasePage.js';
-import { initializeMentorDashboardPage, MentorDashboardPage } from './pages/MentorDashboardPage.js';
-import { mountMentorWorkspacePage } from './pages/MentorWorkspacePage.js';
-import { MentorSearchPage } from './pages/MentorSearchPage.js';
-import { DirectoryMentorCard } from './components/mentor/DirectoryMentorCard.js';
-import { bindMentorPricingCardEvents } from './components/mentor/MentorPricingCard.js';
-import { mentorService } from './services/mentorService.js';
-import { authService } from './services/authService.js';
-import { wishlistService } from './services/wishlistService.js';
-import { bindUserDropdown } from './components/layout/Header.js';
+import { HomePage } from './roles/guest/HomePage.js';
+import { ComponentShowcasePage } from './shared/ComponentShowcasePage.js';
+import { initializeMentorDashboardPage, MentorDashboardPage } from './roles/mentor/MentorDashboardPage.js';
+import { mountMentorWorkspacePage } from './roles/mentor/MentorWorkspacePage.js';
+import { MentorSearchPage } from './roles/guest/MentorSearchPage.js';
+import { DirectoryMentorCard } from './shared/DirectoryMentorCard.js';
+import { bindMentorPricingCardEvents } from './shared/MentorPricingCard.js';
+import { mentorService } from './shared/mentorService.js';
+import { authService } from './roles/auth/authService.js';
+import { wishlistService } from './roles/mentee/wishlistService.js';
+import { bindUserDropdown } from './shared/Header.js';
 
 
 const INITIAL_MENTORS = [

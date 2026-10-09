@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { authService } from '../src/services/authService.js';
+import { authService } from '../src/roles/auth/authService.js';
 
 test('logout retains local identity on server failure and clears it only on success', async () => {
   const originalFetch = globalThis.fetch;

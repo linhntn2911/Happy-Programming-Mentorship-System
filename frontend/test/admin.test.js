@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createDemoService, createDemoData } from '../src/services/adminDemo.js';
-import { filterUsers, revenue, pageItems, PERMISSIONS } from '../src/utils/admin.js';
-import { escapeHtml } from '../src/utils/html.js';
-import { UsersView, OverviewView, AuditView } from '../src/pages/AdminViews.js';
+import { createDemoService, createDemoData } from '../src/roles/admin/adminDemo.js';
+import { filterUsers, revenue, pageItems, PERMISSIONS } from '../src/roles/admin/admin.js';
+import { escapeHtml } from '../src/shared/html.js';
+import { UsersView, OverviewView, AuditView } from '../src/roles/admin/AdminViews.js';
 
 const memory = () => { const store = new Map(); return { getItem: key => store.get(key), setItem: (key, value) => store.set(key, value) }; };
 test('search matches accented names and combines role and status filters', () => {
