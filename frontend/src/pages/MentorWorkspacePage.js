@@ -7,6 +7,7 @@ import { bindUserDropdown, getInitials, renderUserDropdown, renderNotificationBe
 const mentorSections = [
   { id: 'availability', label: 'Availability schedule', href: '#/mentor/availability' },
   { id: 'packages', label: 'Mentorship packages', href: '#/mentor/packages' },
+  { id: 'requests', label: 'Requests', href: '#/mentor/requests' },
 ];
 
 const fieldClass = 'w-full rounded-lg border border-line bg-white px-3.5 py-3 text-sm text-ink focus:border-brand focus:outline-none';
@@ -62,7 +63,7 @@ function tierCard({ tier, label, blurb }) {
           </div>
           <div class="space-y-1.5">
             <label for="tier-${key}-minutes" class="block text-xs font-semibold text-ink">Minutes / session <span aria-hidden="true" class="text-red-600">*</span></label>
-            <input id="tier-${key}-minutes" name="sessionDurationMinutes" type="number" min="1" max="1440" step="5" inputmode="numeric" data-field="sessionDurationMinutes" class="${fieldClass}">
+            <input id="tier-${key}-minutes" name="sessionDurationMinutes" type="number" min="1" max="1440" step="1" inputmode="numeric" data-field="sessionDurationMinutes" class="${fieldClass}">
           </div>
         </div>
         <div class="space-y-1.5">

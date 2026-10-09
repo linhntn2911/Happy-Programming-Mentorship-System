@@ -47,7 +47,8 @@ export function MentorRequestsPage() {
     <div id="requests-cards" class="grid gap-3 md:hidden"></div>
   </div>
 
-  <dialog id="request-dialog" class="w-[min(92vw,38rem)] rounded-2xl border border-line bg-white p-0 text-ink shadow-xl backdrop:bg-ink/40" aria-labelledby="request-dialog-title">
+  <div id="request-dialog-overlay" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50">
+    <dialog id="request-dialog" class="w-[min(92vw,38rem)] rounded-2xl border border-line bg-white p-0 text-ink shadow-xl backdrop:bg-ink/40" aria-labelledby="request-dialog-title">
     <div class="flex items-start justify-between gap-4 border-b border-line p-5 sm:p-6">
       <div>
         <p class="eyebrow">REQUEST DETAILS</p>
@@ -67,6 +68,7 @@ export function MentorRequestsPage() {
       <button type="button" id="request-dialog-accept" data-dialog-action="ACCEPTED" class="btn btn-primary">Accept</button>
     </div>
   </dialog>
+  </div>
 </main>`;
 }
 
@@ -162,6 +164,7 @@ export function initializeMentorRequestsPage() {
   const retry = root.querySelector('#requests-retry');
   const actionStatus = root.querySelector('#requests-action-status');
   const dialog = root.querySelector('#request-dialog');
+  const dialogOverlay = root.querySelector('#request-dialog-overlay');
   const acceptButton = root.querySelector('#request-dialog-accept');
   const rejectButton = root.querySelector('#request-dialog-reject');
 
@@ -227,6 +230,8 @@ export function initializeMentorRequestsPage() {
     root.querySelector('#request-dialog-submitted').textContent = formatUtcDate(request.submittedAt);
     root.querySelector('#request-dialog-deadline').textContent = formatUtcDate(request.responseDeadline);
     setDialogButtonsEnabled(isActionable(request));
+    dialogOverlay.classList.remove('hidden');
+    dialogOverlay.classList.add('flex');
     if (typeof dialog.showModal === 'function') dialog.showModal();
     else dialog.setAttribute('open', '');
   }
@@ -239,6 +244,8 @@ export function initializeMentorRequestsPage() {
     try {
       const result = await mentorDashboardService.decideOnRequest(activeRequestId, decision);
       if (typeof dialog.close === 'function' && dialog.open) dialog.close();
+      dialogOverlay.classList.add('hidden');
+      dialogOverlay.classList.remove('flex');
       activeRequestId = null;
       actionStatus.textContent = result.status === 'ACCEPTED'
         ? 'Request accepted. The mentee has been notified and can continue to checkout.'
@@ -261,6 +268,8 @@ export function initializeMentorRequestsPage() {
     if (!target) return;
     if (target.closest('[data-close-dialog]')) {
       if (typeof dialog.close === 'function' && dialog.open) dialog.close();
+      dialogOverlay.classList.add('hidden');
+      dialogOverlay.classList.remove('flex');
       activeRequestId = null;
       return;
     }
@@ -277,8 +286,10 @@ export function initializeMentorRequestsPage() {
   };
 
   const handleDialogClick = event => {
-    if (event.target === dialog) {
-      if (typeof dialog.close === 'function') dialog.close();
+    if (event.target === dialogOverlay) {
+      if (typeof dialog.close === 'function' && dialog.open) dialog.close();
+      dialogOverlay.classList.add('hidden');
+      dialogOverlay.classList.remove('flex');
       activeRequestId = null;
     }
   };
@@ -288,7 +299,7 @@ export function initializeMentorRequestsPage() {
     void loadRequests();
   });
   root.addEventListener('click', handleClick);
-  dialog.addEventListener('click', handleDialogClick);
+  dialogOverlay.addEventListener('click', handleDialogClick);
 
   const timer = window.setInterval(updateSlaTimers, 60_000);
   void loadRequests();

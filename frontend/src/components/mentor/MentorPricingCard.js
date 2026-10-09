@@ -51,9 +51,12 @@ export function planToTier(plan) {
     });
   }
 
+  const displayName = plan.name || plan.planTier || 'Mentorship';
+  const shortName = displayName.replace(/\s+Mentorship$/i, '');
+
   return {
     id: plan.planTier || String(plan.id),
-    name: plan.name || plan.planTier || 'Mentorship',
+    name: shortName,
     price: formatPrice(plan.price),
     currency: '₫',
     period: 'month',
@@ -108,11 +111,11 @@ export function MentorPricingCard({
     </div>
 
     <div class="mt-6">
-      <div class="flex items-baseline gap-2">
-        <span class="font-display text-4xl sm:text-5xl font-bold tracking-tight text-ink" data-pricing-amount>
+      <div class="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-2">
+        <span class="font-display text-3xl sm:text-4xl font-bold tracking-tight text-ink leading-tight" data-pricing-amount>
           ${displayPrice}
         </span>
-        <span class="text-base font-normal text-muted" data-pricing-period>
+        <span class="text-sm sm:text-base font-normal text-muted" data-pricing-period>
           / ${escapeHtml(currentTier.period)}
         </span>
       </div>

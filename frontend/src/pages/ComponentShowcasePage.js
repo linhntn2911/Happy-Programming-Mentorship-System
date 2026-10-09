@@ -211,9 +211,9 @@ export function ComponentShowcasePage() {
           <h3 class="text-sm font-bold uppercase tracking-wider text-muted mb-4">Mentorship Package Tier Card (Lite / Standard / Pro)</h3>
           ${MentorPricingCard({
             tiers: [
-              planToTier({ id: 1, planTier: 'LITE', name: 'Lite Mentorship', price: 2500000, sessionDurationMinutes: 60, callsPerPeriod: 1, trialDays: 7, responseTimeHours: 24, chatIncluded: true, description: 'Entry-level monthly guidance for self-driven mentees.' }),
-              planToTier({ id: 2, planTier: 'STANDARD', name: 'Standard Mentorship', price: 4500000, sessionDurationMinutes: 60, callsPerPeriod: 2, trialDays: 7, responseTimeHours: 12, chatIncluded: true, description: 'Balanced monthly mentorship with regular calls.' }),
-              planToTier({ id: 3, planTier: 'PRO', name: 'Pro Mentorship', price: 8000000, sessionDurationMinutes: 60, callsPerPeriod: 4, trialDays: 7, responseTimeHours: 6, chatIncluded: true, description: 'Intensive monthly support with priority access.' }),
+              planToTier({ id: 1, planTier: 'LITE', name: 'Lite', price: 2500000, sessionDurationMinutes: 60, callsPerPeriod: 1, trialDays: 7, responseTimeHours: 24, chatIncluded: true, description: 'Entry-level monthly guidance for self-driven mentees.' }),
+              planToTier({ id: 2, planTier: 'STANDARD', name: 'Standard', price: 4500000, sessionDurationMinutes: 60, callsPerPeriod: 2, trialDays: 7, responseTimeHours: 12, chatIncluded: true, description: 'Balanced monthly mentorship with regular calls.' }),
+              planToTier({ id: 3, planTier: 'PRO', name: 'Pro', price: 8000000, sessionDurationMinutes: 60, callsPerPeriod: 4, trialDays: 7, responseTimeHours: 6, chatIncluded: true, description: 'Intensive monthly support with priority access.' }),
             ],
             oneOffPrice: sampleMentor.session,
           })}
