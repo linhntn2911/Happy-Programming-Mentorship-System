@@ -111,8 +111,9 @@ export function renderUserDropdown({ currentUser, displayName, initials, isMobil
       </button>
       <div class="user-dropdown-menu absolute right-0 mt-2 w-48 origin-top-right rounded-xl border border-line bg-white p-1.5 shadow-xl ring-1 ring-black/5 z-50 hidden transition-all" role="menu">
         ${isMentee ? '<a href="#/account" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">My profile</a>' : ''}
-        ${isMentor ? '<a href="#/mentor/dashboard" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Mentor dashboard</a>' : ''}
-        ${isStaffOrAdmin ? '<a href="#/staff/mentor-applications" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Review applications</a>' : '<a href="#/apply/mentor" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Apply as a mentor</a>'}
+        ${isMentor ? '<a href="#/mentor/dashboard" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Mentor dashboard</a><a href="#/mentor/profile" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Mentor profile</a>' : ''}
+        ${isStaffOrAdmin ? '<a href="#/staff/mentor-applications" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Review applications</a>' : ''}
+        ${!isMentor && !isStaffOrAdmin ? '<a href="#/apply/mentor" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Apply as a mentor</a>' : ''}
         <a href="#/wishlist" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Wishlist</a>
         ${isStaffOrAdmin ? '<a href="#/staff/dashboard" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Staff Dashboard</a>' : ''}
         <button type="button" class="user-logout-btn flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer text-left" role="menuitem">

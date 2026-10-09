@@ -476,6 +476,11 @@ function router() {
     mountMenteeSignup(appEl);
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash === '#/apply/mentor' || hash.startsWith('#/apply/mentor') || hash === '#/signup/mentor') {
+    const user = authService.getCurrentUser();
+    if (user && (user.role === 'MENTOR' || user.roles?.includes('MENTOR'))) {
+      window.location.hash = '#/mentor/dashboard';
+      return;
+    }
     mountMentorApplication(appEl);
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash.startsWith('#/apply/monthly')) {
