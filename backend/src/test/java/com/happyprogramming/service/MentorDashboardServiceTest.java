@@ -41,13 +41,15 @@ class MentorDashboardServiceTest {
     private MentorshipRequestRepository requestRepository;
     @Mock
     private NotificationService notificationService;
+    @Mock
+    private com.happyprogramming.service.EmailService emailService;
 
     private MentorDashboardService service;
 
     @BeforeEach
     void setUp() {
         service = new MentorDashboardService(
-                mentorService, dashboardRepository, requestRepository, notificationService);
+                mentorService, dashboardRepository, requestRepository, notificationService, emailService);
         when(mentorService.requireCurrentActiveMentorId()).thenReturn(42L);
     }
 
@@ -129,6 +131,8 @@ class MentorDashboardServiceTest {
         when(context.getMenteeId()).thenReturn(99L);
         when(context.getMentorName()).thenReturn("Nam Nguyễn");
         when(context.getPackageName()).thenReturn("Pro Mentorship");
+        when(context.getMenteeEmail()).thenReturn("mentee@example.com");
+        when(context.getMenteeName()).thenReturn("Mentee Name");
         when(requestRepository.findDecisionContextByIdAndMentorId(52L, 42L)).thenReturn(context);
 
         service.decideOnRequest(52L, new MentorRequestDecisionRequest("ACCEPTED"));
@@ -138,7 +142,12 @@ class MentorDashboardServiceTest {
                 org.mockito.ArgumentMatchers.eq("Mentorship request accepted"),
                 org.mockito.ArgumentMatchers.contains("Nam Nguyễn"),
                 org.mockito.ArgumentMatchers.eq("MENTORSHIP_REQUEST_ACCEPTED"),
-                org.mockito.ArgumentMatchers.eq("#/account"));
+                org.mockito.ArgumentMatchers.eq("#/checkout?requestId=52"));
+        verify(emailService).sendMentorshipRequestAcceptedEmail(
+                org.mockito.ArgumentMatchers.eq("mentee@example.com"),
+                org.mockito.ArgumentMatchers.eq("Mentee Name"),
+                org.mockito.ArgumentMatchers.eq("Nam Nguyễn"),
+                org.mockito.ArgumentMatchers.eq("Pro Mentorship"));
     }
 
     @Test

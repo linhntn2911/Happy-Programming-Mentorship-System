@@ -32,16 +32,19 @@ public class MentorDashboardService {
     private final MentorDashboardRepository dashboardRepository;
     private final MentorshipRequestRepository requestRepository;
     private final NotificationService notificationService;
+    private final EmailService emailService;
 
     public MentorDashboardService(
             MentorService mentorService,
             MentorDashboardRepository dashboardRepository,
             MentorshipRequestRepository requestRepository,
-            NotificationService notificationService) {
+            NotificationService notificationService,
+            EmailService emailService) {
         this.mentorService = mentorService;
         this.dashboardRepository = dashboardRepository;
         this.requestRepository = requestRepository;
         this.notificationService = notificationService;
+        this.emailService = emailService;
     }
 
     @Transactional(readOnly = true)
@@ -120,7 +123,16 @@ public class MentorDashboardService {
                         + ". You can now complete payment to start."
                 : mentorName + " declined your request for " + packageName + ".";
         String type = accepted ? "MENTORSHIP_REQUEST_ACCEPTED" : "MENTORSHIP_REQUEST_REJECTED";
-        notificationService.create(context.getMenteeId(), title, message, type, "#/account");
+        String actionUrl = accepted ? "#/checkout?requestId=" + requestId : "#/account";
+        notificationService.create(context.getMenteeId(), title, message, type, actionUrl);
+
+        if (accepted && context.getMenteeEmail() != null && !context.getMenteeEmail().isBlank()) {
+            emailService.sendMentorshipRequestAcceptedEmail(
+                    context.getMenteeEmail(),
+                    context.getMenteeName(),
+                    mentorName,
+                    packageName);
+        }
     }
 
     private static MentorDashboardRequest toRequest(MentorDashboardRequestProjection request) {

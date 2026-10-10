@@ -34,6 +34,7 @@ export async function mountAccount(root) {
         <div id="profile-avatar" class="mx-auto grid h-28 w-28 place-items-center overflow-hidden rounded-full bg-lilac text-3xl font-semibold text-brand"></div>
         <h2 id="profile-display-name" class="mt-4 text-center font-semibold text-ink break-words"></h2><p class="mt-1 text-center text-xs text-muted">Mentee profile</p>
         <div class="mt-6 space-y-3"><label for="avatar-file" class="block text-xs font-semibold">Profile photo</label><input id="avatar-file" type="file" accept="image/png,image/jpeg" class="block w-full text-xs text-muted file:mr-2 file:rounded-lg file:border-0 file:bg-lilac file:px-3 file:py-2 file:text-brand" aria-describedby="avatar-help"><p id="avatar-help" class="text-xs leading-5 text-muted">PNG or JPEG. Maximum 2 MB and 2048 × 2048 pixels. Photos save separately.</p><button id="avatar-remove" type="button" class="btn btn-outline btn-sm w-full">Remove photo</button><p id="avatar-feedback" role="status" class="text-xs leading-5 text-muted"></p></div>
+        <div class="mt-6 pt-5 border-t border-line"><a href="#/notifications" class="flex items-center justify-between text-xs font-semibold text-brand hover:underline"><span>View notifications</span><span>→</span></a></div>
       </aside>
       <form id="profile-form" class="rounded-2xl border border-line bg-white p-8 shadow-sm">
         <h2 class="text-lg font-semibold">Personal information</h2><p class="mt-1 text-xs text-muted">Keep your details up to date.</p>

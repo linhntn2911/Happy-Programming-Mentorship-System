@@ -26,6 +26,20 @@ public class EmailService {
             + "Welcome to the team!\nHappyProgramming Mentorship Team");
     }
 
+    public void sendMentorshipRequestAcceptedEmail(String email, String menteeName, String mentorName, String packageName) {
+        String recipient = menteeName != null && !menteeName.isBlank() ? menteeName : "Mentee";
+        String mentor = mentorName != null && !mentorName.isBlank() ? mentorName : "Your mentor";
+        String pkg = packageName != null && !packageName.isBlank() ? packageName : "Mentorship Plan";
+
+        sendNotification(email, "Mentorship Request Accepted - HappyProgramming",
+            "Dear " + recipient + ",\n\n"
+            + "Great news! Mentor " + mentor + " has accepted your mentorship request for package \"" + pkg + "\".\n\n"
+            + "To activate your mentorship and start your 7-day trial, please sign in to your HappyProgramming account on our platform.\n"
+            + "Click on your Notifications or visit your account requests to complete your secure payment.\n\n"
+            + "Payment note: Your payment is held safely in Escrow during your trial period according to platform policy.\n\n"
+            + "Best regards,\nHappyProgramming Mentorship Team");
+    }
+
     public void sendMentorApplicationRejectedEmail(String email, String recipient, String reason) {
         sendNotification(email, "Update Regarding Your Mentor Application - HappyProgramming",
             "Dear " + (recipient != null && !recipient.isBlank() ? recipient : "Applicant") + ",\n\n"

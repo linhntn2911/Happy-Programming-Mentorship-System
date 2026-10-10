@@ -29,4 +29,17 @@ public class MentorshipRequestController {
             @Valid @RequestBody CreateMentorshipRequest payload) {
         return ApiResponse.ok("Mentorship request submitted.", mentorshipRequestService.create(payload));
     }
+
+    @org.springframework.web.bind.annotation.GetMapping("/api/mentorship-requests/{id}/checkout-info")
+    public ApiResponse<com.happyprogramming.dto.CheckoutInfoDto> getCheckoutInfo(
+            @org.springframework.web.bind.annotation.PathVariable("id") Long id) {
+        return ApiResponse.ok(mentorshipRequestService.getCheckoutInfo(id));
+    }
+
+    @PostMapping("/api/mentorship-requests/{id}/checkout")
+    public ApiResponse<com.happyprogramming.dto.CheckoutResponse> checkout(
+            @org.springframework.web.bind.annotation.PathVariable("id") Long id,
+            @RequestBody(required = false) com.happyprogramming.dto.CheckoutRequest payload) {
+        return ApiResponse.ok("Payment processed successfully.", mentorshipRequestService.processCheckout(id, payload));
+    }
 }

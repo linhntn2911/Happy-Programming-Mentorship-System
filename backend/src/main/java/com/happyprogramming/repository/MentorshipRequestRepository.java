@@ -37,9 +37,14 @@ public interface MentorshipRequestRepository extends JpaRepository<MentorshipReq
             @Param("mentorId") Long mentorId);
 
     @Query(value = """
-            SELECT r.mentee_id AS menteeId, mu.full_name AS mentorName, so.name AS packageName
+            SELECT r.mentee_id AS menteeId,
+                   mu.full_name AS mentorName,
+                   so.name AS packageName,
+                   meu.email AS menteeEmail,
+                   meu.full_name AS menteeName
             FROM dbo.mentorship_requests r
             JOIN dbo.users mu ON mu.id = r.mentor_id
+            JOIN dbo.users meu ON meu.id = r.mentee_id
             LEFT JOIN dbo.service_offerings so ON so.id = r.service_id
             WHERE r.id = :requestId AND r.mentor_id = :mentorId
             """, nativeQuery = true)

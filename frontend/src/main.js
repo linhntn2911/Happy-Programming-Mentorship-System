@@ -18,6 +18,7 @@ import {
 import { mountMonthlyMentorshipApplication } from './roles/mentee/MonthlyMentorshipApplicationPage.js';
 import { mountWishlist } from './roles/mentee/WishlistPage.js';
 import { mountNotificationHistory } from './roles/mentee/NotificationHistoryPage.js';
+import { mountCheckout } from './roles/mentee/CheckoutPage.js';
 import { bindAuthInfo } from './roles/auth/LoginForm.js';
 import './app.css';
 import { HomePage } from './roles/guest/HomePage.js';
@@ -471,6 +472,12 @@ function router() {
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash === '#/notifications') {
     mountNotificationHistory(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash.startsWith('#/checkout')) {
+    const queryIndex = hash.indexOf('?');
+    const queryString = queryIndex !== -1 ? hash.slice(queryIndex + 1) : (window.location.search ? window.location.search.replace(/^\?/, '') : '');
+    const params = new URLSearchParams(queryString);
+    mountCheckout(appEl, params.get('requestId') || '');
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash === '#/signup' || hash.startsWith('#/signup?') || hash === '#/signup/mentee') {
     mountMenteeSignup(appEl);

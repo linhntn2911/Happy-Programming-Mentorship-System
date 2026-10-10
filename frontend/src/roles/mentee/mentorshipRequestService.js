@@ -21,4 +21,17 @@ export const mentorshipRequestService = {
       body: JSON.stringify(payload),
     });
   },
+
+  async getCheckoutInfo(requestId) {
+    return apiClient(`/api/mentorship-requests/${requestId}/checkout-info`);
+  },
+
+  async processCheckout(requestId, payload = {}) {
+    const headers = await withCsrf();
+    return apiClient(`/api/mentorship-requests/${requestId}/checkout`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+  },
 };

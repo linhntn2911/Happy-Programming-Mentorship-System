@@ -5,6 +5,7 @@ import { safeNotificationHref } from './notificationLink.js';
 test('notification links stay within app routes', () => {
   assert.equal(safeNotificationHref('#/account'), '#/account');
   assert.equal(safeNotificationHref('#/mentors/mentor-a'), '#/mentors/mentor-a');
+  assert.equal(safeNotificationHref('#/checkout?requestId=42'), '#/checkout?requestId=42');
   assert.equal(safeNotificationHref('javascript:alert(1)'), '');
   assert.equal(safeNotificationHref('https://example.com'), '');
 });
