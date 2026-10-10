@@ -44,7 +44,7 @@ function tierCard({ tier, label, blurb }) {
           </div>
           <div class="space-y-1.5">
             <label for="tier-${key}-minutes" class="block text-xs font-semibold text-ink">Minutes / session <span aria-hidden="true" class="text-red-600">*</span></label>
-            <input id="tier-${key}-minutes" name="sessionDurationMinutes" type="number" min="1" max="1440" step="5" inputmode="numeric" data-field="sessionDurationMinutes" class="${fieldClass}">
+            <input id="tier-${key}-minutes" name="sessionDurationMinutes" type="number" min="1" max="1440" step="1" inputmode="numeric" data-field="sessionDurationMinutes" class="${fieldClass}">
           </div>
         </div>
         <div class="space-y-1.5">

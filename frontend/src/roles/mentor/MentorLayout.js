@@ -5,7 +5,8 @@ import { authService } from '../auth/authService.js';
 const sections = [
   ['dashboard', 'Overview', '#/mentor/dashboard', 'overview'],
   ['profile', 'Edit profile', '#/mentor/profile', 'users'],
-  ['availability', 'Availability', '#/mentor/availability', 'audit'],
+  ['requests', 'Requests', '#/mentor/requests', 'audit'],
+  ['availability', 'Availability', '#/mentor/availability', 'revenue'],
   ['packages', 'Packages', '#/mentor/packages', 'settings'],
 ];
 
