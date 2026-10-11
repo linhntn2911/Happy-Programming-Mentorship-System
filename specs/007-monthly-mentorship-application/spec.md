@@ -1,5 +1,7 @@
 # Monthly mentorship application draft
 
+> Historical phase: the draft-only/no-network scope below was superseded by the live application flow in `specs/015-mentee-application-management/`, payment behavior in `specs/016-vnpay-mentorship-checkout/`, and selected-package behavior in `specs/017-selected-mentorship-package/`.
+
 ## Scope
 From an approved mentor profile, a mentee can open a three-step monthly mentorship application. This iteration is a client-only draft: it must not call a request API, notify the mentor, create a payment, or write a mentorship request to SQL Server.
 

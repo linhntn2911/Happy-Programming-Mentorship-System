@@ -125,24 +125,17 @@ export function planToTier(plan) {
     });
   }
 
-  if (plan.trialDays) {
-    features.push({
-      title: `${plan.trialDays}-day satisfaction trial`,
-      description: 'Cancel within 7 days and only pay for days used. Unused days are fully refunded.',
-    });
-  }
-
   const displayName = plan.name || plan.planTier || 'Mentorship';
   const shortName = displayName.replace(/\s+Mentorship$/i, '');
 
   return {
     id: plan.planTier || String(plan.id),
+    serviceOfferingId: plan.id,
     name: shortName,
     price: formatPrice(plan.price),
     currency: '₫',
     period: 'month',
     tagline: plan.description || 'Monthly mentorship, no long-term contract.',
-    trialDays: plan.trialDays || 0,
     features,
   };
 }
@@ -154,12 +147,12 @@ export function MentorPricingCard({
   onApplyClick = "window.location.hash = '#/apply'",
   onOneOffClick = "window.location.hash = '#/book'",
 } = {}) {
-  const effectiveTiers = Array.isArray(tiers) && tiers.length > 0 ? tiers : DEFAULT_MENTOR_TIERS;
+  const effectiveTiers = Array.isArray(tiers) ? tiers : [];
   if (!effectiveTiers || effectiveTiers.length === 0) {
     return `
 <aside class="mentor-pricing-card w-full max-w-[420px] rounded-3xl border border-line bg-cream p-6 text-center text-ink shadow-sm" data-component="mentor-pricing-card">
   <h3 class="font-display text-xl text-ink">No packages published yet</h3>
-  <p class="mt-2 text-sm text-muted">This mentor has not published mentorship packages. Check back soon or browse other mentors.</p>
+  <p class="mt-2 text-sm text-muted">This mentor has not published an active mentorship package. Check back soon or browse other mentors.</p>
 </aside>`;
   }
 
@@ -229,6 +222,7 @@ export function MentorPricingCard({
       type="button"
       onclick="${onApplyClick}"
       data-apply-tier="${escapeHtml(currentTier.id)}"
+      data-apply-offering-id="${escapeHtml(currentTier.serviceOfferingId || '')}"
       class="btn btn-primary w-full py-3.5 text-base font-bold rounded-2xl shadow-sm hover:shadow-md transition-all active:scale-[0.99] flex items-center justify-center gap-2">
       <span>Apply now</span>
       <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -236,7 +230,6 @@ export function MentorPricingCard({
       </svg>
     </button>
 
-    ${currentTier.trialDays ? `<p class="mt-3 text-xs text-muted">${currentTier.trialDays}-day trial: prorated refund for unused days.</p>` : ''}
     <p class="mt-3 text-xs text-muted">
       Pay after your mentor accepts. Cancel anytime between billing cycles.
       <a href="#/what-is-included" class="font-medium text-brand underline decoration-brand/40 underline-offset-2 hover:decoration-brand">What's included?</a>
@@ -306,7 +299,10 @@ export function bindMentorPricingCardEvents(container = document) {
         }
 
         const applyBtn = card.querySelector('[data-apply-tier]');
-        if (applyBtn) applyBtn.setAttribute('data-apply-tier', selectedTier.id);
+        if (applyBtn) {
+          applyBtn.setAttribute('data-apply-tier', selectedTier.id);
+          applyBtn.setAttribute('data-apply-offering-id', selectedTier.serviceOfferingId || '');
+        }
       });
     });
   });

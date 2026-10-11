@@ -4,7 +4,7 @@ import { mentorSkillOptions } from '../roles/guest/mentorDiscovery.js';
 import { authService } from '../roles/auth/authService.js';
 import { notificationService } from '../roles/mentee/notificationService.js';
 import { profileService } from '../roles/mentee/profileService.js';
-import { safeNotificationHref } from './notificationLink.js';
+import { notificationRelatedHref } from './notificationLink.js';
 
 const escapeHtml = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 
@@ -39,7 +39,7 @@ function renderNotificationItems(items = []) {
   return items.map(item => {
     const isUnread = !item.read;
     const timeAgo = formatRelativeTime(item.createdAt);
-    const href = escapeHtml(safeNotificationHref(item.actionUrl) || '#/notifications');
+    const href = escapeHtml(notificationRelatedHref(item) || '#/notifications');
     const bgClass = isUnread ? 'bg-lilac/30 hover:bg-lilac/50' : 'bg-white hover:bg-cream';
     const dotClass = isUnread ? '<span class="h-2 w-2 rounded-full bg-brand shrink-0"></span>' : '';
 
@@ -111,7 +111,7 @@ export function renderUserDropdown({ currentUser, displayName, initials, isMobil
         </svg>
       </button>
       <div class="user-dropdown-menu absolute right-0 mt-2 w-48 origin-top-right rounded-xl border border-line bg-white p-1.5 shadow-xl ring-1 ring-black/5 z-50 hidden transition-all" role="menu">
-        ${isMentee ? '<a href="#/account" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">My profile</a>' : ''}
+        ${isMentee ? '<a href="#/account" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">My profile</a><a href="#/applications" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">My applications</a>' : ''}
         ${isMentor ? '<a href="#/mentor/dashboard" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Mentor dashboard</a><a href="#/mentor/profile" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Mentor profile</a>' : ''}
         ${isStaffOrAdmin ? '<a href="#/staff/mentor-applications" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Review applications</a>' : ''}
         ${!isMentor && !isStaffOrAdmin ? '<a href="#/apply/mentor" class="block rounded-lg px-3 py-2 text-xs font-semibold text-ink hover:bg-lilac" role="menuitem">Apply as a mentor</a>' : ''}

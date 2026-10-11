@@ -56,7 +56,7 @@ sequenceDiagram
         System->>VNPay: Redirect to VNPay Gateway
         VNPay-->>System: Return IPN Payment Success
         System->>System: Hold funds in Escrow & Activate Workspace
-        System->>Mentee: 7-day Trial Begins
+        System->>Mentee: Paid mentorship becomes active
     end
 ```
 
@@ -150,10 +150,10 @@ sequenceDiagram
 - **Scenario 1: Successful Payment Callback**
   - **Given** an accepted application awaiting payment,
   - **When** VNPay returns payment code `00` (Success),
-  - **Then** the system marks the booking `ACTIVE`, deposits the fee into Escrow, records an audit log, and starts the 7-day trial.
-- **Scenario 2: 7-Day Trial Prorated Refund (Option A)**
+  - **Then** the system marks the mentorship `ACTIVE`, deposits the fee into Escrow, and records an audit log. There is no free trial.
+- **Scenario 2: 7-Day Refund Period (Option A)**
   - **Given** a Mentee within day 1 to 7 of their paid monthly cycle,
-  - **When** the Mentee cancels the mentorship during the trial window,
+  - **When** the Mentee cancels the mentorship during the 7-day refund period (this is not a free trial),
   - **Then** access is terminated immediately, the fee for utilized days ($D_{\text{used}} \times \frac{\text{Price}}{30}$) is retained and allocated to the mentor net of platform commission, and a prorated refund for remaining unutilized days ($\frac{30 - D_{\text{used}}}{30} \times \text{Price}$) is issued to the Mentee via VNPay gateway.
 
 ---
@@ -290,14 +290,14 @@ The complete SQL Server schema script is maintained at [`docs/database/init/sche
    - Insert original escrow `HOLD` into `escrow_ledger_entries` (unique idempotency key).
    - Set `mentorship_requests.funded_at = payment.paid_at` (retains `ACCEPTED`).
    - Set initial payment billing dates `[@activation, DATEADD(MONTH, 1, @activation)]`.
-   - Insert `subscriptions(status='TRIALING', activated_at=@activation, trial_ends_at=DATEADD(DAY, 7, @activation))`.
+   - Insert `subscriptions(status='ACTIVE', activated_at=@activation, trial_ends_at=NULL)`.
    - Create/reuse `conversations`; authorize workspace access by active subscription.
 5. **Payment Failure / Expiry:** Only the payment row transitions to `FAILED` or `EXPIRED`. Mentorship request remains `ACCEPTED`, allowing retry with a new attempt reference.
 6. **Review Timeout / Unpaid Cancellation:**
    - Pending requests exceeding 48 hours $\rightarrow$ `EXPIRED` (`JOB-02`). No refund needed (no funds collected).
    - Cancel accepted unpaid request $\rightarrow$ close pending payment attempts before setting request to `CANCELLED`.
-7. **Paid Cancellation (7-Day Trial Window):** Mentee cancels during trial $\rightarrow$ `subscriptions.status = CANCELLED`, issuance of prorated refund for unutilized days via `refunds` table and `escrow_ledger_entries` with `REFUND_OUT`, while utilized days portion is released (`RELEASE_OUT`) to mentor earnings.
-8. **Trial Progression:** After 7 days, background job transitions eligible `TRIALING` subscription to `ACTIVE`. Renewal charges apply to `subscriptions` with `billing_cycle_no >= 2`.
+7. **Paid Cancellation:** Mentee cancels a paid mentorship $\rightarrow$ `subscriptions.status = CANCELLED`; eligible refunds follow the cancellation policy and use `refunds` plus `escrow_ledger_entries` (`REFUND_OUT`/`RELEASE_OUT`) to preserve settlement history.
+8. **Renewal:** Renewal charges apply to `subscriptions` with `billing_cycle_no >= 2`.
 
 ---
 

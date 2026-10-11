@@ -3,20 +3,20 @@ import { apiClient } from '../../shared/apiClient.js';
 const VALID_DECISIONS = new Set(['ACCEPTED', 'REJECTED']);
 
 async function withCsrf(headers = {}) {
-  try {
-    const csrf = await apiClient('/api/auth/csrf', { cache: 'no-store' });
-    if (csrf?.headerName && csrf?.token) {
-      return { ...headers, [csrf.headerName]: csrf.token };
-    }
-  } catch (err) {
-    console.warn('Could not fetch csrf token:', err);
+  const csrf = await apiClient('/api/auth/csrf', { cache: 'no-store' });
+  if (!csrf?.headerName || !csrf?.token) {
+    throw new Error('Your session could not be verified. Refresh and try again.');
   }
-  return headers;
+  return { ...headers, [csrf.headerName]: csrf.token };
 }
 
 export const mentorDashboardService = {
   async getMyDashboard() {
     return apiClient('/api/mentors/me/dashboard');
+  },
+
+  async getMyRequests() {
+    return apiClient('/api/mentors/me/requests', { cache: 'no-store' });
   },
 
   async decideOnRequest(requestId, decision) {

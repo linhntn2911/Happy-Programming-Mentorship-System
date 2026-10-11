@@ -2,6 +2,7 @@ package com.happyprogramming.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 public record CreateMentorshipRequest(
@@ -10,6 +11,7 @@ public record CreateMentorshipRequest(
         @NotBlank @Pattern(regexp = "BEGINNER|JUNIOR|MID|SENIOR") String experienceLevel,
         @Size(max = 2000) String background,
         @Size(max = 2000) String expectations,
-        @NotBlank @Size(max = 50) String termsVersion
+        @NotBlank @Size(max = 50) String termsVersion,
+        @Positive Long serviceOfferingId
 ) {
 }

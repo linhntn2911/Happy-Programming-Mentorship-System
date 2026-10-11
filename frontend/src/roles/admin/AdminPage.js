@@ -6,7 +6,7 @@ import { adminService } from './adminService.js';
 import { createDemoService } from './adminDemo.js';
 import { escapeHtml as e } from '../../shared/html.js';
 import { PERMISSIONS, revenue } from './admin.js';
-import { OverviewView, UsersView, RevenueView, SettingsView, AuditView } from './AdminViews.js';
+import { OverviewView, UsersView, RevenueView, PayoutsView, SettingsView, AuditView } from './AdminViews.js';
 
 let service = adminService;
 function enterDemo() {
@@ -23,6 +23,7 @@ export function mountAdmin(root, section = 'overview') {
   let requestVersion = 0;
   let session;
   let data;
+  let payoutRequests = [];
   let message = '';
   let activeDialog;
   const state = { query: '', role: '', status: '', page: 1, from: '', to: '' };
@@ -54,8 +55,9 @@ export function mountAdmin(root, section = 'overview') {
     try {
       const currentSession = await service.session();
       const result = await service.workspace();
+      const pendingPayouts = section === 'payouts' && !service.demo ? await service.payoutRequests() : [];
       if (!alive() || version !== requestVersion) return;
-      session = currentSession; data = result; render();
+      session = currentSession; data = result; payoutRequests = pendingPayouts; render();
     } catch (err) {
       if (!alive() || version !== requestVersion) return;
       if (err.status === 401 || err.status === 403) login(err.status === 403 ? err.message : '');
@@ -67,7 +69,7 @@ export function mountAdmin(root, section = 'overview') {
   }
   function render() {
     if (!alive()) return;
-    const views = { overview: () => OverviewView(data, session), users: () => UsersView(data, state), staff: () => UsersView(data, state, true), revenue: () => RevenueView(data, state), settings: () => SettingsView(data), audit: () => AuditView(data, state) };
+    const views = { overview: () => OverviewView(data, session), users: () => UsersView(data, state), staff: () => UsersView(data, state, true), revenue: () => RevenueView(data, state), payouts: () => PayoutsView(payoutRequests, service.demo), settings: () => SettingsView(data), audit: () => AuditView(data, state) };
     const content = Object.hasOwn(adminSections, section) ? views[section]() : '<h1 class="section-title">Page not found</h1><a class="btn btn-primary mt-5" href="#/admin">Back to overview</a>';
     renderShell(`<div class="flex flex-wrap items-center justify-between gap-3 mb-5"><div class="grow">${service.demo ? Notice({ message: 'Demo workspace · Sample data only. Changes are saved in this browser.' }) : '<p class="text-[11px] text-muted">Administrator workspace · Live data</p>'}</div>${Button({ label: service.demo ? 'Exit demo' : 'Sign out', variant: 'outline', size: 'sm', id: 'admin-logout' })}</div>${service.warning ? Notice({ message: service.warning }) : ''}${message ? Notice({ message }) : ''}${content}`);
     on('#admin-logout', 'click', async event => {
@@ -91,6 +93,18 @@ export function mountAdmin(root, section = 'overview') {
     on('#admin-export', 'click', exportCsv);
     root.querySelectorAll('[data-user]').forEach(button => button.addEventListener('click', () => accountDialog(Number(button.dataset.user), false)));
     root.querySelectorAll('[data-permissions]').forEach(button => button.addEventListener('click', () => accountDialog(Number(button.dataset.permissions), true)));
+    root.querySelectorAll('[data-payout-paid]').forEach(button => button.addEventListener('click', () => {
+      const id = Number(button.dataset.payoutPaid);
+      openDialog('Record mentor payout', '<p>Confirm that the bank transfer has already been completed. Enter its transaction reference to post the debit to the wallet ledger.</p><label class="admin-field mt-4">Bank transfer reference<input name="transferReference" maxlength="150" required></label>', form => {
+        const transferReference = form.elements.transferReference.value.trim();
+        if (!transferReference) throw new Error('Enter the bank transfer reference.');
+        return service.decidePayout(id, { decision: 'PAID', transferReference });
+      });
+    }));
+    root.querySelectorAll('[data-payout-reject]').forEach(button => button.addEventListener('click', () => {
+      const id = Number(button.dataset.payoutReject);
+      openDialog('Reject payout request', '<p>The reserved amount will return to the mentor’s available balance.</p><label class="admin-field mt-4">Reason<textarea name="reason" rows="3" maxlength="500" required></textarea></label>', form => service.decidePayout(id, { decision: 'REJECTED', rejectionReason: form.elements.reason.value.trim() }));
+    }));
     on('#admin-settings-reset', 'click', render);
     on('#admin-settings', 'submit', event => {
       event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget)); values.commissionRate = Number(values.commissionRate);

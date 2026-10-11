@@ -61,11 +61,11 @@ public interface MentorDashboardRepository extends JpaRepository<MentorshipReque
             SELECT
                 request_row.id AS id,
                 mentee.full_name AS menteeName,
-                offering.name AS packageName,
+                COALESCE(JSON_VALUE(request_row.offer_snapshot, '$.name'), offering.name) AS packageName,
                 request_row.learning_goals AS learningGoals,
                 request_row.status AS status,
-                request_row.submitted_at AS submittedAt,
-                request_row.response_deadline AS responseDeadline
+                CASE WHEN request_row.submitted_at > SYSUTCDATETIME() THEN DATEADD(HOUR, -7, request_row.submitted_at) ELSE request_row.submitted_at END AS submittedAt,
+                CASE WHEN request_row.submitted_at > SYSUTCDATETIME() THEN DATEADD(HOUR, -7, request_row.response_deadline) ELSE request_row.response_deadline END AS responseDeadline
             FROM dbo.mentorship_requests request_row
             JOIN dbo.users mentee ON mentee.id = request_row.mentee_id
             LEFT JOIN dbo.service_offerings offering
@@ -78,6 +78,26 @@ public interface MentorDashboardRepository extends JpaRepository<MentorshipReque
             """, nativeQuery = true)
     List<MentorDashboardRequestProjection> findPendingRequestsForMentor(
             @Param("mentorId") Long mentorId);
+
+    @Query(value = """
+            SELECT
+                request_row.id AS id,
+                mentee.full_name AS menteeName,
+                COALESCE(JSON_VALUE(request_row.offer_snapshot, '$.name'), offering.name) AS packageName,
+                request_row.learning_goals AS learningGoals,
+                request_row.status AS status,
+                CASE WHEN request_row.submitted_at > SYSUTCDATETIME() THEN DATEADD(HOUR, -7, request_row.submitted_at) ELSE request_row.submitted_at END AS submittedAt,
+                CASE WHEN request_row.submitted_at > SYSUTCDATETIME() THEN DATEADD(HOUR, -7, request_row.response_deadline) ELSE request_row.response_deadline END AS responseDeadline
+            FROM dbo.mentorship_requests request_row
+            JOIN dbo.users mentee ON mentee.id = request_row.mentee_id
+            LEFT JOIN dbo.service_offerings offering
+              ON offering.id = request_row.service_id
+             AND offering.mentor_id = request_row.mentor_id
+             AND offering.service_type = request_row.service_type
+            WHERE request_row.mentor_id = :mentorId
+            ORDER BY request_row.submitted_at DESC, request_row.id DESC
+            """, nativeQuery = true)
+    List<MentorDashboardRequestProjection> findRequestsForMentor(@Param("mentorId") Long mentorId);
 
     @Query(value = """
             WITH notice_rows AS (

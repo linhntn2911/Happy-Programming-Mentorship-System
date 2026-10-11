@@ -1,0 +1,24 @@
+# Implementation Plan: Mentor Wallet and Payout Requests
+
+Use the existing VNPay IPN and immutable escrow ledger. Add an idempotent scheduled release after seven days, append mentor share and platform commission entries, and add a mentor-owned payout request lifecycle. Encrypt destination account data with AES-GCM using a configured 256-bit key. Admin payout processing remains manual and records the external bank transfer reference.
+
+## Data & API
+
+- Versioned SQL Server migration extends the escrow ledger entry types and adds payout request storage/indexes.
+- `GET /api/mentors/me/wallet`: balances, ledger history, and the mentor's payout requests (never returns full account number).
+- `POST /api/mentors/me/payout-requests`: amount and bank destination; only within available balance.
+- `GET /api/admin/payout-requests`: pending requests and decrypted destination details for authorized admin review.
+- `PATCH /api/admin/payout-requests/{id}`: mark `PAID` with transfer reference or `REJECTED` with reason.
+
+## Security and Operations
+
+- Require MENTOR for wallet endpoints and ADMIN for payout operations.
+- Store encrypted account number and masked last four digits; do not log request payloads.
+- The release job is conditional on payment scheduler configuration and idempotent under concurrent execution.
+- Never execute a database migration or move money as part of coding.
+
+## Verification
+
+- Unit tests cover release amount/fee rounding, encryption, and input validation.
+- Database-backed tests cover idempotent release, concurrent balance reservation, paid payout ledger posting, and rejection releasing reservations.
+- Run the backend test suite and frontend tests for the new mentor wallet page.

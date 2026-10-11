@@ -7,10 +7,10 @@ const TIMELINES = ["I don't have a timeline in mind.", "I'm looking to reach thi
 const EXPERIENCE = [{ value: 'BEGINNER', label: 'Beginner — just starting out' }, { value: 'JUNIOR', label: 'Junior — some experience' }, { value: 'MID', label: 'Mid-level — working professionally' }, { value: 'SENIOR', label: 'Senior — deep experience' }];
 const TERMS_VERSION = 'v1';
 const MIN_GOALS_LENGTH = 50;
-const keyFor = id => 'hpms.monthly-application-draft.v1.' + (id || 'unknown');
-function readDraft(id, fallback) { try { const value = JSON.parse(sessionStorage.getItem(keyFor(id)) || 'null'); return value && value.mentorId === id ? { ...fallback, ...value } : fallback; } catch { return fallback; } }
-function writeDraft(state) { try { sessionStorage.setItem(keyFor(state.mentorId), JSON.stringify(state)); } catch { /* memory fallback */ } }
-function clearDraft(id) { try { sessionStorage.removeItem(keyFor(id)); } catch { /* memory fallback */ } }
+const keyFor = (id, offeringId) => 'hpms.monthly-application-draft.v2.' + (id || 'unknown') + '.' + (offeringId || 'unselected');
+function readDraft(id, offeringId, fallback) { try { const value = JSON.parse(sessionStorage.getItem(keyFor(id, offeringId)) || 'null'); return value && value.mentorId === id && String(value.serviceOfferingId || '') === String(offeringId || '') ? { ...fallback, ...value } : fallback; } catch { return fallback; } }
+function writeDraft(state) { try { sessionStorage.setItem(keyFor(state.mentorId, state.serviceOfferingId), JSON.stringify(state)); } catch { /* memory fallback */ } }
+function clearDraft(id, offeringId) { try { sessionStorage.removeItem(keyFor(id, offeringId)); } catch { /* memory fallback */ } }
 function shell(content, mentorId) {
   return '<header class="directory-header"><div class="container flex h-[76px] items-center justify-between gap-3">' + BrandLogo() + '<a href="#/mentors/' + encodeURIComponent(mentorId || '') + '" class="btn btn-outline btn-sm">Back to profile</a></div></header><main class="min-h-[calc(100vh-76px)] bg-cream py-10 sm:py-16"><div class="container max-w-2xl px-5 sm:px-8">' + content + '</div></main>';
 }
@@ -24,13 +24,14 @@ function experienceChoice(item, selected) {
   return '<button type="button" class="monthly-choice ' + (selected === item.value ? 'is-selected' : '') + '" data-experience="' + esc(item.value) + '" aria-pressed="' + (selected === item.value) + '">' + esc(item.label) + '</button>';
 }
 const canSubmit = state => state.message.trim().length >= MIN_GOALS_LENGTH && state.termsAccepted;
-export function mountMonthlyMentorshipApplication(root, mentorId, mentorName) {
-  const fallback = { mentorId, mentorName: mentorName || 'your mentor', goal: '', timeline: '', experienceLevel: '', message: '', termsAccepted: false, step: 1, complete: false };
-  const state = readDraft(mentorId, fallback);
+export function mountMonthlyMentorshipApplication(root, mentorId, mentorName, serviceOfferingId = '') {
+  const parsedOfferingId = /^\d+$/.test(String(serviceOfferingId)) && Number(serviceOfferingId) > 0 ? Number(serviceOfferingId) : null;
+  const fallback = { mentorId, mentorName: mentorName || 'your mentor', serviceOfferingId: parsedOfferingId, goal: '', timeline: '', experienceLevel: '', message: '', termsAccepted: false, step: 1, complete: false };
+  const state = readDraft(mentorId, parsedOfferingId, fallback);
   state.mentorName = mentorName || state.mentorName || 'your mentor';
   let formError = '';
   const render = () => {
-    if (state.complete) return shell('<section class="monthly-application-card text-center"><span class="monthly-success-icon" aria-hidden="true">✓</span><p class="eyebrow mt-5">Request submitted</p><h1 class="mt-2 font-display text-3xl sm:text-4xl">Waiting for ' + esc(state.mentorName) + ' to respond</h1><p class="mx-auto mt-4 max-w-md text-sm leading-7 text-muted">Your mentorship request has been sent and your mentor has been notified. They have 48 hours to respond. Once they accept, you can complete payment to activate your monthly mentorship.</p><div class="mt-8 flex flex-wrap justify-center gap-3"><a href="#/mentors/' + encodeURIComponent(state.mentorId || '') + '" class="btn btn-primary">Back to profile</a><a href="#/account" class="btn btn-outline">Go to account</a></div></section>', state.mentorId);
+    if (state.complete) return shell('<section class="monthly-application-card text-center"><span class="monthly-success-icon" aria-hidden="true">✓</span><p class="eyebrow mt-5">Request submitted</p><h1 class="mt-2 font-display text-3xl sm:text-4xl">Waiting for ' + esc(state.mentorName) + ' to respond</h1><p class="mx-auto mt-4 max-w-md text-sm leading-7 text-muted">Your mentorship request has been sent and your mentor has been notified. They have 48 hours to respond. Once they accept, you can complete payment to activate your monthly mentorship.</p><div class="mt-8 flex flex-wrap justify-center gap-3"><a href="#/applications" class="btn btn-primary">View my applications</a><a href="#/mentors/' + encodeURIComponent(state.mentorId || '') + '" class="btn btn-outline">Back to profile</a></div></section>', state.mentorId);
     const step = state.step;
     let body = '';
     if (step === 1) body = '<p class="text-sm text-muted">What best describes the goal of your mentorship?</p><div class="mt-5 grid gap-3" role="group" aria-label="Mentorship goal">' + GOALS.map(item => choice(item, state.goal)).join('') + '</div><p class="mt-8 text-sm text-muted">What is your current experience level?</p><div class="mt-5 grid gap-3" role="group" aria-label="Experience level">' + EXPERIENCE.map(item => experienceChoice(item, state.experienceLevel)).join('') + '</div>';
@@ -43,19 +44,21 @@ export function mountMonthlyMentorshipApplication(root, mentorId, mentorName) {
     const goals = state.message.trim();
     if (goals.length < MIN_GOALS_LENGTH) { formError = 'Please write at least ' + MIN_GOALS_LENGTH + ' characters so your mentor understands your goals.'; mount(); return; }
     if (!state.termsAccepted) { formError = 'Please accept the mentorship terms to continue.'; mount(); return; }
+    if (!state.serviceOfferingId) { formError = 'Choose an active monthly package from the mentor profile before submitting.'; mount(); return; }
     formError = '';
     button.disabled = true;
     button.textContent = 'Submitting…';
     try {
       await mentorshipRequestService.createRequest({
         mentorSlug: state.mentorId,
+        serviceOfferingId: state.serviceOfferingId,
         learningGoals: goals,
         experienceLevel: state.experienceLevel,
         background: state.goal,
         expectations: state.timeline,
         termsVersion: TERMS_VERSION,
       });
-      clearDraft(state.mentorId);
+      clearDraft(state.mentorId, state.serviceOfferingId);
       state.complete = true;
       mount();
     } catch (error) {

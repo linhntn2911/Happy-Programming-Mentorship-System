@@ -48,8 +48,8 @@ class MentorDashboardRepositoryQueryTest {
         assertTrue(query.contains("where id = :requestid"));
         assertTrue(query.contains("mentor_id = :mentorid"));
         assertTrue(query.contains("status = 'pending'"));
-        assertTrue(query.contains("response_deadline >= sysutcdatetime()"));
-        assertTrue(query.contains("responded_at = sysutcdatetime()"));
+        assertTrue(query.contains("dateadd(hour, -7, response_deadline) else response_deadline end >= sysutcdatetime()"));
+        assertTrue(query.contains("dateadd(hour, 7, sysutcdatetime())"));
     }
 
     @Test

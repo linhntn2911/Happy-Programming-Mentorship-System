@@ -294,7 +294,7 @@ export function ProfilePage(m, tiers = []) {
       ${MentorPricingCard({
         tiers,
         oneOffPrice: m.session || '',
-        onApplyClick: `window.location.hash = '#/apply/monthly?mentor=${encodeURIComponent(m.id)}&name=${encodeURIComponent(m.name)}'`
+        onApplyClick: `window.location.hash = '#/apply/monthly?mentor=${encodeURIComponent(m.id)}&name=${encodeURIComponent(m.name)}&offeringId=' + encodeURIComponent(this.dataset.applyOfferingId || '')`
       })}
       <div class="profile-note mt-6"><h3 class="text-sm font-semibold">A thoughtful match comes first</h3><p class="mt-2 text-xs leading-6 text-muted">Monthly mentorship follows mentor approval before payment.</p></div>
     </aside></div>`);

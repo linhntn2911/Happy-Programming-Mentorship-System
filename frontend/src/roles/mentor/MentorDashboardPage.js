@@ -198,20 +198,7 @@ export function initializeMentorDashboardPage() {
       validateDashboard(data);
       if (disposed) return;
 
-      // 1. Đọc các ID đã duyệt/từ chối từ localStorage
-      const processedIds = JSON.parse(localStorage.getItem('processedRequestIds') || '[]');
-      const rawIncoming = Array.isArray(data?.incomingRequests) ? data.incomingRequests : [];
-      
-      // 2. Tính số lượng pending thực sự còn lại
-      const realPendingCount = Array.isArray(data?.incomingRequests)
-        ? rawIncoming.filter(r => !processedIds.includes(String(r.id)) && !processedIds.includes(String(r.requestId))).length
-        : Math.max(0, Number(data?.summary?.pendingInvitations || 0) - processedIds.length);
-
-      // 3. Render summary đã được đồng bộ
-      renderDashboardMetrics({
-        ...data.summary,
-        pendingInvitations: realPendingCount,
-      });
+      renderDashboardMetrics(data.summary);
       renderNotices(data.systemNotices);
       error.hidden = true;
       retry.hidden = true;

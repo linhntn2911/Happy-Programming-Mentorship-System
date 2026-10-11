@@ -9,7 +9,7 @@ const paths = {
   audit: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 7h6M9 12h6M9 17h4"/>',
   arrow: '<path d="M19 12H5m5-5-5 5 5 5"/>',
 };
-export const adminSections = { overview: 'Overview', users: 'User management', staff: 'Staff & permissions', revenue: 'Revenue reports', settings: 'System settings', audit: 'Audit logs' };
+export const adminSections = { overview: 'Overview', users: 'User management', staff: 'Staff & permissions', revenue: 'Revenue reports', payouts: 'Mentor payouts', settings: 'System settings', audit: 'Audit logs' };
 export function adminIcon(name) { return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${paths[name] || paths.overview}</svg>`; }
 
 export function AdminLayout(section, content, { name = 'Administrator', demo = false } = {}) {

@@ -221,9 +221,30 @@ Design requirements:
 - Use server-side ownership checks for mentor, mentee, session, chat, review, and payment resources.
 - Document security-sensitive decisions in the feature plan.
 
+## Scope-First Investigation
+
+Use a bounded, evidence-driven reading strategy. Do not scan the whole repository by default.
+
+1. Start from the user-visible route, endpoint, error, named file, or active feature specification.
+2. Read only the directly responsible page/controller, its imported or injected dependencies, and the closest relevant tests.
+3. Expand one dependency hop at a time only when the current evidence does not explain the behavior or a shared contract is being changed.
+4. Use targeted searches (`rg` with a symbol, route, table, API path, or error text) before opening directories or broad file sets.
+5. Do not read unrelated roles, completed feature specifications, generated output, dependency folders, or historical artifacts unless a discovered dependency requires them.
+6. Stop investigating once the implementation path, affected contracts, and verification boundary are clear. Record assumptions instead of exploring speculative branches.
+
+For a local UI change, normally inspect the page/component, shared primitive it uses, route registration, and focused test. For a backend behavior change, normally inspect the controller, service, repository/entity or DTO involved, security boundary, migration/contract when applicable, and focused test. Cross-role, shared infrastructure, schema, authentication, payment, or public API changes justify a wider review.
 ## Testing and Verification
 
-Run the narrowest meaningful checks while developing, then the full checks affected by the change.
+Use risk-based verification. Run the narrowest meaningful check first and expand only when evidence or impact requires it.
+
+- Styling, copy, or isolated component changes: run the affected focused test when one exists, plus a frontend build only when imports, templates, or bundling may be affected.
+- Frontend behavior or service changes: run the relevant colocated/test file first; run the full frontend suite only for shared modules, routing, authentication, or failures suggesting broader impact.
+- Backend controller/service/repository changes: run the affected test class or package first; run the full backend suite for shared security/configuration, persistence/schema, payment, application wiring, or cross-feature changes.
+- Documentation-only changes do not require application builds or test suites. Use formatting, link, or consistency checks appropriate to the edited documents.
+- Do not rerun an unchanged passing suite repeatedly. Broaden or repeat testing only after new edits, a failure, or an unresolved risk.
+- Do not run both frontend and backend suites when only one application changed.
+
+Before invoking a full suite, state the concrete reason it is needed. Time-consuming integration tests requiring SQL Server or external services run only when the changed path depends on them or the user explicitly requests full verification.
 
 Canonical monorepo applications:
 

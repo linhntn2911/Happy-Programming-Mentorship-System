@@ -8,9 +8,11 @@ export const adminService = {
   demo: false,
   session: () => apiClient('/api/admin/session'),
   workspace: () => apiClient('/api/admin/workspace'),
+  payoutRequests: () => apiClient('/api/admin/payout-requests'),
   login: body => authService.login({ ...body, role: 'ADMIN' }),
   logout: () => authService.logout(),
   status: (id, change) => mutate(`/users/${id}/status`, change, 'PATCH'),
   permissions: (id, change) => mutate(`/users/${id}/permissions`, change, 'PUT'),
   settings: change => mutate('/settings', change, 'PUT'),
+  decidePayout: (id, change) => mutate(`/payout-requests/${id}`, change, 'PATCH'),
 };

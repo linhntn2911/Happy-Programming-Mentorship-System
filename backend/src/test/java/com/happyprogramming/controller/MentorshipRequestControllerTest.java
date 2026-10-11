@@ -2,7 +2,10 @@ package com.happyprogramming.controller;
 
 import com.happyprogramming.dto.CreateMentorshipRequest;
 import com.happyprogramming.dto.MentorshipRequestResponse;
+import com.happyprogramming.dto.MenteeApplicationDto;
+import com.happyprogramming.dto.MenteeApplicationPageDto;
 import com.happyprogramming.service.MentorshipRequestService;
+import com.happyprogramming.service.VnPayPaymentService;
 
 
 import java.time.Instant;
@@ -33,10 +36,13 @@ class MentorshipRequestControllerTest {
 
     @MockitoBean
     private MentorshipRequestService mentorshipRequestService;
+    @MockitoBean
+    private VnPayPaymentService vnPayPaymentService;
 
     private static final String VALID_BODY = """
             {"mentorSlug":"nam-nguyen","learningGoals":"%s","experienceLevel":"JUNIOR",
-             "background":"Self-taught developer","expectations":"Weekly calls","termsVersion":"v1"}
+             "background":"Self-taught developer","expectations":"Weekly calls","termsVersion":"v1",
+             "serviceOfferingId":42}
             """;
 
     private static String goals() {
@@ -58,6 +64,9 @@ class MentorshipRequestControllerTest {
                 .andExpect(jsonPath("$.data.requestId").value(99))
                 .andExpect(jsonPath("$.data.status").value("PENDING"))
                 .andExpect(jsonPath("$.data.paymentRequired").value(false));
+        var requestCaptor = org.mockito.ArgumentCaptor.forClass(CreateMentorshipRequest.class);
+        org.mockito.Mockito.verify(mentorshipRequestService).create(requestCaptor.capture());
+        org.junit.jupiter.api.Assertions.assertEquals(42L, requestCaptor.getValue().serviceOfferingId());
     }
 
     @Test
@@ -110,6 +119,15 @@ class MentorshipRequestControllerTest {
     }
 
     @Test
+    void cancelsAnApplication() throws Exception {
+        mockMvc.perform(post("/api/mentorship-requests/99/cancel"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Mentorship application cancelled. You can submit a new application with the current package."));
+        org.mockito.Mockito.verify(mentorshipRequestService).cancelMyRequest(99L);
+    }
+
+    @Test
     void loadsCheckoutInfoForAcceptedRequest() throws Exception {
         when(mentorshipRequestService.getCheckoutInfo(99L))
                 .thenReturn(new com.happyprogramming.dto.CheckoutInfoDto(
@@ -123,15 +141,13 @@ class MentorshipRequestControllerTest {
                         "VND",
                         45,
                         4,
-                        7,
                         goals(),
                         "ACCEPTED",
                         false,
-                        "MB Bank",
-                        "9876543210",
-                        "HAPPYPROGRAMMING ESCROW",
-                        "HP REQ 99",
-                        900
+                        null,
+                        null,
+                        null,
+                        true
                 ));
 
         mockMvc.perform(get("/api/mentorship-requests/99/checkout-info"))
@@ -145,17 +161,18 @@ class MentorshipRequestControllerTest {
     }
 
     @Test
-    void processesCheckoutSuccessfully() throws Exception {
-        when(mentorshipRequestService.processCheckout(org.mockito.ArgumentMatchers.eq(99L), org.mockito.ArgumentMatchers.any()))
+    void startsPendingVnPayCheckout() throws Exception {
+        when(vnPayPaymentService.initiate(org.mockito.ArgumentMatchers.eq(99L), org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(new com.happyprogramming.dto.CheckoutResponse(
-                        500L,
+                        812L,
                         99L,
-                        "TRIALING",
+                        "PENDING",
                         new java.math.BigDecimal("2500000.00"),
                         "VND",
-                        Instant.parse("2026-10-08T02:00:00Z"),
-                        Instant.parse("2026-10-15T02:00:00Z"),
-                        "Payment completed successfully. 7-day trial active."
+                        "HP99-1-abcdef123456",
+                        "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?signature=test",
+                        Instant.parse("2026-10-08T02:15:00Z"),
+                        "VNPay QR payment is ready."
                 ));
 
         mockMvc.perform(post("/api/mentorship-requests/99/checkout")
@@ -165,8 +182,28 @@ class MentorshipRequestControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.subscriptionId").value(500))
-                .andExpect(jsonPath("$.data.status").value("TRIALING"))
+                .andExpect(jsonPath("$.data.paymentId").value(812))
+                .andExpect(jsonPath("$.data.status").value("PENDING"))
+                .andExpect(jsonPath("$.data.paymentReference").value("HP99-1-abcdef123456"))
+                .andExpect(jsonPath("$.data.paymentUrl").value(org.hamcrest.Matchers.startsWith("https://sandbox.vnpayment.vn/")))
                 .andExpect(jsonPath("$.data.amount").value(2500000.00));
+    }
+
+    @Test
+    void listsMyApplicationsWithStatusFilterAndPagination() throws Exception {
+        when(mentorshipRequestService.getMyApplications(0, 10, "ACCEPTED"))
+                .thenReturn(new MenteeApplicationPageDto(java.util.List.of(
+                        new MenteeApplicationDto(99L, "Nam Nguyễn", "Backend Mentorship", goals(), "ACCEPTED",
+                                Instant.parse("2026-10-08T02:00:00Z"), Instant.parse("2026-10-09T02:00:00Z"),
+                                Instant.parse("2026-10-10T02:00:00Z"), null, null, null, null)), 1, 1, 0, 10));
+
+        mockMvc.perform(get("/api/mentorship-requests/mine")
+                        .param("page", "0")
+                        .param("size", "10")
+                        .param("status", "ACCEPTED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.applications[0].requestId").value(99))
+                .andExpect(jsonPath("$.data.applications[0].status").value("ACCEPTED"));
     }
 }

@@ -81,7 +81,24 @@ Admin, Staff, and all Mentor workspace pages must use the single presentation sy
 - **Surfaces & Colors**: Cream background (`#fbf9ff`), white cards/panels with 1px border (`#e8e0f1`) and 14px radii, brand purple (`#8b46e8`), dark purple (`#7431d0`), lilac (`#f1e8ff`), and ink (`#25143f`).
 - **Primitives**: `.admin-stats` grid of 4 `.stat-card`s, `.admin-panel` with `.admin-panel-heading` and `.admin-panel-body`, `.admin-toolbar`, `.data-table-scroll` + `.data-table`, restrained `.status-badge` pills with `●` (never use emojis), and `<dialog class="modal">` for operational reviews.
 
+## Bounded Code Reading
+
+- Begin with the route, endpoint, named file, error text, or active spec from the request. Search for exact symbols and open only the direct implementation path.
+- Follow dependencies one hop at a time. Do not inventory the entire repository before a local change.
+- Read unrelated roles, older specs, generated files, or broad directories only when a concrete dependency or conflict points there.
+- Once the affected files, contracts, and test boundary are known, stop discovery and implement. State a necessary assumption instead of continuing speculative searches.
+- Typical frontend scope is page/component → imported shared primitive/service → route → focused test. Typical backend scope is controller → service → repository/entity or DTO → security/migration/contract when relevant → focused test.
 ## Verification Commands
+
+Apply a test ladder instead of running every command by default:
+
+1. Run the most focused relevant test file/class or a direct compile/build check.
+2. Expand to the affected package/application suite only when shared code changed, the focused check fails in a way that suggests wider impact, or the change affects authentication, schema, payment, routing, configuration, or application wiring.
+3. Run both application suites only for changes spanning both applications.
+4. Documentation-only work requires no application test suite.
+5. Do not repeat a passing suite unless code changed afterward.
+
+State why a full suite is necessary before running it. The commands below are full-suite commands for changes whose risk justifies them; they are not mandatory for every edit.
 
 Canonical monorepo applications:
 

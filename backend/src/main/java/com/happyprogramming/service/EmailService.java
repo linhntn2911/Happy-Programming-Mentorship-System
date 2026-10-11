@@ -34,9 +34,9 @@ public class EmailService {
         sendNotification(email, "Mentorship Request Accepted - HappyProgramming",
             "Dear " + recipient + ",\n\n"
             + "Great news! Mentor " + mentor + " has accepted your mentorship request for package \"" + pkg + "\".\n\n"
-            + "To activate your mentorship and start your 7-day trial, please sign in to your HappyProgramming account on our platform.\n"
-            + "Click on your Notifications or visit your account requests to complete your secure payment.\n\n"
-            + "Payment note: Your payment is held safely in Escrow during your trial period according to platform policy.\n\n"
+            + "To complete your mentorship checkout, please sign in to your HappyProgramming account on our platform.\n"
+            + "Sign in and open My applications to review the accepted request and continue to checkout.\n\n"
+            + "Your payment is held safely in Escrow after VNPay confirms the transaction.\n\n"
             + "Best regards,\nHappyProgramming Mentorship Team");
     }
 

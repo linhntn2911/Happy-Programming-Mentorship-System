@@ -22,6 +22,22 @@ test('getMyDashboard reads the current mentor dashboard endpoint', async () => {
   }
 });
 
+test('getMyRequests reads persisted request history', async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl;
+  globalThis.fetch = async url => {
+    requestedUrl = url;
+    return { ok: true, json: async () => ({ success: true, data: [{ id: 11, status: 'ACCEPTED' }] }) };
+  };
+  try {
+    const result = await mentorDashboardService.getMyRequests();
+    assert.equal(requestedUrl, '/api/mentors/me/requests');
+    assert.equal(result[0].status, 'ACCEPTED');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('decideOnRequest sends the decision with a CSRF header', async () => {
   const originalFetch = globalThis.fetch;
   const calls = [];
@@ -47,6 +63,24 @@ test('decideOnRequest sends the decision with a CSRF header', async () => {
     assert.deepEqual(JSON.parse(decision.options.body), { decision: 'REJECTED' });
     assert.equal(decision.options.headers['X-CSRF-TOKEN'], 'tok-123');
     assert.equal(result.status, 'REJECTED');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('decideOnRequest does not send a decision when the CSRF token is unavailable', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async url => {
+    calls.push(url);
+    return { ok: true, json: async () => ({ success: true, data: {} }) };
+  };
+  try {
+    await assert.rejects(
+      mentorDashboardService.decideOnRequest(9, 'ACCEPTED'),
+      /session could not be verified/i
+    );
+    assert.deepEqual(calls, ['/api/auth/csrf']);
   } finally {
     globalThis.fetch = originalFetch;
   }

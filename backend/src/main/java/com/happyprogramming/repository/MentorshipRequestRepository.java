@@ -15,12 +15,12 @@ public interface MentorshipRequestRepository extends JpaRepository<MentorshipReq
     @Query(value = """
             UPDATE dbo.mentorship_requests
             SET status = :decision,
-                responded_at = SYSUTCDATETIME(),
-                updated_at = SYSUTCDATETIME()
+                responded_at = CASE WHEN submitted_at > SYSUTCDATETIME() THEN DATEADD(HOUR, 7, SYSUTCDATETIME()) ELSE SYSUTCDATETIME() END,
+                updated_at = CASE WHEN submitted_at > SYSUTCDATETIME() THEN DATEADD(HOUR, 7, SYSUTCDATETIME()) ELSE SYSUTCDATETIME() END
             WHERE id = :requestId
               AND mentor_id = :mentorId
               AND status = 'PENDING'
-              AND response_deadline >= SYSUTCDATETIME()
+              AND CASE WHEN submitted_at > SYSUTCDATETIME() THEN DATEADD(HOUR, -7, response_deadline) ELSE response_deadline END >= SYSUTCDATETIME()
             """, nativeQuery = true)
     int transitionPendingRequest(
             @Param("requestId") Long requestId,
@@ -28,7 +28,7 @@ public interface MentorshipRequestRepository extends JpaRepository<MentorshipReq
             @Param("decision") String decision);
 
     @Query(value = """
-            SELECT id, status, responded_at AS respondedAt
+            SELECT id, status, CASE WHEN submitted_at > SYSUTCDATETIME() THEN DATEADD(HOUR, -7, responded_at) ELSE responded_at END AS respondedAt
             FROM dbo.mentorship_requests
             WHERE id = :requestId AND mentor_id = :mentorId
             """, nativeQuery = true)

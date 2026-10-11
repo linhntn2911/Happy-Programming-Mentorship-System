@@ -51,6 +51,40 @@ public class MentorCatalog {
                 }
             );
 
+            Map<Long, BigDecimal> monthlyPriceByMentor = new HashMap<>();
+            jdbcTemplate.query(
+                "SELECT mentor_id, price FROM dbo.service_offerings " +
+                "WHERE service_type = 'MONTHLY' AND status = 'ACTIVE' " +
+                "ORDER BY mentor_id, " +
+                "CASE UPPER(COALESCE(plan_tier, '')) " +
+                "  WHEN 'LITE' THEN 1 " +
+                "  WHEN 'STANDARD' THEN 2 " +
+                "  WHEN 'PRO' THEN 3 " +
+                "  ELSE 4 END, " +
+                "price ASC, id ASC",
+                rs -> {
+                    long mId = rs.getLong("mentor_id");
+                    BigDecimal price = rs.getBigDecimal("price");
+                    if (price != null) {
+                        monthlyPriceByMentor.putIfAbsent(mId, price);
+                    }
+                }
+            );
+
+            Map<Long, BigDecimal> sessionPriceByMentor = new HashMap<>();
+            jdbcTemplate.query(
+                "SELECT mentor_id, price FROM dbo.service_offerings " +
+                "WHERE service_type = 'ONE_OFF' AND status = 'ACTIVE' " +
+                "ORDER BY mentor_id, price ASC, id ASC",
+                rs -> {
+                    long mId = rs.getLong("mentor_id");
+                    BigDecimal price = rs.getBigDecimal("price");
+                    if (price != null) {
+                        sessionPriceByMentor.putIfAbsent(mId, price);
+                    }
+                }
+            );
+
             List<MentorCard> dbMentors = jdbcTemplate.query(
                 "SELECT mp.user_id, mp.slug, u.full_name, mp.headline, mp.job_title, " +
                 "mp.company_name, mp.biography, mp.years_experience, mp.accepting_mentees, f.id AS avatar_id, " +
@@ -84,6 +118,14 @@ public class MentorCatalog {
                     String specialty = !mentorSkills.isEmpty() ? mentorSkills.get(0) : "Backend";
                     String portrait = rs.getObject("avatar_id") == null ? null : "/api/mentors/" + java.net.URLEncoder.encode(id, java.nio.charset.StandardCharsets.UTF_8) + "/avatar";
 
+                    BigDecimal lowestMonthly = monthlyPriceByMentor.get(userId);
+                    long monthlyPriceLong = lowestMonthly != null ? lowestMonthly.setScale(0, java.math.RoundingMode.HALF_UP).longValue() : 2000000L;
+                    String monthly = String.format(Locale.US, "%,d", monthlyPriceLong);
+
+                    BigDecimal sessionPrice = sessionPriceByMentor.get(userId);
+                    long sessionPriceLong = sessionPrice != null ? sessionPrice.setScale(0, java.math.RoundingMode.HALF_UP).longValue() : 400000L;
+                    String session = String.format(Locale.US, "%,d", sessionPriceLong);
+
                     return new MentorCard(
                         id,
                         fullName,
@@ -97,9 +139,9 @@ public class MentorCatalog {
                         mentorSkills,
                         List.of("Vietnamese", "English"),
                         "Vietnam",
-                        "2,000,000",
-                        2000000L,
-                        "400,000",
+                        monthly,
+                        monthlyPriceLong,
+                        session,
                         rs.getDouble("rating"),
                         rs.getInt("review_count"),
                         accepting,

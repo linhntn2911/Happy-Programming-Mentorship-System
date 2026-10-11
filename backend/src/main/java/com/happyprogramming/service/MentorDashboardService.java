@@ -78,6 +78,14 @@ public class MentorDashboardService {
         return new MentorDashboardResponse(summary, incomingRequests, notices);
     }
 
+    @Transactional(readOnly = true)
+    public List<MentorDashboardRequest> getMyRequests() {
+        long mentorId = mentorService.requireCurrentActiveMentorId();
+        return dashboardRepository.findRequestsForMentor(mentorId).stream()
+                .map(MentorDashboardService::toRequest)
+                .toList();
+    }
+
     @Transactional
     public MentorRequestDecisionResponse decideOnRequest(
             long requestId, MentorRequestDecisionRequest request) {
@@ -123,7 +131,7 @@ public class MentorDashboardService {
                         + ". You can now complete payment to start."
                 : mentorName + " declined your request for " + packageName + ".";
         String type = accepted ? "MENTORSHIP_REQUEST_ACCEPTED" : "MENTORSHIP_REQUEST_REJECTED";
-        String actionUrl = accepted ? "#/checkout?requestId=" + requestId : "#/account";
+        String actionUrl = "#/applications";
         notificationService.create(context.getMenteeId(), title, message, type, actionUrl);
 
         if (accepted && context.getMenteeEmail() != null && !context.getMenteeEmail().isBlank()) {

@@ -19,12 +19,14 @@ import { mountMonthlyMentorshipApplication } from './roles/mentee/MonthlyMentors
 import { mountWishlist } from './roles/mentee/WishlistPage.js';
 import { mountNotificationHistory } from './roles/mentee/NotificationHistoryPage.js';
 import { mountCheckout } from './roles/mentee/CheckoutPage.js';
+import { mountMenteeApplications } from './roles/mentee/MenteeApplicationsPage.js';
 import { bindAuthInfo } from './roles/auth/LoginForm.js';
 import './app.css';
 import { HomePage } from './roles/guest/HomePage.js';
 import { ComponentShowcasePage } from './shared/ComponentShowcasePage.js';
 import { initializeMentorDashboardPage, MentorDashboardPage } from './roles/mentor/MentorDashboardPage.js';
 import { initializeMentorRequestsPage, MentorRequestsPage } from './roles/mentor/MentorRequestsPage.js';
+import { initializeMentorWalletPage, MentorWalletPage } from './roles/mentor/MentorWalletPage.js';
 import { mountMentorWorkspacePage } from './roles/mentor/MentorWorkspacePage.js';
 import { MentorSearchPage } from './roles/guest/MentorSearchPage.js';
 import { DirectoryMentorCard } from './shared/DirectoryMentorCard.js';
@@ -473,11 +475,14 @@ function router() {
   } else if (hash === '#/notifications') {
     mountNotificationHistory(appEl);
     window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/applications') {
+    mountMenteeApplications(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash.startsWith('#/checkout')) {
     const queryIndex = hash.indexOf('?');
     const queryString = queryIndex !== -1 ? hash.slice(queryIndex + 1) : (window.location.search ? window.location.search.replace(/^\?/, '') : '');
     const params = new URLSearchParams(queryString);
-    mountCheckout(appEl, params.get('requestId') || '');
+      mountCheckout(appEl, params.get('requestId') || '', params.get('paymentReturn') === '1');
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash === '#/signup' || hash.startsWith('#/signup?') || hash === '#/signup/mentee') {
     mountMenteeSignup(appEl);
@@ -492,7 +497,7 @@ function router() {
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash.startsWith('#/apply/monthly')) {
     const query = new URLSearchParams(hash.split('?')[1] || '');
-    mountMonthlyMentorshipApplication(appEl, query.get('mentor') || '', query.get('name') || 'your mentor');
+    mountMonthlyMentorshipApplication(appEl, query.get('mentor') || '', query.get('name') || 'your mentor', query.get('offeringId') || '');
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash === '#/account') {
     mountAccount(appEl);
@@ -531,6 +536,10 @@ function router() {
     appEl.innerHTML = MentorRequestsPage();
     window.scrollTo({ top: 0, behavior: 'instant' });
     cleanupCurrentPage = initializeMentorRequestsPage() || (() => {});
+  } else if (hash === '#/mentor/wallet') {
+    appEl.innerHTML = MentorWalletPage();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    cleanupCurrentPage = initializeMentorWalletPage(appEl) || (() => {});
   } else if (hash === '#/mentor/availability' || hash === '#/mentor/packages') {
     cleanupCurrentPage = mountMentorWorkspacePage(appEl, hash === '#/mentor/packages' ? 'packages' : 'availability');
     window.scrollTo({ top: 0, behavior: 'instant' });

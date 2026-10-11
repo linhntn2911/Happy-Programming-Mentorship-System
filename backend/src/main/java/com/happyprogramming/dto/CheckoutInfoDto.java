@@ -1,6 +1,7 @@
 package com.happyprogramming.dto;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 public record CheckoutInfoDto(
         Long requestId,
@@ -13,13 +14,11 @@ public record CheckoutInfoDto(
         String currency,
         Integer sessionDurationMinutes,
         Integer callsPerPeriod,
-        Integer trialDays,
         String learningGoals,
         String status,
         boolean isPaid,
-        String bankName,
-        String accountNumber,
-        String accountName,
-        String transferContent,
-        int paymentExpiresInSeconds
+        String paymentStatus,
+        Instant paymentExpiresAt,
+        String paymentReference,
+        boolean priceAvailable
 ) {}

@@ -3,6 +3,7 @@ package com.happyprogramming.controller;
 import com.happyprogramming.dto.ApiResponse;
 import com.happyprogramming.dto.MentorCard;
 import com.happyprogramming.dto.MentorDashboardResponse;
+import com.happyprogramming.dto.MentorDashboardRequest;
 import com.happyprogramming.dto.MentorProfileRequest;
 import com.happyprogramming.dto.MentorProfileResponse;
 import com.happyprogramming.dto.MentorRequestDecisionRequest;
@@ -94,6 +95,11 @@ public class MentorController {
     @GetMapping("/api/mentors/me/dashboard")
     public ApiResponse<MentorDashboardResponse> getMyDashboard() {
         return ApiResponse.ok(mentorDashboardService.getMyDashboard());
+    }
+
+    @GetMapping("/api/mentors/me/requests")
+    public ApiResponse<List<MentorDashboardRequest>> getMyRequests() {
+        return ApiResponse.ok(mentorDashboardService.getMyRequests());
     }
 
     @PutMapping("/api/mentors/me/requests/{requestId}/decision")

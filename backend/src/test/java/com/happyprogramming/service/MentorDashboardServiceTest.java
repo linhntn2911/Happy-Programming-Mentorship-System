@@ -142,7 +142,7 @@ class MentorDashboardServiceTest {
                 org.mockito.ArgumentMatchers.eq("Mentorship request accepted"),
                 org.mockito.ArgumentMatchers.contains("Nam Nguyễn"),
                 org.mockito.ArgumentMatchers.eq("MENTORSHIP_REQUEST_ACCEPTED"),
-                org.mockito.ArgumentMatchers.eq("#/checkout?requestId=52"));
+                org.mockito.ArgumentMatchers.eq("#/applications"));
         verify(emailService).sendMentorshipRequestAcceptedEmail(
                 org.mockito.ArgumentMatchers.eq("mentee@example.com"),
                 org.mockito.ArgumentMatchers.eq("Mentee Name"),
@@ -169,6 +169,28 @@ class MentorDashboardServiceTest {
                 .thenThrow(new DataAccessResourceFailureException("not exposed to callers"));
 
         assertThrows(DataAccessResourceFailureException.class, service::getMyDashboard);
+    }
+
+    @Test
+    void mentorRequestHistoryReturnsPersistedAcceptedAndRejectedRows() {
+        when(dashboardRepository.findRequestsForMentor(42L)).thenReturn(List.of(
+                new RequestProjection(
+                        88L, "Mentee One", "Lite", "Goals that were saved when the application was created.",
+                        "ACCEPTED", LocalDateTime.parse("2026-10-08T10:00:00"),
+                        LocalDateTime.parse("2026-10-10T10:00:00")),
+                new RequestProjection(
+                        87L, "Mentee Two", "Pro", "Another saved application with a declined decision.",
+                        "REJECTED", LocalDateTime.parse("2026-10-07T10:00:00"),
+                        LocalDateTime.parse("2026-10-09T10:00:00"))));
+
+        var requests = service.getMyRequests();
+
+        assertEquals(2, requests.size());
+        assertEquals(88L, requests.get(0).id());
+        assertEquals("ACCEPTED", requests.get(0).status());
+        assertEquals("Lite", requests.get(0).packageName());
+        assertEquals("REJECTED", requests.get(1).status());
+        verify(dashboardRepository).findRequestsForMentor(42L);
     }
 
     @Test

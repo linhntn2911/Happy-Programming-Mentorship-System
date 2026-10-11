@@ -3,13 +3,13 @@ import { BrandLogo } from '../../shared/BrandLogo.js';
 import { bindUserDropdown, getInitials, renderNotificationBell, renderUserDropdown } from '../../shared/Header.js';
 import { authService } from '../auth/authService.js';
 import { notificationService } from './notificationService.js';
-import { safeNotificationHref } from '../../shared/notificationLink.js';
+import { notificationRelatedHref } from '../../shared/notificationLink.js';
 
 const esc = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 const PAGE_SIZE = 10;
 
 function notificationRow(item) {
-  const href = safeNotificationHref(item.actionUrl);
+  const href = notificationRelatedHref(item);
   const date = item.createdAt ? new Date(item.createdAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : '';
   return `<article class="rounded-xl border border-line ${item.read ? 'bg-white' : 'bg-lilac/30'} p-5" data-notification-id="${esc(item.id)}">
     <div class="flex flex-wrap items-start justify-between gap-3"><div class="flex items-center gap-2"><span class="h-2 w-2 rounded-full ${item.read ? 'bg-transparent' : 'bg-brand'}" aria-hidden="true"></span><h2 class="text-sm font-semibold text-ink">${esc(item.title || 'Notification')}</h2>${item.read ? '' : '<span class="rounded-full bg-lilac px-2 py-0.5 text-[10px] font-semibold text-brand">Unread</span>'}</div><time class="text-xs text-muted">${esc(date)}</time></div>
@@ -87,15 +87,19 @@ export async function mountNotificationHistory(root) {
     const card = event.target.closest('[data-notification-id]');
     if (!card) return;
     const item = items.find(entry => String(entry.id) === card.dataset.notificationId);
-    if (!item || item.read) return;
+    if (!item) return;
     const open = event.target.closest('[data-open-notification]');
     const button = event.target.closest('[data-mark-read]');
     if (!open && !button) return;
     if (open) event.preventDefault();
+    if (item.read) {
+      if (open) location.hash = notificationRelatedHref(item);
+      return;
+    }
     if (button) button.disabled = true;
     const success = await notificationService.markAsRead(item.id);
     if (!success) { state.insertAdjacentHTML('afterbegin', '<p class="mb-4 text-sm text-red-600">Could not mark this notification as read. Please try again.</p>'); if (button) button.disabled = false; return; }
-    if (open) { location.hash = safeNotificationHref(item.actionUrl); return; }
+    if (open) { location.hash = notificationRelatedHref(item); return; }
     load();
   });
   load();

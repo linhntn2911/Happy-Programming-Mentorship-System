@@ -1,4 +1,6 @@
 # Plan
+
+> Historical phase: this client-only plan was superseded by `specs/015-mentee-application-management/`, `specs/016-vnpay-mentorship-checkout/`, and `specs/017-selected-mentorship-package/` for the current live request and payment flow.
 - Reuse the existing mentor profile pricing CTA and route to a new frontend page.
 - Keep the draft in versioned, mentor-scoped sessionStorage; it is UI state, not application data.
 - Use DOM text assignment for user-entered values and escape mentor query display. Do not add runtime mock mentor arrays or API fallbacks.
