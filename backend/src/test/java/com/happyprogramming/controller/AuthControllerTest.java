@@ -268,4 +268,82 @@ class AuthControllerTest {
             .contentType(MediaType.APPLICATION_JSON).content(weakPayload))
             .andExpect(status().isBadRequest());
     }
+
+    @Test void forgotPasswordCreatesResetTokenAndDispatchesEmail() throws Exception {
+        String payload = json.writeValueAsString(Map.of("email", email));
+        mvc.perform(post("/api/auth/forgot-password").with(csrf())
+            .contentType(MediaType.APPLICATION_JSON).content(payload))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.message").isNotEmpty());
+
+        Long userId = db.queryForObject("SELECT id FROM dbo.users WHERE email = ?", Long.class, email);
+        Integer tokenCount = db.queryForObject(
+            "SELECT count(*) FROM dbo.security_tokens WHERE user_id = ? AND purpose = 'RESET_PASSWORD' AND used_at IS NULL",
+            Integer.class, userId
+        );
+        assertEquals(1, tokenCount);
+    }
+
+    @Test void forgotPasswordReturnsOkForUnknownEmailWithoutCreatingToken() throws Exception {
+        String unknownEmail = "nonexistent-" + UUID.randomUUID() + "@example.invalid";
+        String payload = json.writeValueAsString(Map.of("email", unknownEmail));
+        mvc.perform(post("/api/auth/forgot-password").with(csrf())
+            .contentType(MediaType.APPLICATION_JSON).content(payload))
+            .andExpect(status().isOk());
+    }
+
+    @Test void resetPasswordUpdatesHashAndAllowsLogin() throws Exception {
+        mvc.perform(post("/api/auth/forgot-password").with(csrf())
+            .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("email", email))))
+            .andExpect(status().isOk());
+
+        Long userId = db.queryForObject("SELECT id FROM dbo.users WHERE email = ?", Long.class, email);
+        var codeCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.Mockito.verify(mail).sendPasswordResetOtpEmail(
+            org.mockito.ArgumentMatchers.eq(email),
+            org.mockito.ArgumentMatchers.any(),
+            codeCaptor.capture()
+        );
+        String testCode = codeCaptor.getValue();
+
+        String newPassword = "BrandNewPassword123!";
+        String resetPayload = json.writeValueAsString(Map.of(
+            "email", email,
+            "code", testCode,
+            "newPassword", newPassword
+        ));
+        mvc.perform(post("/api/auth/reset-password").with(csrf())
+            .contentType(MediaType.APPLICATION_JSON).content(resetPayload))
+            .andExpect(status().isOk());
+
+        Integer unusedCount = db.queryForObject(
+            "SELECT count(*) FROM dbo.security_tokens WHERE user_id = ? AND purpose = 'RESET_PASSWORD' AND used_at IS NULL",
+            Integer.class, userId
+        );
+        assertEquals(0, unusedCount);
+
+        mvc.perform(post("/api/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("email", email, "password", newPassword))))
+            .andExpect(status().isOk());
+    }
+
+    @Test void resetPasswordFailsOnInvalidCodeOrWeakPassword() throws Exception {
+        String weakPayload = json.writeValueAsString(Map.of(
+            "email", email,
+            "code", "123456",
+            "newPassword", "weak"
+        ));
+        mvc.perform(post("/api/auth/reset-password").with(csrf())
+            .contentType(MediaType.APPLICATION_JSON).content(weakPayload))
+            .andExpect(status().isBadRequest());
+
+        String invalidCodePayload = json.writeValueAsString(Map.of(
+            "email", email,
+            "code", "999999",
+            "newPassword", "ValidPassword123!"
+        ));
+        mvc.perform(post("/api/auth/reset-password").with(csrf())
+            .contentType(MediaType.APPLICATION_JSON).content(invalidCodePayload))
+            .andExpect(status().isBadRequest());
+    }
 }

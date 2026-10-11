@@ -30,7 +30,9 @@ public class SecurityConfig {
                                  @Value("${hpms.frontend.base-url:http://localhost:5173}") String frontendBaseUrl) throws Exception {
         http.authorizeHttpRequests(r -> r
             .requestMatchers(HttpMethod.GET, "/", "/error", "/api/mentors", "/api/mentors/**", "/api/auth/csrf", "/api/auth/options").permitAll()
-            .requestMatchers("/api/auth/login", "/api/auth/signup/**", "/api/auth/verify-otp", "/api/auth/resend-otp", "/api/auth/google", "/oauth2/**", "/login/oauth2/**").permitAll()
+            .requestMatchers("/api/auth/login", "/api/auth/signup/**", "/api/auth/verify-otp", "/api/auth/resend-otp",
+                "/api/auth/forgot-password", "/api/auth/reset-password",
+                "/api/auth/google", "/oauth2/**", "/login/oauth2/**").permitAll()
             .requestMatchers("/api/mentor-applications", "/api/mentor-applications/check-email",
                 "/api/mentor-applications/mine", "/api/mentor-applications/verify", "/api/mentor-applications/resend").permitAll()
             .requestMatchers("/api/admin/**").hasRole("ADMIN")

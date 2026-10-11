@@ -149,4 +149,11 @@ public class User {
         lastLoginAt = now;
         updatedAt = now;
     }
+
+    public void resetPassword(String newPasswordHash, LocalDateTime now) {
+        this.passwordHash = newPasswordHash;
+        this.failedLoginCount = 0;
+        this.lockedUntil = null;
+        this.updatedAt = now;
+    }
 }

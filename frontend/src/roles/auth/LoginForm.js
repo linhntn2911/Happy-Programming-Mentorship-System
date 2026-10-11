@@ -65,7 +65,7 @@ export function LoginForm({ preview = false } = {}) {
     <p id="google-status" class="auth-hint">${preview ? 'Google sign-in is not configured for this environment.' : 'Checking Google sign-in availability…'}</p>
 
     <div class="auth-links">
-      <button type="button" data-auth-info="recovery" class="auth-link">Forgot password?</button>
+      <a href="#/forgot-password" class="auth-link">Forgot password?</a>
       <p>Don't have an account?<br><a href="#/signup/mentee" class="auth-link font-medium">Sign up as a mentee</a> or <a href="#/apply/mentor" class="auth-link font-medium">apply to be a mentor</a></p>
       <p id="auth-info" role="status" class="auth-hint auth-info-box" hidden></p>
     </div>
