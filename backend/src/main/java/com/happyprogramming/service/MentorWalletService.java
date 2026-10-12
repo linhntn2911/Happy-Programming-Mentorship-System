@@ -46,7 +46,7 @@ public class MentorWalletService {
         JdbcTemplate db = db();
         releaseMatured(db, 100);
         BigDecimal held = heldBalance(db, mentorId);
-        BigDecimal available = releasedBalance(db, mentorId).subtract(reservedBalance(db, mentorId, null));
+        BigDecimal available = releasedBalance(db, mentorId).subtract(paidBalance(db, mentorId)).subtract(reservedBalance(db, mentorId, null));
         BigDecimal reserved = reservedBalance(db, mentorId, null);
         BigDecimal paid = paidBalance(db, mentorId);
         var entries = db.query("""
@@ -81,7 +81,7 @@ public class MentorWalletService {
         JdbcTemplate db = db();
         releaseMatured(db, 100);
         lockMentor(db, mentorId);
-        BigDecimal available = releasedBalance(db, mentorId).subtract(reservedBalance(db, mentorId, null));
+        BigDecimal available = releasedBalance(db, mentorId).subtract(paidBalance(db, mentorId)).subtract(reservedBalance(db, mentorId, null));
         if (input.amount().compareTo(available) > 0)
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Payout amount exceeds your available balance.");
         String encrypted = encryptAccount(accountNumber);

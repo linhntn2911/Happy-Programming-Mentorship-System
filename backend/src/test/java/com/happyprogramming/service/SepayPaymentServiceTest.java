@@ -18,6 +18,14 @@ class SepayPaymentServiceTest {
     private final ObjectMapper mapper = new ObjectMapper();
     private SepayPaymentService service;
 
+    @Test
+    void rejectsMissingConfigurationAndMissingIdentityBeforeDatabaseAccess() {
+        var disabled = new SepayPaymentService(null, mapper, true, "Test", "123", "Test", "", "compact");
+        assertEquals(503, assertThrows(ResponseStatusException.class, () -> disabled.processWebhook(null, null)).getStatusCode().value());
+        var incomplete = new SepayWebhookPayload(null, "Test", null, null, "HP42A1", "HP42A1", null, BigDecimal.ONE, null, null, null, null);
+        assertEquals(400, assertThrows(ResponseStatusException.class, () -> service.processWebhook(incomplete, "Apikey hpms_sepay_secret_2026")).getStatusCode().value());
+        assertEquals(401, assertThrows(ResponseStatusException.class, () -> service.processWebhook(incomplete, "Bearer hpms_sepay_secret_2026")).getStatusCode().value());
+    }
     @BeforeEach
     void setUp() {
         service = new SepayPaymentService(

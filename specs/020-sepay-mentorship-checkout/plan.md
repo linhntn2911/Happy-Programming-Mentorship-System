@@ -11,8 +11,8 @@
 
 ## Security & Reliability
 - External webhook authorization: Verify `Authorization` header against configured `hpms.sepay.api-key`.
-- Inbound validation: Reject payloads where `transferType != 'in'`, `accountNumber != hpms.sepay.account-number`, or `transferAmount < payment.amount`.
-- Deduplication & Idempotency: Dedup via `dbo.payment_events` using `provider='SEPAY'`, `event_key=referenceCode`.
+- Inbound validation: Reject payloads where `transferType != 'in'`, `accountNumber != hpms.sepay.account-number`, or `transferAmount != payment.amount`.
+- Deduplication & Idempotency: Dedup via `dbo.payment_events` using `provider='SEPAY'`, `event_key=SEPAY:<provider id> (also recognize provider id in legacy event JSON)`.
 - Concurrency control: Lock payment and mentorship request records with `UPDLOCK, HOLDLOCK`.
 - Safe cancellation & retry: Expired attempts can be replaced by re-initiating checkout with an incremented attempt number.
 
@@ -20,3 +20,6 @@
 - Unit tests for `SepayPaymentService` (initiation, QR URL generation, webhook verification, idempotent settlement).
 - Controller tests for `PaymentController` SePay webhook endpoint and security filtering.
 - Frontend tests for `CheckoutPage` rendering SePay QR, copying account details, countdown timer, and auto-polling.
+
+## Repair plan (2026-10-12)
+Use existing service/DTO endpoints with strict fail-closed validation. Remove runtime secret defaults and document environment-only configuration. Validate stable SePay id; lock the mentorship request before payment rows consistently with initiation. Keep transaction and unique ledger/event protection. Test invalid, expired and duplicate webhook paths and settlement rollback using SQL Server transactions; verify wallet payout depletion and refunds/release. Run migrations through V13 on a separate database copy. Repair Staff test fixtures instead of relaxing backend authorization. Add shared whole-VND commission calculation to Admin report/CSV and explicit gross-estimate labels. No production schema edits or bank transfers.

@@ -22,3 +22,6 @@ An accepted, unpaid mentorship application opens a checkout with the accepted me
 5. A valid SePay webhook matching the pending code and amount atomically marks payment as succeeded, logs the escrow hold, and activates the subscription. Repeated webhooks respond idempotently without duplicate records.
 6. The frontend automatically polls and updates to "Payment Confirmed · Mentorship Active" once settlement completes.
 7. If an attempt expires before transfer, the mentee can regenerate a new payment QR code.
+
+## Repair acceptance (2026-10-12)
+User authorized the review repairs. Missing/disabled private SePay configuration must fail closed; require Apikey authentication, inbound type, configured account and a positive stable provider event ID before settlement. Accept only SEPAY/VND PENDING attempts before expiry. Late/cancelled payments require manual reconciliation and must not activate subscriptions. Duplicate provider IDs must not settle a second order. Wallet available funds equal released minus paid minus reserved. Admin commission is gross estimated commission, rounded per transaction to whole VND consistently across totals, rows and CSV. Refunds and payouts remain separately identified; gross reports never claim available cash. All SQL integration verification uses an isolated copy, with existing local database unchanged.

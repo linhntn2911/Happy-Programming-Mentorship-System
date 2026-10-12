@@ -11,9 +11,10 @@ export function filterUsers(users, { query = '', role = '', status = '' } = {}) 
   const words = normalize(query.trim()).split(/\s+/).filter(Boolean);
   return users.filter(user => (!role || user.role === role) && (!status || user.status === status) && words.every(word => normalize(`${user.name} ${user.email}`).includes(word)));
 }
+export const paymentCommission = p => Math.round(Number(p.amount) * Number(p.commissionRate) / 100);
 export function revenue(payments, from = '', to = '') {
   const verified = payments.filter(p => p.status === 'SUCCEEDED' && ['SEPAY', 'VNPAY'].includes(p.gateway) && p.gatewayTransactionId?.trim() && p.paidAt && (!from || p.paidAt.slice(0, 10) >= from) && (!to || p.paidAt.slice(0, 10) <= to));
-  return { payments: verified, gross: verified.reduce((sum, p) => sum + Number(p.amount), 0), commission: verified.reduce((sum, p) => sum + Math.round(Number(p.amount) * Number(p.commissionRate)) / 100, 0) };
+  return { payments: verified, gross: verified.reduce((sum, p) => sum + Number(p.amount), 0), commission: verified.reduce((sum, p) => sum + paymentCommission(p), 0) };
 }
 export function pageItems(items, page, size = 8) {
   const pages = Math.max(1, Math.ceil(items.length / size));

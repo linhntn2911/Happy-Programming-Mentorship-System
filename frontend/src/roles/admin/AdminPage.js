@@ -5,7 +5,7 @@ import { Notice } from './AdminPrimitives.js';
 import { adminService } from './adminService.js';
 import { createDemoService } from './adminDemo.js';
 import { escapeHtml as e } from '../../shared/html.js';
-import { PERMISSIONS, revenue } from './admin.js';
+import { PERMISSIONS, paymentCommission, revenue } from './admin.js';
 import { OverviewView, UsersView, RevenueView, PayoutsView, SettingsView, AuditView } from './AdminViews.js';
 
 let service = adminService;
@@ -157,7 +157,7 @@ export function mountAdmin(root, section = 'overview') {
   }
   function exportCsv() {
     const quote = value => '"' + String(value).replace(/^[=+@-]/, char => "'" + char).replaceAll('"', '""') + '"';
-    const rows = [['Reference', 'Paid at (UTC)', 'Gross VND', 'Commission VND', 'Rate %'], ...revenue(data.payments, state.from, state.to).payments.map(p => [p.reference, p.paidAt, p.amount, Number(p.amount) * Number(p.commissionRate) / 100, p.commissionRate])];
+    const rows = [['Reference', 'Paid at (UTC)', 'Gross VND', 'Commission VND', 'Rate %'], ...revenue(data.payments, state.from, state.to).payments.map(p => [p.reference, p.paidAt, p.amount, paymentCommission(p), p.commissionRate])];
     const url = URL.createObjectURL(new Blob(['\uFEFF' + rows.map(row => row.map(quote).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a'); link.href = url; link.download = `happyprogramming-${service.demo ? 'demo-' : ''}revenue.csv`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }

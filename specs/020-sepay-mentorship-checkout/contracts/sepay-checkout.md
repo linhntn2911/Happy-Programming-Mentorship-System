@@ -59,3 +59,6 @@ Response (HTTP 200):
   "message": "Payment confirmed and mentorship activated."
 }
 ```
+
+## Validation and financial repair contract
+Missing/disabled SePay configuration: HTTP 503. Missing or invalid `Apikey` authorization: HTTP 401. Missing transfer type, account or positive SePay `id`: HTTP 400. Non-inbound or wrong-account events are acknowledged but ignored. Stable provider id is the event identity. Only a matching SEPAY/VND PENDING attempt before its expiry can settle; late/cancelled/other-provider transfers return success=false with reconciliation required and create no financial records. A repeated event for the same payment is acknowledged; reuse for another payment is rejected. Wallet available = released - paid - requested reservations. Admin reported commission is gross estimated, whole-VND per payment, before refunds and release.

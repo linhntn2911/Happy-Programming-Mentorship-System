@@ -56,3 +56,12 @@ test('account and audit markup escapes untrusted HTML in text and attributes', (
   const markup = UsersView(data, state) + OverviewView(data, { name: malicious }) + AuditView(data, state);
   assert.ok(!markup.includes(malicious)); assert.ok(markup.includes(escapeHtml(malicious)));
 });
+
+// Gross reporting must use the same per-payment whole-VND rounding as wallet release.
+test('SePay gross commission rounds each transaction to whole VND and excludes unverified entries', () => {
+  const payment = { status: 'SUCCEEDED', gateway: 'SEPAY', gatewayTransactionId: 'test-id', paidAt: '2026-10-12T00:00:00Z', amount: 5001, commissionRate: 15 };
+  const report = revenue([payment, {...payment, status: 'PENDING'}, {...payment, gatewayTransactionId: ''}]);
+  assert.equal(report.gross, 5001);
+  assert.equal(report.commission, 750);
+  assert.equal(report.payments.length, 1);
+});

@@ -22,3 +22,6 @@ Use the existing VNPay IPN and immutable escrow ledger. Add an idempotent schedu
 - Unit tests cover release amount/fee rounding, encryption, and input validation.
 - Database-backed tests cover idempotent release, concurrent balance reservation, paid payout ledger posting, and rejection releasing reservations.
 - Run the backend test suite and frontend tests for the new mentor wallet page.
+
+## SePay integration repair (2026-10-12)
+Verified SEPAY and VNPAY receipts use the same escrow ledger. Available wallet balance is released mentor share minus completed payouts minus active reservations; the request and admin decision paths must agree. Gross commission reporting is an estimate before refunds, while actual release subtracts completed refunds and rounds the saved rate to whole VND. Validation may migrate a dedicated disposable database copy; the existing development database is not migrated by the repair workflow.

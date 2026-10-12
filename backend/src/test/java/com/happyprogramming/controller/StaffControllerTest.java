@@ -25,8 +25,16 @@ class StaffControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired private org.springframework.jdbc.core.JdbcTemplate db;
     private UsernamePasswordAuthenticationToken staffPrincipal() {
-        AuthenticatedUser user = new AuthenticatedUser(10L, "Operational Staff", "staff@happyprogramming.vn", "STAFF");
+        String email="staff-test-"+java.util.UUID.randomUUID()+"@example.invalid";
+        db.update("INSERT INTO dbo.users(email,full_name,role_code,status) VALUES (?,'Staff Test','STAFF','ACTIVE')",email);
+        Long id=db.queryForObject("SELECT id FROM dbo.users WHERE email=?",Long.class,email);
+        String adminEmail="admin-"+email;
+        db.update("INSERT INTO dbo.users(email,full_name,role_code,status) VALUES (?,'Test Admin','ADMIN','ACTIVE')",adminEmail);
+        Long adminId=db.queryForObject("SELECT id FROM dbo.users WHERE email=?",Long.class,adminEmail);
+        db.update("INSERT INTO dbo.user_permissions(user_id,permission_code,assigned_by) VALUES (?,'SKILL_MANAGE',?)",id,adminId);
+        AuthenticatedUser user = new AuthenticatedUser(id, "Operational Staff", email, "STAFF");
         return new UsernamePasswordAuthenticationToken(user, null, List.of(() -> "ROLE_STAFF"));
     }
 

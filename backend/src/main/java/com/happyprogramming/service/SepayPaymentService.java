@@ -49,7 +49,7 @@ public class SepayPaymentService {
             @Value("${hpms.sepay.bank-name:TPBank}") String bankName,
             @Value("${hpms.sepay.account-number:00000806194}") String accountNumber,
             @Value("${hpms.sepay.account-holder:NGUYEN THI NGOC LINH}") String accountHolder,
-            @Value("${hpms.sepay.api-key:hpms_sepay_secret_2026}") String apiKey,
+            @Value("${hpms.sepay.api-key:}") String apiKey,
             @Value("${hpms.sepay.qr-template:compact}") String qrTemplate) {
         this.jdbc = jdbc;
         this.mapper = mapper;
@@ -92,6 +92,7 @@ public class SepayPaymentService {
         if (!enabled) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "SePay payment gateway is currently disabled.");
         }
+        requireConfigured();
         long menteeId = currentMenteeId();
         JdbcTemplate db = db();
         Map<String, Object> request = loadLockedRequest(db, requestId);
@@ -205,11 +206,16 @@ public class SepayPaymentService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Payload is required.");
         }
 
-        if (payload.transferType() != null && !"in".equalsIgnoreCase(payload.transferType())) {
+        if (payload.transferType() == null || payload.transferType().isBlank()
+                || payload.accountNumber() == null || payload.accountNumber().isBlank()
+                || payload.id() == null || payload.id() <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Transfer type, account and positive provider ID are required.");
+        }
+        if (!"in".equalsIgnoreCase(payload.transferType())) {
             return new SepayWebhookResponse(true, "Ignored non-inbound transfer: " + payload.transferType());
         }
 
-        if (payload.accountNumber() != null && !accountNumber.trim().equalsIgnoreCase(payload.accountNumber().trim())) {
+        if (!accountNumber.trim().equalsIgnoreCase(payload.accountNumber().trim())) {
             return new SepayWebhookResponse(true, "Ignored: account number mismatch (" + payload.accountNumber() + ")");
         }
 
@@ -219,11 +225,14 @@ public class SepayPaymentService {
         }
 
         JdbcTemplate db = db();
+        var requestIds = db.queryForList("SELECT request_id FROM dbo.payments WHERE merchant_reference=? AND gateway='SEPAY' AND currency='VND'", Long.class, reference);
+        if (requestIds.isEmpty()) return new SepayWebhookResponse(false, "Order not found. Manual reconciliation is required.");
+        Map<String, Object> request = loadLockedRequest(db, requestIds.get(0));
         List<Map<String, Object>> payments = db.query("""
                 SELECT id, request_id, amount, currency, status, merchant_reference, gateway_transaction_id,
                        created_at, expires_at
                 FROM dbo.payments WITH (UPDLOCK, HOLDLOCK)
-                WHERE merchant_reference = ?
+                WHERE merchant_reference = ? AND gateway='SEPAY' AND currency='VND'
                 """, (rs, row) -> Map.<String, Object>of(
                 "id", rs.getLong("id"),
                 "requestId", rs.getLong("request_id"),
@@ -250,24 +259,25 @@ public class SepayPaymentService {
                     payload.transferAmount(), requiredAmount));
         }
 
-        String transactionId = payload.referenceCode() != null && !payload.referenceCode().isBlank()
-                ? payload.referenceCode()
-                : (payload.id() != null ? String.valueOf(payload.id()) : "TXN-" + System.currentTimeMillis());
+        String transactionId = String.valueOf(payload.id());
 
         String eventKey = "SEPAY:" + transactionId;
-        Integer existingEvent = db.queryForObject(
-                "SELECT COUNT(1) FROM dbo.payment_events WITH (UPDLOCK, HOLDLOCK) WHERE provider='SEPAY' AND event_key=?",
-                Integer.class, eventKey);
-        if (existingEvent != null && existingEvent > 0) {
-            return new SepayWebhookResponse(true, "Webhook notification already processed.");
+        var existingEvents = db.queryForList(
+                "SELECT payment_id FROM dbo.payment_events WITH (UPDLOCK, HOLDLOCK) WHERE provider='SEPAY' AND (event_key=? OR JSON_VALUE(payload,'$.id')=?)",
+                Long.class, eventKey, transactionId);
+        if (!existingEvents.isEmpty()) {
+            return new SepayWebhookResponse(paymentId.equals(existingEvents.get(0)), "Provider transaction already processed; reconcile any different order.");
         }
 
         if ("SUCCEEDED".equals(payment.get("status"))) {
-            return new SepayWebhookResponse(true, "Payment already completed.");
+            return new SepayWebhookResponse(transactionId.equals(payment.get("transactionId")), "Payment already completed; reconcile any additional transfer.");
         }
 
         Instant now = Instant.now();
-        Map<String, Object> request = loadLockedRequest(db, requestId);
+        if (!"PENDING".equals(payment.get("status")) || !((Timestamp) payment.get("expiresAt")).toInstant().isAfter(now)) {
+            return new SepayWebhookResponse(false, "Payment attempt is expired or closed. Manual reconciliation is required.");
+        }
+
         if (!"ACCEPTED".equals(request.get("status")) || request.get("fundedAt") != null) {
             return new SepayWebhookResponse(false, "Application is not eligible for payment settlement.");
         }
@@ -335,19 +345,19 @@ public class SepayPaymentService {
         return new SepayWebhookResponse(true, "Payment confirmed and mentorship activated.");
     }
 
+    private void requireConfigured() {
+        if (!enabled || apiKey == null || apiKey.isBlank() || accountNumber == null || accountNumber.isBlank()) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "SePay requires private configuration.");
+    }
+
     private void verifyAuth(String authHeader) {
-        if (apiKey == null || apiKey.isBlank()) {
-            return;
-        }
+        requireConfigured();
         if (authHeader == null || authHeader.isBlank()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing authorization header.");
         }
         String token = authHeader.trim();
         if (token.regionMatches(true, 0, "Apikey ", 0, 7)) {
             token = token.substring(7).trim();
-        } else if (token.regionMatches(true, 0, "Bearer ", 0, 7)) {
-            token = token.substring(7).trim();
-        }
+        } else { throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Apikey authorization is required."); }
         if (!apiKey.trim().equals(token)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid SePay API key.");
         }
