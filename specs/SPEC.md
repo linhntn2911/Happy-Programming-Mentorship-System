@@ -158,6 +158,13 @@ Mentees may submit a 1–5 star rating and comment only after an eligible mentor
 
 - **As a** paid Mentee or assigned Mentor, **I want to** use the private workspace, **so that** we can collaborate securely.
 - Workspace access requires an active subscription or confirmed eligible booking backed by a verified payment.
+- Monthly workspace access is limited to the assigned Mentor and Mentee and is provisioned only by verified SePay settlement.
+- The workspace presents the accepted package context, learning goals, active billing period, and private conversation history.
+- Mentorships first presents the user's active mentor/mentee list; selecting one opens that private workspace.
+- Members can exchange text messages and authorized learning-file attachments up to 10 MB.
+- The header and mentorship list show unread-message badges; reading one workspace does not clear unread messages in another.
+- Members may exchange text and code messages. Each message write uses a client key so retries do not create duplicates.
+- The first release uses bounded HTTP polling for new messages; file uploads and meeting scheduling require separate approved specifications.
 
 ### US-08: Mentor Application and Credential Upload
 

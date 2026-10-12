@@ -135,7 +135,7 @@ function renderCheckoutDetails(root, container, user, info, paymentReturn) {
         <div class="flex justify-between gap-4"><span class="text-muted">Amount paid</span><strong>${amountFormatted} ${esc(currency)}</strong></div>
         <div class="mt-3 flex justify-between gap-4"><span class="text-muted">Payment state</span><strong class="text-emerald-700">Verified & Active</strong></div>
       </div>
-      <a href="#/applications" class="btn btn-primary mt-7">View my applications</a>
+      <div class="mt-7 flex flex-wrap justify-center gap-3"><a href="#/workspace?requestId=${encodeURIComponent(info.requestId)}" class="btn btn-primary">Open mentorship workspace</a><a href="#/applications" class="btn btn-outline">View my applications</a></div>
     </div>`;
     return;
   }

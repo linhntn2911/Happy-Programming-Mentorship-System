@@ -1,11 +1,13 @@
 import { escapeHtml as e } from '../../shared/html.js';
 import { adminIcon } from '../admin/AdminLayout.js';
 import { authService } from '../auth/authService.js';
+import { bindWorkspaceMessageIndicator, renderWorkspaceMessageIndicator } from '../../shared/WorkspaceMessageIndicator.js';
 
 const sections = [
   ['dashboard', 'Overview', '#/mentor/dashboard', 'overview'],
   ['profile', 'Edit profile', '#/mentor/profile', 'users'],
   ['requests', 'Requests', '#/mentor/requests', 'audit'],
+  ['mentorships', 'Mentorships', '#/workspace', 'users'],
   ['availability', 'Availability', '#/mentor/availability', 'revenue'],
   ['packages', 'Packages', '#/mentor/packages', 'settings'],
   ['wallet', 'Wallet', '#/mentor/wallet', 'revenue'],
@@ -38,6 +40,7 @@ export function MentorLayout(content, user = null, section = 'dashboard') {
       <header class="admin-topbar">
         <p><span class="text-muted">Workspace</span><span class="mx-2 text-muted">/</span>${e(activeSection[1])}</p>
         <div class="flex items-center gap-4">
+          ${renderWorkspaceMessageIndicator({ alwaysVisible: true })}
           <div class="admin-profile"><span class="admin-avatar">${e(initials)}</span><div><p class="font-semibold">${e(name)}</p><p class="text-muted text-[10px] mt-0.5">Mentor</p></div></div>
           <button id="mentor-logout-btn" class="btn btn-outline btn-sm" type="button">Sign out</button>
         </div>
@@ -54,6 +57,7 @@ export function bindMentorLayout(root) {
   const skip = shell.querySelector('.admin-skip');
   const logout = shell.querySelector('#mentor-logout-btn');
   const error = shell.querySelector('#mentor-layout-error');
+  const unbindMessages = bindWorkspaceMessageIndicator(shell);
 
   const onMenu = () => {
     const open = shell.querySelector('.admin-sidebar').classList.toggle('menu-open');
@@ -85,5 +89,6 @@ export function bindMentorLayout(root) {
     menu?.removeEventListener('click', onMenu);
     skip?.removeEventListener('click', onSkip);
     logout?.removeEventListener('click', onLogout);
+    unbindMessages?.();
   };
 }

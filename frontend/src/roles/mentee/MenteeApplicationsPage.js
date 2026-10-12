@@ -24,7 +24,7 @@ function applicationCard(application) {
   const paymentLabel = canPayApplication(application)
     ? `<a class="btn btn-primary btn-sm" href="#/checkout?requestId=${encodeURIComponent(application.requestId)}">${application.latestPaymentStatus === 'PENDING' ? 'Continue payment' : 'Pay now'} →</a>`
       : paid
-        ? '<span class="text-xs font-semibold text-emerald-700">Payment complete</span>'
+        ? `<a class="btn btn-primary btn-sm" href="#/workspace?requestId=${encodeURIComponent(application.requestId)}">Open workspace →</a>`
         : status === 'CANCELLED'
           ? '<a class="btn btn-outline btn-sm" href="#/mentors">Browse mentors to apply again →</a>'
         : status === 'PENDING'

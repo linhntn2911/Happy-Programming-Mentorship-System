@@ -86,6 +86,7 @@
                         <copy file="${project.basedir}/../docs/database/migration/016_20261009_add_service_offering_plan_tier.sql" tofile="${project.build.outputDirectory}/db/migration/V11__add_service_offering_plan_tier.sql" overwrite="true"/>
                         <copy file="${project.basedir}/../docs/database/migration/018_20261011_fix_mentor_request_utc_deadlines.sql" tofile="${project.build.outputDirectory}/db/migration/V12__fix_mentor_request_utc_deadlines.sql" overwrite="true"/>
                         <copy file="${project.basedir}/../docs/database/migration/020_20261011_make_mentor_wallet_migration_retriable.sql" tofile="${project.build.outputDirectory}/db/migration/V13__reconcile_mentor_wallet_payouts.sql" overwrite="true"/>
+                        <copy file="${project.basedir}/../docs/database/migration/022_20261012_add_workspace_file_content.sql" tofile="${project.build.outputDirectory}/db/migration/V14__add_workspace_file_content.sql" overwrite="true"/>
                     </target></configuration>
                 </execution></executions>
             </plugin>

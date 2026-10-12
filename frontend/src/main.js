@@ -36,6 +36,7 @@ import { mentorService } from './shared/mentorService.js';
 import { authService } from './roles/auth/authService.js';
 import { wishlistService } from './roles/mentee/wishlistService.js';
 import { bindUserDropdown } from './shared/Header.js';
+import { mountMentorshipWorkspace } from './shared/MentorshipWorkspacePage.js';
 
 
 const INITIAL_MENTORS = [
@@ -482,6 +483,11 @@ function router() {
   } else if (hash === '#/applications') {
     mountMenteeApplications(appEl);
     window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/workspace' || hash.startsWith('#/workspace?')) {
+    Promise.resolve(mountMentorshipWorkspace(appEl)).then(cleanup => {
+      cleanupCurrentPage = cleanup || (() => {});
+    });
+    window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash.startsWith('#/checkout')) {
     const queryIndex = hash.indexOf('?');
     const queryString = queryIndex !== -1 ? hash.slice(queryIndex + 1) : (window.location.search ? window.location.search.replace(/^\?/, '') : '');
@@ -785,6 +791,7 @@ mentorService
       '#/staff/',
       '#/account',
       '#/notifications',
+      '#/workspace',
       '#/components',
       '#/showcase',
       '#/mentor/',

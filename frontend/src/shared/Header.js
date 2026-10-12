@@ -5,6 +5,7 @@ import { authService } from '../roles/auth/authService.js';
 import { notificationService } from '../roles/mentee/notificationService.js';
 import { profileService } from '../roles/mentee/profileService.js';
 import { notificationRelatedHref } from './notificationLink.js';
+import { bindWorkspaceMessageIndicator, renderWorkspaceMessageIndicator } from './WorkspaceMessageIndicator.js';
 
 const escapeHtml = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 
@@ -67,6 +68,7 @@ function renderNotificationItems(items = []) {
 export function renderNotificationBell({ isMobile = false } = {}) {
   const containerClass = isMobile ? 'shrink-0 lg:hidden' : 'hidden lg:block';
   return `
+    ${renderWorkspaceMessageIndicator({ isMobile })}
     <div class="relative notification-bell-container ${containerClass}">
       <button type="button" class="notification-bell-trigger relative flex h-8 w-8 items-center justify-center rounded-full border border-line bg-white text-ink shadow-2xs hover:border-brand/40 hover:bg-lilac/30 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand/30" aria-expanded="false" aria-haspopup="true" aria-label="Notifications">
         <svg class="h-4 w-4 text-ink" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -364,6 +366,7 @@ export function bindUserDropdown(root = document, onLogout = null) {
 
   // Bind notification bell on the same root
   bindNotificationBell(root);
+  bindWorkspaceMessageIndicator(root);
 
   document.addEventListener('click', event => {
     if (!event.target.closest('.user-menu-container') && !event.target.closest('.notification-bell-container')) {
