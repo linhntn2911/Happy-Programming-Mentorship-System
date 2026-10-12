@@ -38,7 +38,8 @@ function walletContent() {
         <div class="admin-panel-heading"><div><p class="eyebrow mb-2">HISTORY</p><h2 id="payout-history-title">Payout requests</h2></div></div>
         <div id="payout-history" class="admin-panel-body"></div>
       </section>
-    </div>`;
+    </div>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>`;
 }
 
 function renderStats(wallet) {
@@ -74,13 +75,26 @@ export function initializeMentorWalletPage(root) {
   const form = shell.querySelector('#payout-form');
   const submit = shell.querySelector('#payout-submit');
   const message = shell.querySelector('#payout-message');
+  let currentWallet = null;
+  let toastTimer;
   let disposed = false;
+
+  function showToast(text) {
+    const toast = shell.querySelector('#toast') || document.querySelector('#toast');
+    if (toast) {
+      clearTimeout(toastTimer);
+      toast.textContent = text;
+      toast.hidden = false;
+      toastTimer = setTimeout(() => { toast.hidden = true; }, 3500);
+    }
+  }
 
   async function load() {
     loading.hidden = false; error.hidden = true; retry.hidden = true; content.hidden = true;
     try {
       const wallet = await mentorWalletService.getWallet();
       if (disposed) return;
+      currentWallet = wallet;
       shell.querySelector('#wallet-stats').innerHTML = renderStats(wallet);
       shell.querySelector('#wallet-entries').innerHTML = renderEntries(wallet.entries);
       shell.querySelector('#payout-history').innerHTML = renderPayouts(wallet.payoutRequests);
@@ -98,18 +112,61 @@ export function initializeMentorWalletPage(root) {
   async function requestPayout(event) {
     event.preventDefault(); message.textContent = '';
     if (!form.reportValidity()) return;
+
+    const payload = Object.fromEntries(new FormData(form));
+    payload.amount = Number(payload.amount);
+
+    const available = Number(currentWallet?.availableAmount || 0);
+    if (!payload.amount || payload.amount <= 0 || payload.amount > available) {
+      message.textContent = `Amount must be greater than 0 and cannot exceed your available balance (${money(available)}).`;
+      return;
+    }
+
+    if (!payload.bankName?.trim()) {
+      message.textContent = 'Please enter a valid bank name.';
+      return;
+    }
+    if (!payload.accountName?.trim()) {
+      message.textContent = 'Please enter the account holder name.';
+      return;
+    }
+    if (!payload.accountNumber || !/^\d{6,34}$/.test(payload.accountNumber.trim())) {
+      message.textContent = 'Account number must contain between 6 and 34 digits.';
+      return;
+    }
+
     submit.disabled = true; submit.textContent = 'Submitting…';
     try {
-      const payload = Object.fromEntries(new FormData(form));
-      payload.amount = Number(payload.amount);
       await mentorWalletService.requestPayout(payload);
-      form.reset(); message.textContent = 'Your payout request is queued for admin review.';
+
+      // Instantly transfer requested amount from Available to Reserved
+      if (currentWallet) {
+        currentWallet.availableAmount = Math.max(0, available - payload.amount);
+        currentWallet.reservedAmount = Number(currentWallet.reservedAmount || 0) + payload.amount;
+        shell.querySelector('#wallet-stats').innerHTML = renderStats(currentWallet);
+        form.elements.amount.max = String(currentWallet.availableAmount);
+        form.elements.amount.placeholder = `Up to ${money(currentWallet.availableAmount)}`;
+        submit.disabled = currentWallet.availableAmount < 1;
+      }
+
+      form.reset();
+      message.textContent = 'Your payout request is queued for admin review.';
+      showToast('Payout request submitted successfully! Funds are now reserved.');
       await load();
     } catch (submitError) {
       message.textContent = submitError.message || 'Unable to submit the payout request.';
-    } finally { submit.disabled = false; submit.textContent = 'Submit payout request'; }
+    } finally {
+      submit.disabled = Number(currentWallet?.availableAmount || 0) < 1;
+      submit.textContent = 'Submit payout request';
+    }
   }
 
   retry.addEventListener('click', load); form.addEventListener('submit', requestPayout); void load();
-  return () => { disposed = true; retry.removeEventListener('click', load); form.removeEventListener('submit', requestPayout); unbind(); };
+  return () => {
+    disposed = true;
+    clearTimeout(toastTimer);
+    retry.removeEventListener('click', load);
+    form.removeEventListener('submit', requestPayout);
+    unbind();
+  };
 }
