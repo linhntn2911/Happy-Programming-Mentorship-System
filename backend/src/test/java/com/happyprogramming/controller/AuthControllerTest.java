@@ -346,4 +346,93 @@ class AuthControllerTest {
             .contentType(MediaType.APPLICATION_JSON).content(invalidCodePayload))
             .andExpect(status().isBadRequest());
     }
+
+    @Test void changePasswordSuccess() throws Exception {
+        var loginResult = mvc.perform(post("/api/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("email", email, "password", password))))
+            .andExpect(status().isOk()).andReturn();
+        var session = (MockHttpSession) loginResult.getRequest().getSession(false);
+        assertNotNull(session);
+
+        String newPassword = "BrandNewPassword123!";
+        String payload = json.writeValueAsString(Map.of(
+            "currentPassword", password,
+            "newPassword", newPassword
+        ));
+
+        mvc.perform(post("/api/auth/change-password").session(session).with(csrf())
+            .contentType(MediaType.APPLICATION_JSON).content(payload))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.message").value("Your password has been successfully changed."));
+
+        // Login with old password fails
+        mvc.perform(post("/api/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("email", email, "password", password))))
+            .andExpect(status().isUnauthorized());
+
+        // Login with new password succeeds
+        mvc.perform(post("/api/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("email", email, "password", newPassword))))
+            .andExpect(status().isOk());
+    }
+
+    @Test void changePasswordFailsWhenUnauthenticated() throws Exception {
+        String payload = json.writeValueAsString(Map.of(
+            "currentPassword", password,
+            "newPassword", "BrandNewPassword123!"
+        ));
+        mvc.perform(post("/api/auth/change-password").with(csrf())
+            .contentType(MediaType.APPLICATION_JSON).content(payload))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test void changePasswordFailsWithWrongCurrentPassword() throws Exception {
+        var loginResult = mvc.perform(post("/api/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("email", email, "password", password))))
+            .andExpect(status().isOk()).andReturn();
+        var session = (MockHttpSession) loginResult.getRequest().getSession(false);
+
+        String payload = json.writeValueAsString(Map.of(
+            "currentPassword", "WrongCurrentPassword123!",
+            "newPassword", "BrandNewPassword123!"
+        ));
+
+        mvc.perform(post("/api/auth/change-password").session(session).with(csrf())
+            .contentType(MediaType.APPLICATION_JSON).content(payload))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("Current password is incorrect."));
+    }
+
+    @Test void changePasswordFailsWhenNewPasswordSameAsCurrent() throws Exception {
+        var loginResult = mvc.perform(post("/api/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("email", email, "password", password))))
+            .andExpect(status().isOk()).andReturn();
+        var session = (MockHttpSession) loginResult.getRequest().getSession(false);
+
+        String payload = json.writeValueAsString(Map.of(
+            "currentPassword", password,
+            "newPassword", password
+        ));
+
+        mvc.perform(post("/api/auth/change-password").session(session).with(csrf())
+            .contentType(MediaType.APPLICATION_JSON).content(payload))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("New password cannot be the same as current password."));
+    }
+
+    @Test void changePasswordFailsWhenNewPasswordViolatesPolicy() throws Exception {
+        var loginResult = mvc.perform(post("/api/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content(json.writeValueAsString(Map.of("email", email, "password", password))))
+            .andExpect(status().isOk()).andReturn();
+        var session = (MockHttpSession) loginResult.getRequest().getSession(false);
+
+        String payload = json.writeValueAsString(Map.of(
+            "currentPassword", password,
+            "newPassword", "weak"
+        ));
+
+        mvc.perform(post("/api/auth/change-password").session(session).with(csrf())
+            .contentType(MediaType.APPLICATION_JSON).content(payload))
+            .andExpect(status().isBadRequest());
+    }
 }

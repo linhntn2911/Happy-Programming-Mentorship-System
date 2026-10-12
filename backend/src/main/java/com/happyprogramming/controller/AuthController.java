@@ -2,6 +2,7 @@ package com.happyprogramming.controller;
 
 import com.happyprogramming.dto.ApiResponse;
 import com.happyprogramming.dto.AuthenticatedUser;
+import com.happyprogramming.dto.ChangePasswordRequest;
 import com.happyprogramming.dto.ForgotPasswordRequest;
 import com.happyprogramming.dto.LoginRequest;
 import com.happyprogramming.dto.MenteeSignupRequest;
@@ -75,6 +76,15 @@ public class AuthController {
     public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest body) {
         auth.resetPassword(body);
         return ResponseEntity.ok(ApiResponse.ok("Your password has been successfully reset. Please log in with your new password.", null));
+    }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<?> changePassword(@Valid @RequestBody ChangePasswordRequest body, Authentication authentication) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof AuthenticatedUser principal)) {
+            return ResponseEntity.status(401).body(ApiResponse.error("Please log in to continue."));
+        }
+        auth.changePassword(principal.id(), body);
+        return ResponseEntity.ok(ApiResponse.ok("Your password has been successfully changed.", null));
     }
 
     @PostMapping("/login")

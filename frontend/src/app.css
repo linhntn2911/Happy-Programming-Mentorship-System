@@ -1,6 +1,12 @@
 @import "tailwindcss";
 @import "./styles/admin.css";
 
+/* Core visibility utility guaranteed across environments */
+.hidden,
+[hidden] {
+  display: none !important;
+}
+
 /* Split Authentication Layout: image on the left, clean form on the right */
 .auth-split-layout {
   min-height: 100dvh;
@@ -284,6 +290,11 @@
 
 .auth-password-toggle:focus-visible {
   outline: 2px solid var(--color-brand);
+}
+
+.auth-password-toggle svg.hidden,
+.toggle-password svg.hidden {
+  display: none !important;
 }
 
 /* Buttons matching the pill buttons in reference */
