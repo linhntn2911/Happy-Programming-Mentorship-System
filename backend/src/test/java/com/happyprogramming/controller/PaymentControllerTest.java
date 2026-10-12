@@ -1,20 +1,23 @@
 package com.happyprogramming.controller;
 
-import com.happyprogramming.dto.VnPayIpnResponse;
-import com.happyprogramming.service.VnPayPaymentService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.happyprogramming.dto.SepayWebhookPayload;
+import com.happyprogramming.dto.SepayWebhookResponse;
+import com.happyprogramming.service.SepayPaymentService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.util.Map;
+import java.math.BigDecimal;
 
-import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -22,24 +25,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc(addFilters = false)
 class PaymentControllerTest {
     @Autowired MockMvc mockMvc;
-    @MockitoBean VnPayPaymentService paymentService;
+    @Autowired ObjectMapper objectMapper;
+    @MockitoBean SepayPaymentService sepayPaymentService;
 
     @Test
-    void ipnReturnsProviderResponseShape() throws Exception {
-        when(paymentService.processIpn(anyMap())).thenReturn(new VnPayIpnResponse("97", "Invalid signature"));
+    void sepayWebhookInvokesServiceAndReturnsResponse() throws Exception {
+        SepayWebhookPayload payload = new SepayWebhookPayload(
+                1L, "TPBank", "2026-10-12 06:30:00", "00000806194", "HP99A1",
+                "HP99A1 chuyen tien", "in", new BigDecimal("2500000"),
+                new BigDecimal("5000000"), null, "FT123", "");
 
-        mockMvc.perform(get("/api/payments/vnpay/ipn").param("vnp_TxnRef", "HP-99"))
+        when(sepayPaymentService.processWebhook(any(SepayWebhookPayload.class), eq("Apikey hpms_sepay_secret_2026")))
+                .thenReturn(new SepayWebhookResponse(true, "Payment confirmed and mentorship activated."));
+
+        mockMvc.perform(post("/api/payments/sepay/webhook")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Apikey hpms_sepay_secret_2026")
+                        .content(objectMapper.writeValueAsString(payload)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.RspCode").value("97"))
-                .andExpect(jsonPath("$.Message").value("Invalid signature"));
-    }
-
-    @Test
-    void browserReturnOnlyRedirectsToCheckoutAndDoesNotSettle() throws Exception {
-        when(paymentService.resolveReturnRequestId(anyMap())).thenReturn(99L);
-
-        mockMvc.perform(get("/api/payments/vnpay/return").param("vnp_TxnRef", "HP-99"))
-                .andExpect(status().isFound())
-                .andExpect(header().string("Location", "http://localhost:5173/#/checkout?requestId=99&paymentReturn=1"));
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Payment confirmed and mentorship activated."));
     }
 }

@@ -20,5 +20,19 @@ public record CheckoutInfoDto(
         String paymentStatus,
         Instant paymentExpiresAt,
         String paymentReference,
-        boolean priceAvailable
-) {}
+        boolean priceAvailable,
+        String qrCodeUrl,
+        String bankName,
+        String accountNumber,
+        String accountHolder
+) {
+    public CheckoutInfoDto(Long requestId, Long mentorId, String mentorName, String mentorTitle,
+                           String mentorAvatarUrl, String packageName, BigDecimal amount, String currency,
+                           Integer sessionDurationMinutes, Integer callsPerPeriod, String learningGoals,
+                           String status, boolean isPaid, String paymentStatus, Instant paymentExpiresAt,
+                           String paymentReference, boolean priceAvailable) {
+        this(requestId, mentorId, mentorName, mentorTitle, mentorAvatarUrl, packageName, amount, currency,
+                sessionDurationMinutes, callsPerPeriod, learningGoals, status, isPaid, paymentStatus,
+                paymentExpiresAt, paymentReference, priceAvailable, null, null, null, null);
+    }
+}

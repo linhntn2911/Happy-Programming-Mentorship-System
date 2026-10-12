@@ -50,7 +50,7 @@ test('mentorshipRequestService fetches checkout info and posts checkout with csr
     assert.equal(info.requestId, 42);
     assert.equal(info.mentorName, 'Test Mentor');
 
-    const result = await mentorshipRequestService.processCheckout(42, { paymentMethod: 'VNPAY' });
+    const result = await mentorshipRequestService.processCheckout(42, { paymentMethod: 'SEPAY' });
     assert.equal(result.subscriptionId, 101);
     assert.equal(result.status, 'TRIALING');
 

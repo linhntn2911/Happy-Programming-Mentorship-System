@@ -26,6 +26,20 @@ const formatDate = value => value
   ? new Date(value).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
   : '';
 
+let pollTimer = null;
+let countdownTimer = null;
+
+function clearTimers() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+  if (countdownTimer) {
+    clearInterval(countdownTimer);
+    countdownTimer = null;
+  }
+}
+
 function headerHtml(user) {
   const name = user?.name || user?.email || 'Account';
   return `
@@ -43,6 +57,7 @@ function headerHtml(user) {
 }
 
 export async function mountCheckout(root, requestId, paymentReturn = false) {
+  clearTimers();
   document.title = 'Mentorship Checkout | HappyProgramming';
   const user = authService.getCurrentUser();
   if (!user) {
@@ -106,17 +121,19 @@ function renderCheckoutDetails(root, container, user, info, paymentReturn) {
   const amountFormatted = priceAvailable ? formatVnd(info.amount) : 'Price unavailable';
   const currency = info.currency || 'VND';
   const paymentStatus = info.paymentStatus || '';
-  const hasPaymentReference = paymentStatus === 'PENDING' && Boolean(info.paymentReference);
+  const isPending = paymentStatus === 'PENDING';
+  const hasActiveAttempt = isPending && Boolean(info.qrCodeUrl || info.paymentReference);
 
   if (isPaid) {
+    clearTimers();
     container.innerHTML = `<div class="mx-auto max-w-2xl rounded-2xl border border-line bg-white p-8 text-center shadow-sm sm:p-12">
       <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-3xl font-bold text-emerald-600">✓</span>
       <span class="eyebrow mt-5 inline-block text-emerald-600">PAYMENT CONFIRMED · ESCROW ACTIVE</span>
       <h1 class="mt-2 font-display text-3xl font-bold text-ink">Your mentorship is active</h1>
-      <p class="mt-3 text-sm leading-6 text-muted">Your payment for <strong>${esc(info.packageName)}</strong> with <strong>${esc(info.mentorName)}</strong> was verified by VNPay and placed in escrow.</p>
+      <p class="mt-3 text-sm leading-6 text-muted">Your payment for <strong>${esc(info.packageName)}</strong> with <strong>${esc(info.mentorName)}</strong> was received via SePay and placed in platform escrow.</p>
       <div class="mt-7 rounded-xl border border-line bg-cream p-5 text-left text-sm">
         <div class="flex justify-between gap-4"><span class="text-muted">Amount paid</span><strong>${amountFormatted} ${esc(currency)}</strong></div>
-        <div class="mt-3 flex justify-between gap-4"><span class="text-muted">Payment state</span><strong class="text-emerald-700">Verified</strong></div>
+        <div class="mt-3 flex justify-between gap-4"><span class="text-muted">Payment state</span><strong class="text-emerald-700">Verified & Active</strong></div>
       </div>
       <a href="#/applications" class="btn btn-primary mt-7">View my applications</a>
     </div>`;
@@ -124,6 +141,7 @@ function renderCheckoutDetails(root, container, user, info, paymentReturn) {
   }
 
   if (!isAccepted) {
+    clearTimers();
     container.innerHTML = `<div class="mx-auto max-w-xl rounded-2xl border border-line bg-white p-8 text-center shadow-sm">
       <span class="eyebrow text-amber-700">APPLICATION: ${esc(info.status)}</span>
       <h1 class="mt-2 font-display text-2xl font-bold text-ink">Payment is unavailable</h1>
@@ -134,26 +152,28 @@ function renderCheckoutDetails(root, container, user, info, paymentReturn) {
   }
 
   const failed = paymentStatus === 'FAILED' || paymentStatus === 'EXPIRED' || paymentStatus === 'CANCELLED';
-  const pendingReturn = paymentReturn && paymentStatus === 'PENDING';
   const mentorInitials = getInitials(info.mentorName || 'Mentor');
   const avatarHtml = info.mentorAvatarUrl
     ? `<img src="${esc(info.mentorAvatarUrl)}" alt="${esc(info.mentorName)}" class="h-14 w-14 rounded-full border border-line object-cover">`
     : `<div class="grid h-14 w-14 place-items-center rounded-full bg-brand text-lg font-bold uppercase text-white">${esc(mentorInitials)}</div>`;
 
+  const bankName = info.bankName || 'TPBank';
+  const accountNumber = info.accountNumber || '00000806194';
+  const accountHolder = info.accountHolder || 'NGUYEN THI NGOC LINH';
+  const qrUrl = info.qrCodeUrl || (info.paymentReference ? `https://qr.sepay.vn/img?bank=${encodeURIComponent(bankName)}&acc=${encodeURIComponent(accountNumber)}&template=compact&amount=${Number(info.amount) || 0}&des=${encodeURIComponent(info.paymentReference)}` : null);
+
   container.innerHTML = `<div>
     <a href="#/applications" class="mb-6 inline-flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline">← Back to my applications</a>
     <div class="mb-8">
-      <p class="eyebrow">SECURE VNPAY CHECKOUT</p>
+      <p class="eyebrow">SEPAY SECURE QR CHECKOUT</p>
       <h1 class="mt-1 font-display text-3xl font-bold text-ink sm:text-4xl">Review your mentorship</h1>
-      <p class="mt-2 text-sm text-muted">Confirm the package and amount, then complete payment on VNPay. Your mentorship activates after the server verifies the payment.</p>
+      <p class="mt-2 text-sm text-muted">Scan the SePay VietQR code using your banking app to transfer payment. Your mentorship activates automatically upon confirmation.</p>
     </div>
-    ${pendingReturn ? `<div class="mb-6 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900" role="status">
-      <strong>Payment confirmation is processing.</strong> We are waiting for VNPay's secure confirmation. Returning from the payment page does not itself confirm payment.
-      <div class="mt-2"><button id="checkout-refresh-btn" type="button" class="font-semibold underline">Check status again</button></div>
-    </div>` : ''}
+
     ${failed ? `<div class="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" role="status">
-      Your previous VNPay attempt ${paymentStatus === 'FAILED' ? 'was not completed' : 'expired'}. The application is still accepted; you can start a new payment attempt.
+      Your previous payment attempt ${paymentStatus === 'FAILED' ? 'was not completed' : 'expired'}. The application is still accepted; you can generate a new payment QR code.
     </div>` : ''}
+
     <div class="grid grid-cols-1 items-start gap-8 lg:grid-cols-3">
       <div class="space-y-6 lg:col-span-2">
         <section class="rounded-2xl border border-line bg-white p-6 shadow-sm sm:p-7" aria-labelledby="checkout-mentor-heading">
@@ -176,15 +196,81 @@ function renderCheckoutDetails(root, container, user, info, paymentReturn) {
           </dl>
           ${info.learningGoals ? `<div class="mt-5 border-t border-line pt-4"><h3 class="text-xs font-bold uppercase tracking-wider text-muted">Your learning goals</h3><p class="mt-2 whitespace-pre-wrap rounded-xl border border-line bg-cream p-4 text-sm leading-6 text-ink">${esc(info.learningGoals)}</p></div>` : ''}
         </section>
+
+        <!-- Payment QR & Bank Transfer Section -->
         <section class="rounded-2xl border border-line bg-white p-6 shadow-sm sm:p-7" aria-labelledby="checkout-method-heading">
-          <h2 id="checkout-method-heading" class="text-xs font-bold uppercase tracking-wider text-muted">Payment method</h2>
-          <div class="mt-4 flex items-center gap-4 rounded-xl border-2 border-brand bg-lilac/20 p-4">
-            <span class="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white font-bold text-brand">V</span>
-            <div><p class="font-bold text-ink">VNPay QR</p><p class="mt-1 text-xs text-muted">VNPay will display its payment QR on the secure payment page.</p></div>
+          <h2 id="checkout-method-heading" class="text-xs font-bold uppercase tracking-wider text-muted">Payment method: Bank Transfer QR</h2>
+          
+          <div id="qr-panel" class="${hasActiveAttempt ? '' : 'hidden'} mt-5">
+            <div class="rounded-2xl border border-brand/20 bg-gradient-to-b from-lilac/30 to-white p-6 text-center">
+              <div class="inline-block rounded-2xl bg-white p-3 shadow-md border border-line">
+                <img id="qr-image" src="${esc(qrUrl || '')}" alt="SePay VietQR Payment" class="h-60 w-60 object-contain mx-auto">
+              </div>
+              <p class="mt-3 text-xs font-medium text-ink">Scan with any Mobile Banking App (Napas 24/7)</p>
+              
+              <!-- Countdown timer -->
+              <div class="mt-3 inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-brand shadow-sm border border-line">
+                <span class="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Time remaining: </span>
+                <span id="countdown-text" class="font-mono font-bold">15:00</span>
+              </div>
+            </div>
+
+            <!-- Transfer details table with copy buttons -->
+            <div class="mt-6 rounded-xl border border-line bg-cream p-5 text-sm space-y-3">
+              <div class="flex items-center justify-between gap-3 border-b border-line pb-3">
+                <span class="text-xs text-muted">Receiving Bank</span>
+                <strong class="font-semibold text-ink">${esc(bankName)}</strong>
+              </div>
+              <div class="flex items-center justify-between gap-3 border-b border-line pb-3">
+                <span class="text-xs text-muted">Account Number</span>
+                <div class="flex items-center gap-2">
+                  <code class="font-mono font-bold text-ink" id="bank-acc-num">${esc(accountNumber)}</code>
+                  <button type="button" class="btn btn-outline btn-xs" data-copy-target="#bank-acc-num">Copy</button>
+                </div>
+              </div>
+              <div class="flex items-center justify-between gap-3 border-b border-line pb-3">
+                <span class="text-xs text-muted">Account Holder</span>
+                <strong class="font-semibold uppercase text-ink">${esc(accountHolder)}</strong>
+              </div>
+              <div class="flex items-center justify-between gap-3 border-b border-line pb-3">
+                <span class="text-xs text-muted">Exact Amount</span>
+                <div class="flex items-center gap-2">
+                  <strong class="font-display font-bold text-brand" id="bank-acc-amount">${amountFormatted} ${esc(currency)}</strong>
+                  <button type="button" class="btn btn-outline btn-xs" data-copy-target="#bank-acc-amount" data-copy-value="${Number(info.amount) || 0}">Copy</button>
+                </div>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <span class="text-xs text-muted">Transfer Code</span>
+                  <p class="text-[11px] text-brand">Required for auto-activation</p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <code class="font-mono font-bold text-brand text-base" id="bank-acc-code">${esc(info.paymentReference || '')}</code>
+                  <button type="button" class="btn btn-primary btn-xs" data-copy-target="#bank-acc-code">Copy</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Real-time polling indicator -->
+            <div class="mt-5 flex items-center justify-center gap-2 text-xs text-muted">
+              <div class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand border-t-transparent"></div>
+              <span>Listening for bank transfer via SePay... (Updates automatically)</span>
+            </div>
           </div>
-          <p class="mt-4 text-xs leading-5 text-muted">A unique payment reference is attached to each attempt for reconciliation. HappyProgramming does not receive or store your bank credentials.</p>
+
+          <div id="no-qr-panel" class="${hasActiveAttempt ? 'hidden' : ''} mt-4 rounded-xl border border-line bg-lilac/20 p-5">
+            <div class="flex items-start gap-4">
+              <span class="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-brand text-white font-bold text-lg">QR</span>
+              <div>
+                <h3 class="font-bold text-ink">Instant Bank QR Transfer</h3>
+                <p class="mt-1 text-xs text-muted">Click below to generate your personalized VietQR code. You can scan it directly with your mobile banking app to complete payment.</p>
+              </div>
+            </div>
+          </div>
         </section>
       </div>
+
       <aside class="space-y-6 lg:sticky lg:top-8">
         <section class="rounded-2xl border border-line bg-white p-6 shadow-sm" aria-labelledby="checkout-summary-heading">
           <h2 id="checkout-summary-heading" class="mb-5 text-xs font-bold uppercase tracking-wider text-muted">Order summary</h2>
@@ -194,71 +280,110 @@ function renderCheckoutDetails(root, container, user, info, paymentReturn) {
             <div class="flex justify-between gap-4 text-xs"><span class="text-muted">Billing</span><span class="font-semibold text-ink">Monthly</span></div>
           </div>
           <div class="flex items-baseline justify-between gap-4 pt-4"><span class="font-bold text-ink">Due now</span><strong class="font-display text-2xl text-brand">${amountFormatted}${priceAvailable ? ` ${esc(currency)}` : ''}</strong></div>
-          ${info.paymentExpiresAt && paymentStatus === 'PENDING' ? `<p class="mt-3 text-xs text-muted">Current payment attempt expires ${esc(formatDate(info.paymentExpiresAt))}.</p>` : ''}
-          <div id="checkout-reference-slot" class="mt-4">${hasPaymentReference ? paymentReferenceHtml(info.paymentReference) : ''}</div>
-          ${priceAvailable ? '' : '<p class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900" role="alert">We could not verify the price accepted for this application because the mentor’s package changed after you applied. Please ask the mentor to confirm the package before paying.</p>'}
+          
           <div id="checkout-error" class="mt-4 hidden rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800" role="alert"></div>
-          <button type="button" id="checkout-submit-btn" class="btn btn-primary mt-6 w-full py-3.5 text-sm font-semibold" ${pendingReturn || !priceAvailable ? 'disabled' : ''}>
-            ${!priceAvailable ? 'Payment unavailable' : pendingReturn ? 'Waiting for VNPay confirmation' : hasPaymentReference ? 'Continue to VNPay QR' : 'Prepare VNPay QR payment'}
+
+          ${priceAvailable ? '' : '<p class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900" role="alert">We could not verify the price accepted for this application because the mentor’s package changed after you applied. Please ask the mentor to confirm the package before paying.</p>'}
+
+          <button type="button" id="checkout-submit-btn" class="btn btn-primary mt-6 w-full py-3.5 text-sm font-semibold" ${!priceAvailable ? 'disabled' : ''}>
+            ${!priceAvailable ? 'Payment unavailable' : hasActiveAttempt ? 'Refresh Payment QR' : 'Prepare SePay QR payment'}
           </button>
-          ${pendingReturn ? '<button type="button" id="checkout-retry-payment-btn" class="btn btn-outline mt-3 w-full">Return to payment</button>' : ''}
-          <p class="mt-3 text-center text-[11px] text-muted">Only a verified VNPay notification confirms payment and activates your mentorship.</p>
+          
+          <p class="mt-3 text-center text-[11px] text-muted">Upon transfer, SePay automatically notifies HappyProgramming to activate your course.</p>
         </section>
       </aside>
     </div>
   </div>`;
 
-  const refresh = () => mountCheckout(root, info.requestId, true);
-  container.querySelector('#checkout-refresh-btn')?.addEventListener('click', refresh);
-  container.querySelector('#checkout-retry-payment-btn')?.addEventListener('click', () => startVnPay(container, info));
-  container.querySelector('#checkout-submit-btn')?.addEventListener('click', () => startVnPay(container, info));
-  bindPaymentReferenceCopy(container);
+  bindCopyButtons(container);
+
+  if (hasActiveAttempt) {
+    startCountdown(container, info.paymentExpiresAt);
+    startPolling(root, info.requestId);
+  }
+
+  container.querySelector('#checkout-submit-btn')?.addEventListener('click', () => startSepay(root, container, info));
 }
 
-function paymentReferenceHtml(reference) {
-  return `<div class="rounded-xl border border-line bg-lilac/30 p-3" aria-label="Payment reference">
-    <p class="text-xs font-semibold text-muted">VNPay payment reference</p>
-    <div class="mt-1 flex items-center justify-between gap-2">
-      <code class="break-all text-sm font-bold tracking-wide text-ink">${esc(reference)}</code>
-      <button type="button" data-copy-payment-reference class="shrink-0 text-xs font-semibold text-brand underline">Copy</button>
-    </div>
-    <p class="mt-2 text-[11px] leading-4 text-muted">This unique code is sent as the VNPay order reference. Scan the QR on the next page to pay.</p>
-  </div>`;
-}
+function bindCopyButtons(container) {
+  container.querySelectorAll('[data-copy-target]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const targetSelector = btn.getAttribute('data-copy-target');
+      const overrideVal = btn.getAttribute('data-copy-value');
+      const targetEl = container.querySelector(targetSelector);
+      const textToCopy = overrideVal || targetEl?.textContent?.trim() || '';
+      if (!textToCopy) return;
 
-function bindPaymentReferenceCopy(container) {
-  container.querySelector('[data-copy-payment-reference]')?.addEventListener('click', async event => {
-    const button = event.currentTarget;
-    const reference = container.querySelector('#checkout-reference-slot code')?.textContent;
-    if (!reference) return;
-    try {
-      await navigator.clipboard.writeText(reference);
-      button.textContent = 'Copied';
-      setTimeout(() => { button.textContent = 'Copy'; }, 1500);
-    } catch {
-      button.textContent = 'Select code to copy';
-    }
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+        const origText = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = origText; }, 1500);
+      } catch (err) {
+        console.warn('Copy failed:', err);
+      }
+    });
   });
 }
 
-async function startVnPay(container, info) {
+function startCountdown(container, expiresAt) {
+  if (countdownTimer) clearInterval(countdownTimer);
+  const countdownEl = container.querySelector('#countdown-text');
+  if (!countdownEl) return;
+
+  const expiryTime = expiresAt ? new Date(expiresAt).getTime() : Date.now() + 15 * 60 * 1000;
+
+  function update() {
+    const diff = Math.max(0, Math.floor((expiryTime - Date.now()) / 1000));
+    const mins = Math.floor(diff / 60);
+    const secs = diff % 60;
+    countdownEl.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    if (diff <= 0) {
+      clearInterval(countdownTimer);
+      countdownEl.textContent = 'Expired';
+    }
+  }
+
+  update();
+  countdownTimer = setInterval(update, 1000);
+}
+
+function startPolling(root, requestId) {
+  if (pollTimer) clearInterval(pollTimer);
+
+  pollTimer = setInterval(async () => {
+    try {
+      const status = await mentorshipRequestService.getCheckoutInfo(requestId);
+      if (status.isPaid || status.paymentStatus === 'SUCCEEDED') {
+        clearTimers();
+        mountCheckout(root, requestId, false);
+      }
+    } catch (err) {
+      console.warn('Polling checkout info error:', err);
+    }
+  }, 3000);
+}
+
+async function startSepay(root, container, info) {
   const button = container.querySelector('#checkout-submit-btn');
   const errorBox = container.querySelector('#checkout-error');
   if (!button) return;
   button.disabled = true;
-  button.textContent = 'Preparing VNPay QR payment…';
+  button.textContent = 'Generating QR code…';
   errorBox?.classList.add('hidden');
+
   try {
     const response = await mentorshipRequestService.processCheckout(info.requestId);
-    if (!response?.paymentUrl || !response.paymentReference || response.status !== 'PENDING') {
-      throw new Error('VNPay did not return a payment reference and checkout URL.');
+    if (!response?.paymentReference) {
+      throw new Error('Could not generate SePay payment reference.');
     }
-    window.location.assign(response.paymentUrl);
+    // Re-mount checkout to show the active QR panel
+    mountCheckout(root, info.requestId, false);
   } catch (err) {
     button.disabled = false;
-    button.textContent = info.paymentReference ? 'Continue to VNPay QR' : 'Prepare VNPay QR payment';
+    button.textContent = 'Prepare SePay QR payment';
     if (errorBox) {
-      errorBox.textContent = err.message || 'Could not start VNPay checkout. Please try again.';
+      errorBox.textContent = err.message || 'Could not start payment. Please try again.';
       errorBox.classList.remove('hidden');
     }
   }

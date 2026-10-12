@@ -4,8 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.happyprogramming.dto.AuthenticatedUser;
 import com.happyprogramming.dto.CheckoutResponse;
-import com.happyprogramming.dto.VnPayIpnResponse;
-import com.happyprogramming.integration.VnPayGateway;
+import com.happyprogramming.dto.SepayWebhookPayload;
+import com.happyprogramming.dto.SepayWebhookResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -18,38 +18,80 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.sql.PreparedStatement;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Map;
-import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
-public class VnPayPaymentService {
-    private static final ZoneId VIETNAM = ZoneId.of("Asia/Ho_Chi_Minh");
-    private static final DateTimeFormatter PAY_DATE = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
-    private final JdbcTemplate jdbc;
-    private final VnPayGateway gateway;
-    private final ObjectMapper mapper;
-    private final String frontendCheckoutUrl;
+public class SepayPaymentService {
+    private static final Pattern CODE_PATTERN = Pattern.compile("HP\\d+(?:A\\d+)?", Pattern.CASE_INSENSITIVE);
 
-    public VnPayPaymentService(@Autowired(required = false) JdbcTemplate jdbc, VnPayGateway gateway,
-                               ObjectMapper mapper,
-                               @Value("${hpms.vnpay.frontend-checkout-url:http://localhost:5173/#/checkout}") String frontendCheckoutUrl) {
+    private final JdbcTemplate jdbc;
+    private final ObjectMapper mapper;
+    private final boolean enabled;
+    private final String bankName;
+    private final String accountNumber;
+    private final String accountHolder;
+    private final String apiKey;
+    private final String qrTemplate;
+
+    public SepayPaymentService(
+            @Autowired(required = false) JdbcTemplate jdbc,
+            ObjectMapper mapper,
+            @Value("${hpms.sepay.enabled:true}") boolean enabled,
+            @Value("${hpms.sepay.bank-name:TPBank}") String bankName,
+            @Value("${hpms.sepay.account-number:00000806194}") String accountNumber,
+            @Value("${hpms.sepay.account-holder:NGUYEN THI NGOC LINH}") String accountHolder,
+            @Value("${hpms.sepay.api-key:hpms_sepay_secret_2026}") String apiKey,
+            @Value("${hpms.sepay.qr-template:compact}") String qrTemplate) {
         this.jdbc = jdbc;
-        this.gateway = gateway;
         this.mapper = mapper;
-        this.frontendCheckoutUrl = frontendCheckoutUrl;
+        this.enabled = enabled;
+        this.bankName = bankName;
+        this.accountNumber = accountNumber;
+        this.accountHolder = accountHolder;
+        this.apiKey = apiKey;
+        this.qrTemplate = qrTemplate;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public String getBankName() {
+        return bankName;
+    }
+
+    public String getAccountNumber() {
+        return accountNumber;
+    }
+
+    public String getAccountHolder() {
+        return accountHolder;
+    }
+
+    public String buildQrUrl(BigDecimal amount, String code) {
+        long amountLong = amount != null ? amount.longValue() : 0L;
+        return String.format("https://qr.sepay.vn/img?bank=%s&acc=%s&template=%s&amount=%d&des=%s",
+                URLEncoder.encode(bankName, StandardCharsets.UTF_8),
+                URLEncoder.encode(accountNumber, StandardCharsets.UTF_8),
+                URLEncoder.encode(qrTemplate, StandardCharsets.UTF_8),
+                amountLong,
+                URLEncoder.encode(code, StandardCharsets.UTF_8));
     }
 
     @Transactional
-    public CheckoutResponse initiate(Long requestId, String ipAddress) {
-        gateway.requireConfigured();
+    public CheckoutResponse initiate(Long requestId) {
+        if (!enabled) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "SePay payment gateway is currently disabled.");
+        }
         long menteeId = currentMenteeId();
         JdbcTemplate db = db();
         Map<String, Object> request = loadLockedRequest(db, requestId);
@@ -65,11 +107,12 @@ public class VnPayPaymentService {
                 "id", rs.getLong("id"), "reference", rs.getString("merchant_reference"),
                 "amount", rs.getBigDecimal("amount"), "currency", rs.getString("currency"),
                 "createdAt", rs.getTimestamp("created_at"), "expiresAt", rs.getTimestamp("expires_at")), requestId);
+
         if (!active.isEmpty()) {
             Map<String, Object> payment = active.get(0);
             Instant expiresAt = ((Timestamp) payment.get("expiresAt")).toInstant();
             if (expiresAt.isAfter(now)) {
-                return response(db, requestId, payment, ipAddress);
+                return buildCheckoutResponse(requestId, payment);
             }
             db.update("""
                     UPDATE dbo.payments SET status='EXPIRED', failure_code='CHECKOUT_TIMEOUT',
@@ -81,163 +124,183 @@ public class VnPayPaymentService {
         String offerSnapshot = resolveOfferSnapshot(db, requestId, request);
         BigDecimal amount = amountFromSnapshot(offerSnapshot);
         if (!"VND".equals(currencyFromSnapshot(offerSnapshot))) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "VNPay checkout currently supports VND pricing only.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "SePay checkout currently supports VND pricing only.");
         }
-        BigDecimal commission = db.query("""
+
+        BigDecimal queryCommission = db.query("""
                 SELECT TRY_CONVERT(DECIMAL(5,2), JSON_VALUE(config_value, '$.value'))
                 FROM dbo.system_configs WHERE config_key='finance.commission_rate'
                 """, rs -> rs.next() ? rs.getBigDecimal(1) : null);
-        if (commission == null || commission.compareTo(BigDecimal.ZERO) < 0 || commission.compareTo(new BigDecimal("100")) > 0) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
-                    "The platform commission setting is unavailable. Please try again later.");
-        }
+        final BigDecimal commission = (queryCommission == null || queryCommission.compareTo(BigDecimal.ZERO) < 0 || queryCommission.compareTo(new BigDecimal("100")) > 0)
+                ? new BigDecimal("15.00")
+                : queryCommission;
+
         int attemptNo = db.queryForObject("SELECT ISNULL(MAX(attempt_no),0)+1 FROM dbo.payments WITH (UPDLOCK, HOLDLOCK) WHERE request_id=?", Integer.class, requestId);
         Instant expiresAt = now.plusSeconds(15 * 60L);
-        // VNPay declares vnp_TxnRef as alphanumeric; avoid separators such as hyphens.
-        String reference = "HP" + requestId + "A" + attemptNo + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
-        String currency = "VND";
+        String reference = "HP" + requestId + "A" + attemptNo;
+
         KeyHolder keyHolder = new GeneratedKeyHolder();
         db.update(connection -> {
             PreparedStatement ps = connection.prepareStatement("""
                     INSERT INTO dbo.payments(request_id, billing_cycle_no, attempt_no, gateway, merchant_reference,
                         amount, currency, commission_rate_snapshot, status, expires_at, created_at, updated_at)
-                    VALUES (?,1,?,'VNPAY',?,?,?,?,'PENDING',?,?,?)
+                    VALUES (?,1,?,'SEPAY',?,?,?,?,'PENDING',?,?,?)
                     """, new String[]{"id"});
             ps.setLong(1, requestId);
             ps.setInt(2, attemptNo);
             ps.setString(3, reference);
             ps.setBigDecimal(4, amount);
-            ps.setString(5, currency);
+            ps.setString(5, "VND");
             ps.setBigDecimal(6, commission);
             ps.setTimestamp(7, Timestamp.from(expiresAt));
             ps.setTimestamp(8, Timestamp.from(now));
             ps.setTimestamp(9, Timestamp.from(now));
             return ps;
         }, keyHolder);
+
         Number id = keyHolder.getKey();
-        if (id == null) throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not create a VNPay payment attempt.");
-        return response(db, requestId, Map.of("id", id.longValue(), "reference", reference, "amount", amount,
-                "currency", currency, "createdAt", Timestamp.from(now), "expiresAt", Timestamp.from(expiresAt)), ipAddress);
+        if (id == null) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not create a SePay payment attempt.");
+        }
+
+        return buildCheckoutResponse(requestId, Map.of(
+                "id", id.longValue(),
+                "reference", reference,
+                "amount", amount,
+                "currency", "VND",
+                "createdAt", Timestamp.from(now),
+                "expiresAt", Timestamp.from(expiresAt)));
     }
 
-    private CheckoutResponse response(JdbcTemplate db, Long requestId, Map<String, Object> payment, String ipAddress) {
-        Instant createdAt = ((Timestamp) payment.get("createdAt")).toInstant();
-        Instant expiresAt = ((Timestamp) payment.get("expiresAt")).toInstant();
+    private CheckoutResponse buildCheckoutResponse(Long requestId, Map<String, Object> payment) {
+        Long paymentId = ((Number) payment.get("id")).longValue();
+        String reference = String.valueOf(payment.get("reference"));
         BigDecimal amount = (BigDecimal) payment.get("amount");
-        long amountVnd;
-        try {
-            amountVnd = amount.setScale(0, RoundingMode.UNNECESSARY).longValueExact();
-        } catch (ArithmeticException ex) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "VNPay only supports whole-VND amounts for this checkout.");
-        }
-        String paymentUrl = gateway.createPaymentUrl(String.valueOf(payment.get("reference")), amountVnd,
-                "HPMS" + String.valueOf(payment.get("reference")).replaceAll("[^A-Za-z0-9]", ""),
-                ipAddress, createdAt, expiresAt);
-        return new CheckoutResponse(((Number) payment.get("id")).longValue(), requestId, "PENDING",
-                amount, String.valueOf(payment.get("currency")), String.valueOf(payment.get("reference")), paymentUrl, expiresAt,
-                "VNPay QR payment is ready.");
+        String currency = String.valueOf(payment.get("currency"));
+        Instant expiresAt = ((Timestamp) payment.get("expiresAt")).toInstant();
+        String qrUrl = buildQrUrl(amount, reference);
+
+        return new CheckoutResponse(
+                paymentId,
+                requestId,
+                "PENDING",
+                amount,
+                currency,
+                reference,
+                qrUrl,
+                expiresAt,
+                "SePay QR payment is ready.",
+                qrUrl,
+                bankName,
+                accountNumber,
+                accountHolder
+        );
     }
 
     @Transactional
-    public VnPayIpnResponse processIpn(Map<String, String> parameters) {
-        if (!gateway.isValidResponse(parameters)) return new VnPayIpnResponse("97", "Invalid signature");
-        String reference = parameters.get("vnp_TxnRef");
-        if (reference == null || reference.isBlank()) return new VnPayIpnResponse("01", "Order not found");
-        JdbcTemplate db = db();
-        var paymentRefs = db.query("""
-                SELECT id, request_id FROM dbo.payments WHERE merchant_reference=?
-                """, (rs, row) -> Map.of("id", rs.getLong("id"), "requestId", rs.getLong("request_id")), reference);
-        if (paymentRefs.isEmpty()) return new VnPayIpnResponse("01", "Order not found");
-        long requestId = ((Number) paymentRefs.get(0).get("requestId")).longValue();
-        Map<String, Object> request = loadLockedRequest(db, requestId);
-        var payments = db.query("""
-                SELECT id, request_id, amount, currency, status, merchant_reference, gateway_transaction_id,
-                       created_at, expires_at
-                FROM dbo.payments WITH (UPDLOCK, HOLDLOCK) WHERE id=?
-                """, (rs, row) -> Map.<String, Object>of(
-                "id", rs.getLong("id"), "requestId", rs.getLong("request_id"), "amount", rs.getBigDecimal("amount"),
-                "currency", rs.getString("currency"), "status", rs.getString("status"),
-                "reference", rs.getString("merchant_reference"), "transactionId", rs.getString("gateway_transaction_id") == null ? "" : rs.getString("gateway_transaction_id"),
-                "createdAt", rs.getTimestamp("created_at"), "expiresAt", rs.getTimestamp("expires_at")), paymentRefs.get(0).get("id"));
-        if (payments.isEmpty()) return new VnPayIpnResponse("01", "Order not found");
-        Map<String, Object> payment = payments.get(0);
-        if (!reference.equals(payment.get("reference"))) return new VnPayIpnResponse("01", "Order not found");
-        if (!"VND".equals(parameters.get("vnp_CurrCode"))
-                || !amountMatches((BigDecimal) payment.get("amount"), gateway.getVndAmount(parameters))) {
-            return new VnPayIpnResponse("04", "Invalid amount or currency");
+    public SepayWebhookResponse processWebhook(SepayWebhookPayload payload, String authHeader) {
+        verifyAuth(authHeader);
+
+        if (payload == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Payload is required.");
         }
 
-        String responseCode = parameters.get("vnp_ResponseCode");
-        String transactionStatus = parameters.get("vnp_TransactionStatus");
-        boolean success = "00".equals(responseCode) && "00".equals(transactionStatus);
-        String transactionId = parameters.getOrDefault("vnp_TransactionNo", "");
-        if ("SUCCEEDED".equals(payment.get("status"))) {
-            return transactionId.equals(payment.get("transactionId")) || transactionId.isBlank()
-                    ? new VnPayIpnResponse("00", "Payment already confirmed")
-                    : new VnPayIpnResponse("04", "Payment already completed with another transaction");
+        if (payload.transferType() != null && !"in".equalsIgnoreCase(payload.transferType())) {
+            return new SepayWebhookResponse(true, "Ignored non-inbound transfer: " + payload.transferType());
         }
-        boolean lateSuccessfulCallback = "EXPIRED".equals(payment.get("status")) && success;
-        if (!"PENDING".equals(payment.get("status")) && !lateSuccessfulCallback) {
-            return ("FAILED".equals(payment.get("status")) || "EXPIRED".equals(payment.get("status")) || "CANCELLED".equals(payment.get("status"))) && !success
-                    ? new VnPayIpnResponse("00", "Payment failure already recorded")
-                    : new VnPayIpnResponse("04", "Payment attempt is no longer pending");
+
+        if (payload.accountNumber() != null && !accountNumber.trim().equalsIgnoreCase(payload.accountNumber().trim())) {
+            return new SepayWebhookResponse(true, "Ignored: account number mismatch (" + payload.accountNumber() + ")");
+        }
+
+        String reference = extractOrderCode(payload);
+        if (reference == null || reference.isBlank()) {
+            return new SepayWebhookResponse(true, "Ignored: no order reference found in transfer content.");
+        }
+
+        JdbcTemplate db = db();
+        List<Map<String, Object>> payments = db.query("""
+                SELECT id, request_id, amount, currency, status, merchant_reference, gateway_transaction_id,
+                       created_at, expires_at
+                FROM dbo.payments WITH (UPDLOCK, HOLDLOCK)
+                WHERE merchant_reference = ?
+                """, (rs, row) -> Map.<String, Object>of(
+                "id", rs.getLong("id"),
+                "requestId", rs.getLong("request_id"),
+                "amount", rs.getBigDecimal("amount"),
+                "currency", rs.getString("currency"),
+                "status", rs.getString("status"),
+                "reference", rs.getString("merchant_reference"),
+                "transactionId", rs.getString("gateway_transaction_id") == null ? "" : rs.getString("gateway_transaction_id"),
+                "createdAt", rs.getTimestamp("created_at"),
+                "expiresAt", rs.getTimestamp("expires_at")), reference);
+
+        if (payments.isEmpty()) {
+            return new SepayWebhookResponse(false, "Order not found for code: " + reference);
+        }
+
+        Map<String, Object> payment = payments.get(0);
+        Long paymentId = ((Number) payment.get("id")).longValue();
+        Long requestId = ((Number) payment.get("requestId")).longValue();
+        BigDecimal requiredAmount = (BigDecimal) payment.get("amount");
+
+        if (!matchesExpectedAmount(payload.transferAmount(), requiredAmount)) {
+            return new SepayWebhookResponse(false, String.format(
+                    "Transfer amount %s does not match required amount %s. Manual reconciliation is required.",
+                    payload.transferAmount(), requiredAmount));
+        }
+
+        String transactionId = payload.referenceCode() != null && !payload.referenceCode().isBlank()
+                ? payload.referenceCode()
+                : (payload.id() != null ? String.valueOf(payload.id()) : "TXN-" + System.currentTimeMillis());
+
+        String eventKey = "SEPAY:" + transactionId;
+        Integer existingEvent = db.queryForObject(
+                "SELECT COUNT(1) FROM dbo.payment_events WITH (UPDLOCK, HOLDLOCK) WHERE provider='SEPAY' AND event_key=?",
+                Integer.class, eventKey);
+        if (existingEvent != null && existingEvent > 0) {
+            return new SepayWebhookResponse(true, "Webhook notification already processed.");
+        }
+
+        if ("SUCCEEDED".equals(payment.get("status"))) {
+            return new SepayWebhookResponse(true, "Payment already completed.");
         }
 
         Instant now = Instant.now();
-        String eventKey = eventKey(reference, transactionId, responseCode, transactionStatus);
-        if (db.queryForObject("SELECT COUNT(1) FROM dbo.payment_events WITH (UPDLOCK,HOLDLOCK) WHERE provider='VNPAY' AND event_type='IPN' AND event_key=?", Integer.class, eventKey) > 0) {
-            return new VnPayIpnResponse("00", "Notification already processed");
-        }
-
-        if (!success) {
-            if (!"PENDING".equals(payment.get("status"))) {
-                return new VnPayIpnResponse("00", "Payment attempt is already expired");
-            }
-            db.update("""
-                    UPDATE dbo.payments SET status='FAILED', failure_code=?,
-                        failure_message=N'VNPay reported an unsuccessful transaction.', updated_at=?
-                    WHERE id=? AND status='PENDING'
-                    """, safe(parameters.get("vnp_ResponseCode"), 50), Timestamp.from(now), payment.get("id"));
-            insertEvent(db, payment, eventKey, parameters, "PROCESSED", null);
-            return new VnPayIpnResponse("00", "Payment failure recorded");
-        }
-
-        Instant paidAt = parseVnPayDate(parameters.get("vnp_PayDate"));
-        Instant createdAt = ((Timestamp) payment.get("createdAt")).toInstant();
-        Instant expiresAt = ((Timestamp) payment.get("expiresAt")).toInstant();
-        if (transactionId.isBlank() || paidAt == null || paidAt.isBefore(createdAt) || paidAt.isAfter(expiresAt)) {
-            return new VnPayIpnResponse("04", "Payment timestamp is outside the checkout window");
-        }
+        Map<String, Object> request = loadLockedRequest(db, requestId);
         if (!"ACCEPTED".equals(request.get("status")) || request.get("fundedAt") != null) {
-            return new VnPayIpnResponse("04", "Application is not eligible for payment");
+            return new SepayWebhookResponse(false, "Application is not eligible for payment settlement.");
         }
 
-        long paymentId = ((Number) payment.get("id")).longValue();
-        Timestamp paidTimestamp = Timestamp.from(paidAt);
-        Timestamp periodEnd = Timestamp.from(paidAt.atZone(ZoneOffset.UTC).plusMonths(1).toInstant());
+        Timestamp paidTimestamp = Timestamp.from(now);
+        Timestamp periodEnd = Timestamp.from(now.atZone(ZoneOffset.UTC).plusMonths(1).toInstant());
+
         db.update("""
-                UPDATE dbo.payments SET status='SUCCEEDED', gateway_transaction_id=?, paid_at=?,
+                UPDATE dbo.payments SET status='SUCCEEDED', gateway='SEPAY', gateway_transaction_id=?, paid_at=?,
                     billing_period_start=?, billing_period_end=?, updated_at=?
-                WHERE id=? AND status='PENDING'
-                """, safe(transactionId, 100), paidTimestamp, paidTimestamp, periodEnd, Timestamp.from(now), paymentId);
+                WHERE id=?
+                """, transactionId, paidTimestamp, paidTimestamp, periodEnd, Timestamp.from(now), paymentId);
+
         db.update("""
                 UPDATE dbo.payments SET status='CANCELLED', failure_code='OTHER_ATTEMPT_SUCCEEDED',
                     failure_message=N'Another payment attempt for this application completed.', updated_at=?
                 WHERE request_id=? AND id<>? AND status='PENDING'
                 """, Timestamp.from(now), requestId, paymentId);
+
         long menteeId = ((Number) request.get("menteeId")).longValue();
         long mentorId = ((Number) request.get("mentorId")).longValue();
         long serviceId = ((Number) request.get("serviceId")).longValue();
-        BigDecimal amount = (BigDecimal) payment.get("amount");
+
         db.update("""
                 INSERT INTO dbo.escrow_ledger_entries(payment_id,entry_type,amount,idempotency_key,created_by,created_at)
                 VALUES (?,'HOLD',?,?,?,?)
-                """, paymentId, amount, "ESCROW-HOLD-" + paymentId, menteeId, paidTimestamp);
-        db.update("UPDATE dbo.mentorship_requests SET funded_at=?,updated_at=? WHERE id=? AND status='ACCEPTED' AND funded_at IS NULL",
+                """, paymentId, requiredAmount, "ESCROW-HOLD-" + paymentId, menteeId, paidTimestamp);
+
+        db.update("UPDATE dbo.mentorship_requests SET funded_at=?, updated_at=? WHERE id=? AND status='ACCEPTED' AND funded_at IS NULL",
                 paidTimestamp, Timestamp.from(now), requestId);
 
-        KeyHolder subscriptionKey = new GeneratedKeyHolder();
         String offerSnapshot = (String) request.get("offerSnapshot");
+        KeyHolder subscriptionKey = new GeneratedKeyHolder();
         db.update(connection -> {
             PreparedStatement ps = connection.prepareStatement("""
                     INSERT INTO dbo.subscriptions(request_id,service_id,mentor_id,mentee_id,agreed_price,currency,
@@ -245,31 +308,83 @@ public class VnPayPaymentService {
                         next_billing_at,renewal_mode,cancel_at_period_end,created_at,updated_at)
                     VALUES (?,?,?,?,?,'VND',?,'ACTIVE',?,NULL,?,?,?,'MANUAL',0,?,?)
                     """, new String[]{"id"});
-            ps.setLong(1, requestId); ps.setLong(2, serviceId); ps.setLong(3, mentorId); ps.setLong(4, menteeId);
-            ps.setBigDecimal(5, amount); ps.setString(6, offerSnapshot); ps.setTimestamp(7, paidTimestamp);
-            ps.setTimestamp(8, paidTimestamp); ps.setTimestamp(9, periodEnd);
-            ps.setTimestamp(10, periodEnd); ps.setTimestamp(11, Timestamp.from(now)); ps.setTimestamp(12, Timestamp.from(now));
+            ps.setLong(1, requestId);
+            ps.setLong(2, serviceId);
+            ps.setLong(3, mentorId);
+            ps.setLong(4, menteeId);
+            ps.setBigDecimal(5, requiredAmount);
+            ps.setString(6, offerSnapshot);
+            ps.setTimestamp(7, paidTimestamp);
+            ps.setTimestamp(8, paidTimestamp);
+            ps.setTimestamp(9, periodEnd);
+            ps.setTimestamp(10, periodEnd);
+            ps.setTimestamp(11, Timestamp.from(now));
+            ps.setTimestamp(12, Timestamp.from(now));
             return ps;
         }, subscriptionKey);
+
         db.update("""
                 IF NOT EXISTS (SELECT 1 FROM dbo.conversations WITH (UPDLOCK,HOLDLOCK) WHERE mentor_id=? AND mentee_id=?)
                     INSERT INTO dbo.conversations(mentor_id,mentee_id,inquiry_status,created_at,updated_at)
                     VALUES (?,?,'APPROVED',?,?)
                 """, mentorId, menteeId, mentorId, menteeId, Timestamp.from(now), Timestamp.from(now));
-        insertEvent(db, payment, eventKey, parameters, "PROCESSED", paymentId);
-        return new VnPayIpnResponse("00", "Payment confirmed");
+
+        insertEvent(db, paymentId, eventKey, payload, "PROCESSED");
+
+        return new SepayWebhookResponse(true, "Payment confirmed and mentorship activated.");
     }
 
-    @Transactional(readOnly = true)
-    public Long resolveReturnRequestId(Map<String, String> parameters) {
-        if (!gateway.isValidResponse(parameters)) return null;
-        String reference = parameters.get("vnp_TxnRef");
-        if (reference == null || reference.isBlank()) return null;
-        try {
-            return db().queryForObject("SELECT request_id FROM dbo.payments WHERE merchant_reference=?", Long.class, reference);
-        } catch (RuntimeException ex) {
-            return null;
+    private void verifyAuth(String authHeader) {
+        if (apiKey == null || apiKey.isBlank()) {
+            return;
         }
+        if (authHeader == null || authHeader.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing authorization header.");
+        }
+        String token = authHeader.trim();
+        if (token.regionMatches(true, 0, "Apikey ", 0, 7)) {
+            token = token.substring(7).trim();
+        } else if (token.regionMatches(true, 0, "Bearer ", 0, 7)) {
+            token = token.substring(7).trim();
+        }
+        if (!apiKey.trim().equals(token)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid SePay API key.");
+        }
+    }
+
+    private String extractOrderCode(SepayWebhookPayload payload) {
+        if (payload.code() != null && !payload.code().isBlank()) {
+            Matcher matcher = CODE_PATTERN.matcher(payload.code().trim());
+            if (matcher.find()) {
+                return matcher.group().toUpperCase();
+            }
+        }
+        if (payload.content() != null && !payload.content().isBlank()) {
+            Matcher matcher = CODE_PATTERN.matcher(payload.content());
+            if (matcher.find()) {
+                return matcher.group().toUpperCase();
+            }
+        }
+        return null;
+    }
+
+    static boolean matchesExpectedAmount(BigDecimal transferAmount, BigDecimal requiredAmount) {
+        return transferAmount != null
+                && requiredAmount != null
+                && transferAmount.compareTo(requiredAmount) == 0;
+    }
+
+    private void insertEvent(JdbcTemplate db, Long paymentId, String key, Object payloadObj, String status) {
+        String jsonPayload;
+        try {
+            jsonPayload = mapper.writeValueAsString(payloadObj);
+        } catch (JsonProcessingException ex) {
+            jsonPayload = "{}";
+        }
+        db.update("""
+                INSERT INTO dbo.payment_events(payment_id,provider,event_type,event_key,payload,signature_valid,processing_status,received_at,processed_at)
+                VALUES (?,'SEPAY','WEBHOOK',?,?,1,?,SYSUTCDATETIME(),SYSUTCDATETIME())
+                """, paymentId, key, jsonPayload, status);
     }
 
     private Map<String, Object> loadLockedRequest(JdbcTemplate db, Long requestId) {
@@ -287,9 +402,12 @@ public class VnPayPaymentService {
                 WHERE r.id=?
                 """, (rs, row) -> {
             Map<String, Object> result = new java.util.HashMap<>();
-            result.put("id", rs.getLong("id")); result.put("menteeId", rs.getLong("mentee_id"));
-            result.put("mentorId", rs.getLong("mentor_id")); result.put("serviceId", rs.getLong("service_id"));
-            result.put("status", rs.getString("status")); result.put("fundedAt", rs.getTimestamp("funded_at"));
+            result.put("id", rs.getLong("id"));
+            result.put("menteeId", rs.getLong("mentee_id"));
+            result.put("mentorId", rs.getLong("mentor_id"));
+            result.put("serviceId", rs.getLong("service_id"));
+            result.put("status", rs.getString("status"));
+            result.put("fundedAt", rs.getTimestamp("funded_at"));
             result.put("offerSnapshot", rs.getString("offer_snapshot"));
             result.put("submittedAt", rs.getTimestamp("submitted_at"));
             result.put("linkedServiceId", rs.getObject("linked_service_id"));
@@ -324,8 +442,7 @@ public class VnPayPaymentService {
         return recoveredSnapshot;
     }
 
-    static String recoverLegacyOfferSnapshot(com.fasterxml.jackson.databind.ObjectMapper mapper,
-                                              Map<String, Object> request) {
+    public static String recoverLegacyOfferSnapshot(ObjectMapper mapper, Map<String, Object> request) {
         Timestamp submittedAt = (Timestamp) request.get("submittedAt");
         Timestamp offeringUpdatedAt = (Timestamp) request.get("linkedServiceUpdatedAt");
         if (!isOfferingUnchangedSinceRequest(submittedAt, offeringUpdatedAt)
@@ -363,7 +480,7 @@ public class VnPayPaymentService {
         }
     }
 
-    static boolean isOfferingUnchangedSinceRequest(Timestamp submittedAt, Timestamp offeringUpdatedAt) {
+    public static boolean isOfferingUnchangedSinceRequest(Timestamp submittedAt, Timestamp offeringUpdatedAt) {
         return submittedAt != null && offeringUpdatedAt != null && !offeringUpdatedAt.after(submittedAt);
     }
 
@@ -395,42 +512,11 @@ public class VnPayPaymentService {
     }
 
     private String currencyFromSnapshot(Object snapshotValue) {
-        try { return mapper.readTree(String.valueOf(snapshotValue)).path("currency").asText("VND"); }
-        catch (Exception ex) { throw new ResponseStatusException(HttpStatus.CONFLICT, "The accepted package currency is invalid."); }
-    }
-
-    private void insertEvent(JdbcTemplate db, Map<String, Object> payment, String key,
-                             Map<String, String> fields, String status, Long paymentId) {
-        String payload;
-        try { payload = mapper.writeValueAsString(fields); }
-        catch (JsonProcessingException ex) { payload = "{}"; }
-        db.update("""
-                INSERT INTO dbo.payment_events(payment_id,provider,event_type,event_key,payload,signature_valid,processing_status,received_at,processed_at)
-                VALUES (?,'VNPAY','IPN',?,?,1,?,?,SYSUTCDATETIME())
-                """, paymentId != null ? paymentId : payment.get("id"), key, payload, status, Timestamp.from(Instant.now()));
-    }
-
-    private static String eventKey(String reference, String transactionId, String response, String transactionStatus) {
-        String key = reference + ":" + transactionId + ":" + response + ":" + transactionStatus;
-        return key.length() > 200 ? key.substring(0, 200) : key;
-    }
-
-    private static boolean amountMatches(BigDecimal amount, long gatewayMinor) {
-        if (gatewayMinor < 0) return false;
-        try { return amount.movePointRight(2).setScale(0, RoundingMode.UNNECESSARY).longValueExact() == gatewayMinor; }
-        catch (ArithmeticException ex) { return false; }
-    }
-
-    private static Instant parseVnPayDate(String value) {
-        if (value == null) return null;
-        try { return LocalDateTime.parse(value, PAY_DATE).atZone(VIETNAM).toInstant(); }
-        catch (RuntimeException ex) { return null; }
-    }
-
-    private static String safe(String value, int max) {
-        if (value == null) return "UNKNOWN";
-        String clean = value.replaceAll("[^A-Za-z0-9_-]", "");
-        return clean.isBlank() ? "UNKNOWN" : clean.substring(0, Math.min(clean.length(), max));
+        try {
+            return mapper.readTree(String.valueOf(snapshotValue)).path("currency").asText("VND");
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The accepted package currency is invalid.");
+        }
     }
 
     private static long currentMenteeId() {

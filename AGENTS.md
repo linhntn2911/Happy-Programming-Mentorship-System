@@ -6,7 +6,7 @@ Workflow reference: [GitHub Spec Kit](https://github.com/github/spec-kit) and it
 
 ## Product
 
-HappyProgramming is a programming mentorship platform that connects mentees with mentors for monthly mentorship and one-off sessions. The product includes mentor discovery, mentor applications, learning requests, scheduling, chat, reviews, notifications, administration, and VNPay-backed payments.
+HappyProgramming is a programming mentorship platform that connects mentees with mentors for monthly mentorship and one-off sessions. The product includes mentor discovery, mentor applications, learning requests, scheduling, chat, reviews, notifications, administration, SePay bank-transfer QR payments, internal escrow accounting, mentor wallets, and administrator-processed payouts.
 
 User-facing web copy is English. The visual language is bright purple and white, based on the supplied EduTeach reference and the current HappyProgramming component showcase.
 
@@ -43,6 +43,14 @@ Use this order when making decisions:
 7. Existing code and conventions.
 
 If artifacts conflict, reconcile them explicitly. Do not silently implement one interpretation while leaving contradictory specifications behind.
+
+### Current payment authority
+
+- `SRS_G3_V1.1 (2).docx` describes the current approval-first SePay payment flow.
+- `specs/020-sepay-mentorship-checkout/` is the active checkout and webhook specification.
+- `specs/019-mentor-wallet-payout/` remains authoritative for the seven-day earnings hold, mentor wallet, and administrator-processed payout lifecycle, but any VNPay wording in that historical feature package must be interpreted as a verified SePay payment and corrected when the artifact is next edited.
+- `specs/016-vnpay-mentorship-checkout/` and `docs/payments/vnpay-setup.md` are historical artifacts. Do not use them for new payment implementation or configuration.
+- `specs/SPEC.md` is the provider-aligned product baseline. Keep it synchronized with the active SRS and feature specifications whenever payment behavior changes.
 
 ### Feature workflow
 
@@ -123,6 +131,19 @@ Backend rules:
 - Enforce authorization in the backend even when the frontend hides an action.
 - Treat payment callbacks as untrusted input and make payment operations idempotent.
 - Store timestamps consistently and document timezone behavior.
+
+### SePay payment, escrow, wallet, and payout invariants
+
+- Monthly mentorship follows an approval-first flow. Mentor acceptance changes the request to `ACCEPTED` and enables checkout; it does not activate mentorship, create escrow value, or unlock the workspace.
+- Starting checkout creates or reuses a `PENDING` payment attempt with the accepted package-price snapshot, a unique transfer reference, and a 15-minute expiry. The checkout displays the SePay-generated bank-transfer QR and the configured HappyProgramming receiving-account details.
+- Only `POST /api/payments/sepay/webhook` may settle a SePay payment. Browser navigation, QR rendering, polling, refreshes, and client-provided status values must never mark a payment successful.
+- Authenticate the webhook with the configured SePay credential and validate the inbound transfer direction, configured receiving account, unique transfer reference, expected amount, payment eligibility, and provider event identity before settlement.
+- Webhook settlement must be atomic and idempotent: record the provider event once, change the payment to `SUCCEEDED`, set `funded_at`, append the escrow `HOLD`, activate the subscription, and provision workspace access without duplicate financial or conversation records.
+- An invalid, insufficient, unknown, expired, or otherwise unmatched transfer must not activate mentorship. Route late, overpaid, or ambiguous transfers to reconciliation according to the active specification.
+- SePay supplies QR and incoming-transaction notification services. Actual funds arrive in the configured HappyProgramming bank account. The application escrow is an internal append-only ledger and must not be represented as bank-regulated escrow or as money held by SePay.
+- Verified mentor earnings remain held for seven days. The release job records the mentor share and platform fee once, after which only the available, unreserved mentor balance may be requested for payout.
+- Mentor payouts are administrator-reviewed external bank transfers. Marking a payout `PAID` requires the external transfer reference and appends one immutable payout debit; rejecting it releases the reservation.
+- New payment code and documentation must use SePay terminology. Do not add a VNPay fallback, VNPay endpoint, or VNPay configuration unless an approved future specification explicitly restores that provider.
 
 ### Frontend
 
@@ -214,7 +235,7 @@ Design requirements:
 
 ## Security and Privacy
 
-- Never commit passwords, API keys, tokens, database credentials, VNPay secrets, or private certificates.
+- Never commit passwords, API keys, tokens, database credentials, SePay webhook credentials, receiving-account secrets, wallet-encryption keys, or private certificates.
 - Provide `.env.example` or documented configuration keys with non-secret sample values.
 - Validate and authorize file uploads by type, size, ownership, and storage path.
 - Do not log credentials, authentication tokens, payment signatures, or sensitive personal data.

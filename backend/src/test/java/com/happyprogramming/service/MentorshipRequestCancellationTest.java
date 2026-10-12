@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -42,7 +43,7 @@ class MentorshipRequestCancellationTest {
     }
 
     @Test
-    void cancelsOwnedAcceptedApplicationWithoutOpenPaymentAndNotifiesMentor() {
+    void cancelsOwnedAcceptedApplicationWithoutSucceededPaymentAndNotifiesMentor() {
         Map<String, Object> request = new HashMap<>();
         request.put("mentee_id", 5L);
         request.put("mentor_id", 8L);
@@ -53,14 +54,14 @@ class MentorshipRequestCancellationTest {
 
         service.cancelMyRequest(99L);
 
-        verify(jdbcTemplate).update(anyString(), any(Object[].class));
+        verify(jdbcTemplate, atLeastOnce()).update(anyString(), any(Object[].class));
         verify(notificationService).create(eq(8L), eq("Mentorship application cancelled"),
                 eq("Mentee cancelled their mentorship application."), eq("MENTORSHIP_REQUEST_CANCELLED"),
                 eq("#/mentor/dashboard"));
     }
 
     @Test
-    void refusesCancellationWhilePaymentAttemptIsPending() {
+    void refusesCancellationWhenPaymentIsSucceeded() {
         Map<String, Object> request = new HashMap<>();
         request.put("mentee_id", 5L);
         request.put("mentor_id", 8L);

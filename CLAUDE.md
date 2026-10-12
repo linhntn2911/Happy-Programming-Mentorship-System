@@ -57,6 +57,19 @@ All active feature work, API endpoints, and client modules must target `backend/
 - Temporary development seed records must use a versioned migration and Repository/API reads; remove only seed data and seed mechanism when real flows exist.
 - Make payment and other callback-driven operations idempotent and verifiable. Add focused coverage for changed behavior.
 
+## SePay Payment and Finance Expectations
+
+- Read `SRS_G3_V1.1 (2).docx`, `specs/SPEC.md`, `specs/020-sepay-mentorship-checkout/`, and the relevant parts of `specs/019-mentor-wallet-payout/` before changing checkout, payment, escrow, wallet, refund, reconciliation, or payout behavior.
+- Treat `specs/016-vnpay-mentorship-checkout/` and `docs/payments/vnpay-setup.md` as historical references only. New work uses SePay and must not restore VNPay fallback behavior without an approved specification.
+- Preserve the approval-first boundary: mentor acceptance only enables payment. Subscription activation, chat access, and escrow funding require a successfully verified SePay webhook.
+- Checkout creates or reuses a 15-minute `PENDING` attempt containing the immutable accepted price and a unique bank-transfer reference. Render the QR and bank details from backend-provided configuration; never hardcode a real account or secret in source, tests, specifications, or examples.
+- Keep `POST /api/payments/sepay/webhook` server-to-server, publicly reachable over HTTPS, and excluded from browser authentication only to the extent required for webhook delivery. Authenticate it with the configured SePay credential and validate transfer direction, receiving account, reference, amount, payment state, and provider event identity.
+- Process webhook delivery atomically and idempotently. Client polling observes backend state and cannot settle a payment.
+- Describe escrow accurately: money reaches the configured HappyProgramming bank account, while `escrow_ledger_entries` provides the internal append-only hold and release record.
+- Keep mentor earnings held for seven days before release to available wallet balance. Payout requests reserve available balance; an administrator completes the external bank transfer and records the reference before marking a request paid.
+- Use environment-only configuration for `SEPAY_*` and `HPMS_WALLET_ENCRYPTION_KEY`. Examples use placeholders, SePay is disabled when required configuration is absent, and logs must not expose credentials or full sensitive bank details.
+- Payment changes require focused service/controller/security tests, webhook replay tests, and state-transition verification. Expand to the full backend and frontend suites because payment behavior crosses configuration, persistence, security, and UI boundaries.
+
 ## Frontend Expectations
 
 - Put role-owned modules directly in `frontend/src/roles/{admin,staff,mentor,mentee,auth,guest}/`. Do not nest `pages/components/services` inside role folders. Put reusable cross-role modules directly in `frontend/src/shared/`; keep `main.js`, `app.css`, and global `styles/` at the root.

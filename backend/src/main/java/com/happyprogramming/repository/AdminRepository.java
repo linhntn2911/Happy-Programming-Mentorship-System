@@ -67,7 +67,7 @@ public class AdminRepository {
         if (jdbc.update("UPDATE dbo.system_configs SET config_value=?, updated_by=?, updated_at=SYSUTCDATETIME() WHERE config_key=?", serialize(Map.of("value", value)), actor, key) != 1) throw new IllegalStateException("Required configuration is missing");
     }
     public List<Payment> payments() {
-        return jdbc.query("SELECT id, merchant_reference, amount, commission_rate_snapshot, status, gateway, gateway_transaction_id, paid_at FROM dbo.payments WHERE status='SUCCEEDED' AND gateway='VNPAY' AND NULLIF(LTRIM(RTRIM(gateway_transaction_id)), '') IS NOT NULL AND paid_at IS NOT NULL AND currency='VND' ORDER BY paid_at DESC, id DESC",
+        return jdbc.query("SELECT id, merchant_reference, amount, commission_rate_snapshot, status, gateway, gateway_transaction_id, paid_at FROM dbo.payments WHERE status='SUCCEEDED' AND gateway IN ('SEPAY', 'VNPAY') AND NULLIF(LTRIM(RTRIM(gateway_transaction_id)), '') IS NOT NULL AND paid_at IS NOT NULL AND currency='VND' ORDER BY paid_at DESC, id DESC",
             (r, n) -> new Payment(r.getLong("id"), r.getString("merchant_reference"), r.getBigDecimal("amount"), r.getBigDecimal("commission_rate_snapshot"), r.getString("status"), r.getString("gateway"), r.getString("gateway_transaction_id"), instant(r.getTimestamp("paid_at"))));
     }
     public List<Audit> audit() {

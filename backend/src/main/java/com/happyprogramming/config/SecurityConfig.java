@@ -29,13 +29,14 @@ public class SecurityConfig {
                                  ObjectProvider<ClientRegistrationRepository> registrations,
                                  @Value("${hpms.frontend.base-url:http://localhost:5173}") String frontendBaseUrl) throws Exception {
         http.authorizeHttpRequests(r -> r
-            .requestMatchers(HttpMethod.GET, "/", "/error", "/api/mentors", "/api/mentors/**", "/api/auth/csrf", "/api/auth/options",
-                "/api/payments/vnpay/ipn", "/api/payments/vnpay/return").permitAll()
+            .requestMatchers(HttpMethod.GET, "/", "/error", "/api/mentors", "/api/mentors/**", "/api/auth/csrf", "/api/auth/options").permitAll()
+            .requestMatchers(HttpMethod.POST, "/api/payments/sepay/webhook").permitAll()
             .requestMatchers("/api/auth/login", "/api/auth/signup/**", "/api/auth/verify-otp", "/api/auth/resend-otp", "/api/auth/google", "/oauth2/**", "/login/oauth2/**").permitAll()
             .requestMatchers("/api/mentor-applications", "/api/mentor-applications/check-email",
                 "/api/mentor-applications/mine", "/api/mentor-applications/verify", "/api/mentor-applications/resend").permitAll()
             .requestMatchers("/api/admin/**").hasRole("ADMIN")
             .anyRequest().authenticated());
+        http.csrf(c -> c.ignoringRequestMatchers("/api/payments/sepay/webhook"));
         http.formLogin(f -> f.disable()).httpBasic(b -> b.disable());
         http.requestCache(c -> c.disable());
         http.exceptionHandling(e -> e

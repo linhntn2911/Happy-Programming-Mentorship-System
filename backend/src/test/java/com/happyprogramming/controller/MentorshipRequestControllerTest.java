@@ -5,8 +5,7 @@ import com.happyprogramming.dto.MentorshipRequestResponse;
 import com.happyprogramming.dto.MenteeApplicationDto;
 import com.happyprogramming.dto.MenteeApplicationPageDto;
 import com.happyprogramming.service.MentorshipRequestService;
-import com.happyprogramming.service.VnPayPaymentService;
-
+import com.happyprogramming.service.SepayPaymentService;
 
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
@@ -37,7 +36,7 @@ class MentorshipRequestControllerTest {
     @MockitoBean
     private MentorshipRequestService mentorshipRequestService;
     @MockitoBean
-    private VnPayPaymentService vnPayPaymentService;
+    private SepayPaymentService sepayPaymentService;
 
     private static final String VALID_BODY = """
             {"mentorSlug":"nam-nguyen","learningGoals":"%s","experienceLevel":"JUNIOR",
@@ -161,32 +160,27 @@ class MentorshipRequestControllerTest {
     }
 
     @Test
-    void startsPendingVnPayCheckout() throws Exception {
-        when(vnPayPaymentService.initiate(org.mockito.ArgumentMatchers.eq(99L), org.mockito.ArgumentMatchers.anyString()))
+    void startsPendingSepayCheckout() throws Exception {
+        when(sepayPaymentService.isEnabled()).thenReturn(true);
+        when(sepayPaymentService.initiate(99L))
                 .thenReturn(new com.happyprogramming.dto.CheckoutResponse(
-                        812L,
-                        99L,
-                        "PENDING",
-                        new java.math.BigDecimal("2500000.00"),
-                        "VND",
-                        "HP99-1-abcdef123456",
-                        "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?signature=test",
-                        Instant.parse("2026-10-08T02:15:00Z"),
-                        "VNPay QR payment is ready."
+                        813L, 99L, "PENDING", new java.math.BigDecimal("2500000.00"), "VND",
+                        "HP99A1", "https://qr.sepay.vn/img?bank=TPBank&acc=00000806194&template=compact&amount=2500000&des=HP99A1",
+                        Instant.parse("2026-10-12T07:00:00Z"), "SePay QR payment is ready.",
+                        "https://qr.sepay.vn/img?bank=TPBank&acc=00000806194&template=compact&amount=2500000&des=HP99A1",
+                        "TPBank", "00000806194", "NGUYEN THI NGOC LINH"
                 ));
 
-        mockMvc.perform(post("/api/mentorship-requests/99/checkout")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"paymentMethod":"VNPAY"}
-                                """))
+        mockMvc.perform(post("/api/mentorship-requests/99/checkout"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.paymentId").value(812))
+                .andExpect(jsonPath("$.data.paymentId").value(813))
                 .andExpect(jsonPath("$.data.status").value("PENDING"))
-                .andExpect(jsonPath("$.data.paymentReference").value("HP99-1-abcdef123456"))
-                .andExpect(jsonPath("$.data.paymentUrl").value(org.hamcrest.Matchers.startsWith("https://sandbox.vnpayment.vn/")))
-                .andExpect(jsonPath("$.data.amount").value(2500000.00));
+                .andExpect(jsonPath("$.data.paymentReference").value("HP99A1"))
+                .andExpect(jsonPath("$.data.bankName").value("TPBank"))
+                .andExpect(jsonPath("$.data.accountNumber").value("00000806194"))
+                .andExpect(jsonPath("$.data.accountHolder").value("NGUYEN THI NGOC LINH"))
+                .andExpect(jsonPath("$.data.qrCodeUrl").value(org.hamcrest.Matchers.startsWith("https://qr.sepay.vn/")));
     }
 
     @Test

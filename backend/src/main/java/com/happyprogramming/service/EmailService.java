@@ -36,7 +36,7 @@ public class EmailService {
             + "Great news! Mentor " + mentor + " has accepted your mentorship request for package \"" + pkg + "\".\n\n"
             + "To complete your mentorship checkout, please sign in to your HappyProgramming account on our platform.\n"
             + "Sign in and open My applications to review the accepted request and continue to checkout.\n\n"
-            + "Your payment is held safely in Escrow after VNPay confirms the transaction.\n\n"
+            + "Your payment is held safely in Escrow after payment is confirmed.\n\n"
             + "Best regards,\nHappyProgramming Mentorship Team");
     }
 

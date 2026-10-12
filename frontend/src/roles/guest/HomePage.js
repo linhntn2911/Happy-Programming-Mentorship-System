@@ -186,7 +186,7 @@ export function HomePage(mentors = [], user = null, navigationMentors = mentors)
           <article>
             <span class="inline-grid h-12 w-12 place-items-center rounded-full bg-white text-brand"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6z"/><path d="m8 12 3 3 5-6"/></svg></span>
             <h3 class="mt-4 text-[15px] font-semibold">Clear payment protection</h3>
-            <p class="mx-auto mt-3 max-w-[275px] text-[12px] leading-6 text-muted">Pay through VNPay. Funds are held until the service completion requirements have been met.</p>
+            <p class="mx-auto mt-3 max-w-[275px] text-[12px] leading-6 text-muted">Pay seamlessly via QR transfer. Funds are held safely in escrow until the service completion requirements have been met.</p>
           </article>
         </div>
         <div class="mt-9 text-center">

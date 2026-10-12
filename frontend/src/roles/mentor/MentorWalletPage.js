@@ -8,7 +8,7 @@ const dateTime = value => value ? new Date(value).toLocaleString('en-US', { date
 
 function walletContent() {
   return `
-    <div class="admin-page-heading"><div><p class="eyebrow mb-3">MENTOR EARNINGS</p><h1>Wallet and payouts</h1><p>Verified VNPay payments are held for seven days before becoming available to withdraw.</p></div></div>
+    <div class="admin-page-heading"><div><p class="eyebrow mb-3">MENTOR EARNINGS</p><h1>Wallet and payouts</h1><p>Verified payments are held for seven days before becoming available to withdraw.</p></div></div>
     <div id="wallet-loading" class="admin-panel admin-panel-body text-sm text-muted" role="status">Loading your wallet…</div>
     <div id="wallet-error" class="admin-notice notice-error mb-5" role="alert" hidden></div>
     <button id="wallet-retry" class="btn btn-outline mb-5" type="button" hidden>Try again</button>

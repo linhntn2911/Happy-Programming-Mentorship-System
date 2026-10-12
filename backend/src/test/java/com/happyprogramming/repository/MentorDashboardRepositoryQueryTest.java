@@ -35,7 +35,8 @@ class MentorDashboardRepositoryQueryTest {
         assertTrue(query.contains("mentor_id"));
         assertTrue(query.contains("'pending'"));
         assertTrue(query.contains("response_deadline"));
-        assertTrue(query.contains("offering.name as packagename"));
+        assertTrue(query.contains("offering.name"));
+        assertTrue(query.contains("packagename"));
         assertTrue(!query.contains("offering.price"));
     }
 

@@ -66,14 +66,25 @@ public class MentorshipRequestService {
     private final JdbcTemplate jdbcTemplate;
     private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
+    private final SepayPaymentService sepayPaymentService;
 
+    @Autowired
     public MentorshipRequestService(
             @Autowired(required = false) JdbcTemplate jdbcTemplate,
             NotificationService notificationService,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            @Autowired(required = false) SepayPaymentService sepayPaymentService) {
         this.jdbcTemplate = jdbcTemplate;
         this.notificationService = notificationService;
         this.objectMapper = objectMapper;
+        this.sepayPaymentService = sepayPaymentService;
+    }
+
+    public MentorshipRequestService(
+            JdbcTemplate jdbcTemplate,
+            NotificationService notificationService,
+            ObjectMapper objectMapper) {
+        this(jdbcTemplate, notificationService, objectMapper, null);
     }
 
     @Transactional
@@ -266,14 +277,21 @@ public class MentorshipRequestService {
         if (!("PENDING".equals(status) || "ACCEPTED".equals(status)) || row.get("funded_at") != null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Only pending or accepted unpaid applications can be cancelled.");
         }
-        Integer openPayments = template.queryForObject("""
+        Integer completedPayments = template.queryForObject("""
                 SELECT COUNT(1) FROM dbo.payments
-                WHERE request_id = ? AND status IN ('PENDING', 'SUCCEEDED')
+                WHERE request_id = ? AND status = 'SUCCEEDED'
                 """, Integer.class, requestId);
-        if (openPayments != null && openPayments > 0) {
+        if (completedPayments != null && completedPayments > 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "This application has a pending or completed payment. Wait for the pending payment to expire before cancelling.");
+                    "This application has already been paid and cannot be cancelled.");
         }
+        template.update("""
+                UPDATE dbo.payments
+                SET status = 'CANCELLED', failure_code = 'APPLICATION_CANCELLED',
+                    failure_message = N'Mentee cancelled the application before payment.',
+                    updated_at = SYSUTCDATETIME()
+                WHERE request_id = ? AND status = 'PENDING'
+                """, requestId);
         template.update("""
                 UPDATE dbo.mentorship_requests
                 SET status = 'CANCELLED', cancelled_at = SYSUTCDATETIME(), updated_at = SYSUTCDATETIME()
@@ -360,7 +378,7 @@ public class MentorshipRequestService {
                 if (json.has("callsPerPeriod")) calls = json.get("callsPerPeriod").asInt();
                 if (json.has("name")) packageName = json.get("name").asText();
             } catch (Exception ignored) {}
-        } else if (VnPayPaymentService.isOfferingUnchangedSinceRequest(
+        } else if (SepayPaymentService.isOfferingUnchangedSinceRequest(
                 (java.sql.Timestamp) row.get("submitted_at"),
                 (java.sql.Timestamp) row.get("offering_updated_at"))
                 && "ACTIVE".equals(row.get("offering_status"))
@@ -370,6 +388,20 @@ public class MentorshipRequestService {
             amount = currentPrice;
             currency = (String) row.get("currency");
             priceAvailable = true;
+        }
+
+        String qrCodeUrl = null;
+        String bankName = null;
+        String accountNumber = null;
+        String accountHolder = null;
+        String paymentReference = (String) row.get("payment_reference");
+        if (sepayPaymentService != null && sepayPaymentService.isEnabled()
+                && "PENDING".equals(row.get("payment_status"))
+                && paymentReference != null && amount != null) {
+            qrCodeUrl = sepayPaymentService.buildQrUrl(amount, paymentReference);
+            bankName = sepayPaymentService.getBankName();
+            accountNumber = sepayPaymentService.getAccountNumber();
+            accountHolder = sepayPaymentService.getAccountHolder();
         }
 
         return new CheckoutInfoDto(
@@ -388,8 +420,12 @@ public class MentorshipRequestService {
                 isPaid,
                 (String) row.get("payment_status"),
                 toInstant((java.sql.Timestamp) row.get("payment_expires_at")),
-                (String) row.get("payment_reference"),
-                priceAvailable
+                paymentReference,
+                priceAvailable,
+                qrCodeUrl,
+                bankName,
+                accountNumber,
+                accountHolder
         );
     }
 
