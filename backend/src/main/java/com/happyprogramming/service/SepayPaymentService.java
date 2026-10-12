@@ -306,7 +306,7 @@ public class SepayPaymentService {
                     INSERT INTO dbo.subscriptions(request_id,service_id,mentor_id,mentee_id,agreed_price,currency,
                         plan_snapshot,status,activated_at,trial_ends_at,current_period_start,current_period_end,
                         next_billing_at,renewal_mode,cancel_at_period_end,created_at,updated_at)
-                    VALUES (?,?,?,?,?,'VND',?,'ACTIVE',?,NULL,?,?,?,'MANUAL',0,?,?)
+                    VALUES (?,?,?,?,?,'VND',?,'TRIALING',?,DATEADD(DAY,7,?),?,?,?,'MANUAL',0,?,?)
                     """, new String[]{"id"});
             ps.setLong(1, requestId);
             ps.setLong(2, serviceId);
@@ -316,10 +316,11 @@ public class SepayPaymentService {
             ps.setString(6, offerSnapshot);
             ps.setTimestamp(7, paidTimestamp);
             ps.setTimestamp(8, paidTimestamp);
-            ps.setTimestamp(9, periodEnd);
+            ps.setTimestamp(9, paidTimestamp);
             ps.setTimestamp(10, periodEnd);
-            ps.setTimestamp(11, Timestamp.from(now));
+            ps.setTimestamp(11, periodEnd);
             ps.setTimestamp(12, Timestamp.from(now));
+            ps.setTimestamp(13, Timestamp.from(now));
             return ps;
         }, subscriptionKey);
 
