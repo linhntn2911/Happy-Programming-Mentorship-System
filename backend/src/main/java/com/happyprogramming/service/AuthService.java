@@ -109,6 +109,43 @@ public class AuthService {
         emailService.sendOtpEmail(user.getEmail(), user.getFirstName(), otp);
     }
 
+    @Transactional
+    public void forgotPassword(com.happyprogramming.dto.ForgotPasswordRequest request) {
+        String normalizedEmail = request.email().trim().toLowerCase(Locale.ROOT);
+        var user = users.findForLogin(normalizedEmail).orElse(null);
+        if (user == null) {
+            return;
+        }
+        var now = LocalDateTime.now(clock);
+        String otp = String.format("%06d", java.util.concurrent.ThreadLocalRandom.current().nextInt(1000000));
+        var token = com.happyprogramming.entity.SecurityToken.createResetPassword(user.getId(), otp, now, 15);
+        securityTokens.save(token);
+
+        emailService.sendPasswordResetOtpEmail(user.getEmail(), user.getFirstName(), otp);
+    }
+
+    @Transactional
+    public void resetPassword(com.happyprogramming.dto.ResetPasswordRequest request) {
+        validatePasswordPolicy(request.newPassword());
+        String normalizedEmail = request.email().trim().toLowerCase(Locale.ROOT);
+        var user = users.findForLogin(normalizedEmail).orElseThrow(
+            () -> new IllegalArgumentException("Invalid email or verification code. Please request a new code.")
+        );
+        var now = LocalDateTime.now(clock);
+        var token = securityTokens.findFirstByUserIdAndPurposeAndUsedAtIsNullOrderByCreatedAtDesc(user.getId(), "RESET_PASSWORD")
+            .orElseThrow(() -> new IllegalArgumentException("No pending password reset code found. Please request a new one."));
+
+        if (!token.isValid(now) || !token.matches(request.code())) {
+            throw new IllegalArgumentException("Invalid or expired verification code. Please request a new one.");
+        }
+
+        token.markUsed(now);
+        securityTokens.saveAndFlush(token);
+        String hash = passwords.encode(request.newPassword());
+        user.resetPassword(hash, now);
+        users.saveAndFlush(user);
+    }
+
     public void validatePasswordPolicy(String password) {
         if (password == null || password.length() < 8) {
             throw new IllegalArgumentException("Password must be at least 8 characters.");

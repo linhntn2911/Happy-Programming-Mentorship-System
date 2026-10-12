@@ -27,6 +27,8 @@ export const authService = {
     return user;
   },
   resendOtp: data => post('/api/auth/resend-otp', data),
+  forgotPassword: data => post('/api/auth/forgot-password', data),
+  resetPassword: data => post('/api/auth/reset-password', data),
   me: async () => {
     try {
       const user = await apiClient('/api/auth/me', { cache: 'no-store' });

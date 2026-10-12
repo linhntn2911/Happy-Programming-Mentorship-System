@@ -17,6 +17,7 @@ public class EmailService {
     }
     public void sendOtpEmail(String email, String recipient, String code) { send(email,code,10,"verify your email"); }
     public void sendMentorOtpEmail(String email, String recipient, String code) { send(email,code,15,"submit your mentor application"); }
+    public void sendPasswordResetOtpEmail(String email, String recipient, String code) { send(email,code,15,"reset your HappyProgramming password"); }
 
     public void sendMentorApplicationApprovedEmail(String email, String recipient) {
         sendNotification(email, "Mentor Application Approved - Welcome to HappyProgramming!",

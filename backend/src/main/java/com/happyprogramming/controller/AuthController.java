@@ -2,9 +2,11 @@ package com.happyprogramming.controller;
 
 import com.happyprogramming.dto.ApiResponse;
 import com.happyprogramming.dto.AuthenticatedUser;
+import com.happyprogramming.dto.ForgotPasswordRequest;
 import com.happyprogramming.dto.LoginRequest;
 import com.happyprogramming.dto.MenteeSignupRequest;
 import com.happyprogramming.dto.ResendOtpRequest;
+import com.happyprogramming.dto.ResetPasswordRequest;
 import com.happyprogramming.dto.RoleRequest;
 import com.happyprogramming.dto.VerifyOtpRequest;
 import com.happyprogramming.service.AuthService;
@@ -61,6 +63,18 @@ public class AuthController {
     public ResponseEntity<?> resendOtp(@Valid @RequestBody ResendOtpRequest body) {
         auth.resendOtp(body.email());
         return ResponseEntity.ok(ApiResponse.ok("A new verification code has been sent to your email", null));
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotPasswordRequest body) {
+        auth.forgotPassword(body);
+        return ResponseEntity.ok(ApiResponse.ok("If an account exists with this email, a verification code has been sent.", null));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest body) {
+        auth.resetPassword(body);
+        return ResponseEntity.ok(ApiResponse.ok("Your password has been successfully reset. Please log in with your new password.", null));
     }
 
     @PostMapping("/login")

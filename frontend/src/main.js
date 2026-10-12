@@ -4,6 +4,7 @@ import {
   MentorProfilePage,
 } from './roles/mentor/MentorProfilePage.js';
 import { mountLogin } from './roles/auth/LoginPage.js';
+import { mountForgotPassword } from './roles/auth/ForgotPasswordPage.js';
 import { mountAdmin } from './roles/admin/AdminPage.js';
 import { mountMenteeSignup } from './roles/auth/MenteeSignupPage.js';
 import { mountAccount } from './roles/mentee/AccountPage.js';
@@ -451,6 +452,9 @@ function router() {
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash === '#/login' || hash.startsWith('#/login?')) {
     mountLogin(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/forgot-password' || hash.startsWith('#/forgot-password?')) {
+    mountForgotPassword(appEl);
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash === '#/staff/dashboard') {
     mountStaffDashboard(appEl);
