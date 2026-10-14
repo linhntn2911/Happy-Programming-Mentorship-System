@@ -88,6 +88,8 @@
                         <copy file="${project.basedir}/../docs/database/migration/020_20261011_make_mentor_wallet_migration_retriable.sql" tofile="${project.build.outputDirectory}/db/migration/V13__reconcile_mentor_wallet_payouts.sql" overwrite="true"/>
                         <copy file="${project.basedir}/../docs/database/migration/022_20261012_add_workspace_file_content.sql" tofile="${project.build.outputDirectory}/db/migration/V14__add_workspace_file_content.sql" overwrite="true"/>
                         <copy file="${project.basedir}/../docs/database/migration/023_20261013_add_mentor_bank_accounts_and_payout_otp.sql" tofile="${project.build.outputDirectory}/db/migration/V15__add_mentor_bank_accounts_and_payout_otp.sql" overwrite="true"/>
+                        <copy file="${project.basedir}/../docs/database/migration/024_20261014_allow_one_off_requests.sql" tofile="${project.build.outputDirectory}/db/migration/V16__allow_one_off_requests.sql" overwrite="true"/>
+                        <copy file="${project.basedir}/../docs/database/migration/025_20261014_seed_one_off_demo_sessions.sql" tofile="${project.build.outputDirectory}/db/migration/V17__seed_one_off_demo_sessions.sql" overwrite="true"/>
                     </target></configuration>
                 </execution></executions>
             </plugin>

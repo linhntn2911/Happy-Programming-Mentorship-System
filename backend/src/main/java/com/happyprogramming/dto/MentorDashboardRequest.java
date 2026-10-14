@@ -6,6 +6,7 @@ public record MentorDashboardRequest(
         Long id,
         String menteeName,
         String packageName,
+        String serviceType,
         String learningGoals,
         String learningGoalsSummary,
         String status,
