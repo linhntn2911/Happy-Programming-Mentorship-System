@@ -5,6 +5,7 @@ import {
 } from './roles/mentor/MentorProfilePage.js';
 import { mountLogin } from './roles/auth/LoginPage.js';
 import { mountForgotPassword } from './roles/auth/ForgotPasswordPage.js';
+import { mountChangePassword } from './roles/auth/ChangePasswordPage.js';
 import { mountAdmin } from './roles/admin/AdminPage.js';
 import { mountMenteeSignup } from './roles/auth/MenteeSignupPage.js';
 import { mountAccount } from './roles/mentee/AccountPage.js';
@@ -458,6 +459,9 @@ function router() {
   } else if (hash === '#/forgot-password' || hash.startsWith('#/forgot-password?')) {
     mountForgotPassword(appEl);
     window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/change-password' || hash.startsWith('#/change-password?')) {
+    mountChangePassword(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash === '#/staff/dashboard') {
     mountStaffDashboard(appEl);
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -794,6 +798,8 @@ mentorService
       '#/admin',
       '#/login',
       '#/signup',
+      '#/forgot-password',
+      '#/change-password',
       '#/apply',
       '#/staff/',
       '#/account',
