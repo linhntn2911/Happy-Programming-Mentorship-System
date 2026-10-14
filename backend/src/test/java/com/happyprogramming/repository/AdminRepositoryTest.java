@@ -59,5 +59,25 @@ public class AdminRepositoryTest {
         service.settings(new AdminDtos.SettingsChange(new BigDecimal("20.00"),"help@example.com","New rate"), new AdminDtos.Session(1,"Admin","admin@example.com"),"127.0.0.1");
         assertEquals(0, new BigDecimal("20.00").compareTo(repository.settings().commissionRate()));
         assertEquals("help@example.com", repository.settings().supportEmail()); assertEquals("SETTINGS_CHANGED", repository.audit().get(0).action());
+        assertEquals("help@example.com", repository.supportEmail());
+    }
+    @Test void publicContactHandlesUnsetAndMalformedValuesWithoutReadingFinance() {
+        assertEquals("", repository.supportEmail());
+        jdbc.update("UPDATE dbo.system_configs SET config_value='broken' WHERE config_key='finance.commission_rate'");
+        assertEquals("", repository.supportEmail());
+        jdbc.update("UPDATE dbo.system_configs SET config_value='broken' WHERE config_key='platform.support_email'");
+        assertThrows(IllegalStateException.class, repository::supportEmail);
+        jdbc.update("DELETE FROM dbo.system_configs WHERE config_key='platform.support_email'");
+        assertEquals("", repository.supportEmail());
+    }
+    @Test void clearingContactPersistsAndFailedAuditRollsBackChange() {
+        var actor = new AdminDtos.Session(1,"Admin","admin@example.com");
+        service.settings(new AdminDtos.SettingsChange(new BigDecimal("15"), "help@example.com", "Set contact"), actor, "127.0.0.1");
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class, () ->
+            service.settings(new AdminDtos.SettingsChange(new BigDecimal("15"), "other@example.com", "reject-audit"), actor, "127.0.0.1"));
+        assertEquals("help@example.com", repository.supportEmail());
+        service.settings(new AdminDtos.SettingsChange(new BigDecimal("15"), "   ", "Hide contact"), actor, "127.0.0.1");
+        assertEquals("", repository.supportEmail());
+        assertEquals(2, repository.audit().size());
     }
 }

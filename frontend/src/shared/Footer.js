@@ -27,6 +27,7 @@ export function Footer() {
       <div>
         <h2 class="text-xs font-semibold">Good to know</h2>
         <div class="mt-5 flex flex-col gap-3 text-[11px] text-muted">
+          <hp-support-contact><span role="status">Loading support contact…</span></hp-support-contact>
           <a href="#faq" class="hover:text-brand">Frequently asked questions</a>
           <a href="#/components" class="hover:text-brand font-medium text-brand">UI Component Showcase</a>
         </div>

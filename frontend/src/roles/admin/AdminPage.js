@@ -107,7 +107,7 @@ export function mountAdmin(root, section = 'overview') {
     }));
     on('#admin-settings-reset', 'click', render);
     on('#admin-settings', 'submit', event => {
-      event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget)); values.commissionRate = Number(values.commissionRate);
+      event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget)); values.commissionRate = Number(values.commissionRate); values.supportEmail = values.supportEmail.trim();
       if (!values.reason.trim()) { event.currentTarget.elements.reason.setCustomValidity('Provide a reason for this change.'); event.currentTarget.reportValidity(); return; }
       openDialog('Review configuration changes', `<p>Platform commission: <strong>${e(data.settings.commissionRate)}% → ${e(values.commissionRate)}%</strong></p><p>Support email: <strong>${e(values.supportEmail || 'Not configured')}</strong></p><p class="mt-3">${e(values.reason)}</p><p class="mt-3">Existing payment commission rates will remain unchanged.</p>`, () => service.settings(values));
     });

@@ -28,5 +28,9 @@ public final class AdminDtos {
                                    @NotBlank @Size(max=1000) String reason) { }
     public record SettingsChange(@NotNull @DecimalMin("0") @DecimalMax("100") @Digits(integer=3, fraction=2) BigDecimal commissionRate,
                                  @NotNull @Email @Size(max=254) String supportEmail,
-                                 @NotBlank @Size(max=1000) String reason) { }
+                                 @NotBlank @Size(max=1000) String reason) {
+        public SettingsChange {
+            if (supportEmail != null) supportEmail = supportEmail.trim();
+        }
+    }
 }

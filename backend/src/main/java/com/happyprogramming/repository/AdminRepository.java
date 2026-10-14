@@ -48,6 +48,18 @@ public class AdminRepository {
         jdbc.update("DELETE FROM dbo.user_permissions WHERE user_id=?", id);
         for (String permission : permissions) jdbc.update("INSERT INTO dbo.user_permissions(user_id,permission_code,assigned_by) VALUES(?,?,?)", id, permission, actor);
     }
+    public String supportEmail() {
+        var values = jdbc.queryForList("SELECT config_value FROM dbo.system_configs WHERE config_key=?", String.class, "platform.support_email");
+        if (values.isEmpty()) return "";
+        try {
+            var node = json.readTree(values.get(0));
+            if (node == null || !node.isObject() || !node.has("value")) throw new IllegalStateException("Invalid support configuration");
+            var email = node.get("value");
+            if (email.isNull()) return "";
+            if (!email.isTextual()) throw new IllegalStateException("Invalid support configuration");
+            return email.asText();
+        } catch (JsonProcessingException e) { throw new IllegalStateException("Invalid support configuration", e); }
+    }
     public Settings settings() {
         Map<String, String> values = new HashMap<>();
         jdbc.query("SELECT config_key,config_value FROM dbo.system_configs WHERE config_key IN ('finance.commission_rate','platform.support_email')", r -> { values.put(r.getString(1), r.getString(2)); });

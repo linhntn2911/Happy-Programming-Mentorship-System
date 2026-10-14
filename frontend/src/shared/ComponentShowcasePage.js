@@ -1,4 +1,5 @@
 import { Button } from './Button.js';
+import { Footer } from './Footer.js';
 import { BrandLogo } from './BrandLogo.js';
 import { StatCard, StatusBadge, DataTable, Notice } from '../roles/admin/AdminPrimitives.js';
 import { LoginForm } from '../roles/auth/LoginForm.js';
@@ -251,5 +252,6 @@ export function ComponentShowcasePage() {
     </section>
   </div>
 </main>
+${Footer()}
   `;
 }

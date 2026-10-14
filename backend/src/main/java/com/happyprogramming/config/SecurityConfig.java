@@ -29,6 +29,7 @@ public class SecurityConfig {
                                  ObjectProvider<ClientRegistrationRepository> registrations,
                                  @Value("${hpms.frontend.base-url:http://localhost:5173}") String frontendBaseUrl) throws Exception {
         http.authorizeHttpRequests(r -> r
+            .requestMatchers(HttpMethod.GET, "/api/public/contact").permitAll()
             .requestMatchers("/error").permitAll()
             .requestMatchers(HttpMethod.GET, "/", "/api/mentors", "/api/mentors/**", "/api/auth/csrf", "/api/auth/options").permitAll()
             .requestMatchers("/api/payments/sepay/webhook").permitAll()
