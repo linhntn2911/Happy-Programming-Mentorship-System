@@ -5,6 +5,7 @@ import { mentorService } from '../../shared/mentorService.js';
 import { authService } from '../auth/authService.js';
 import { mentorPlanService } from '../mentor/mentorPlanService.js';
 import { bindUserDropdown, getInitials, renderUserDropdown } from '../../shared/Header.js';
+import { SupportEmailLink } from '../../shared/supportEmail.js';
 
 const esc = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;')
   .replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
@@ -52,7 +53,7 @@ export function oneOffSessionDetail(mentor, offering) {
         <p class="text-xs font-semibold uppercase tracking-wider text-brand">SESSION SUMMARY</p><h2 class="mt-2 text-xl font-semibold text-ink">${esc(offering.name)}</h2>
         <dl class="mt-5 space-y-3 border-y border-line py-4 text-sm"><div class="flex justify-between gap-4"><dt class="text-muted">Duration</dt><dd class="font-semibold text-ink">${esc(offering.sessionDurationMinutes)} minutes</dd></div><div class="flex justify-between gap-4"><dt class="text-muted">Price</dt><dd class="font-semibold text-ink">${money(offering.price, offering.currency)}</dd></div></dl>
         <label class="mt-5 block text-xs font-semibold text-ink" for="session-agenda">Discussion agenda</label><textarea id="session-agenda" class="mt-2 w-full resize-y rounded-xl border border-line px-3 py-3 text-sm focus:border-brand focus:outline-none" rows="4" maxlength="4000" placeholder="What would you like help with?"></textarea>
-        <div class="mt-5 rounded-xl bg-lilac p-4 text-sm text-muted" role="status"><strong class="text-ink">No available times published yet.</strong><p class="mt-1">Booking will open after this mentor configures an availability schedule.</p></div>
+        <div class="mt-5 rounded-xl bg-lilac p-4 text-sm text-muted" role="status"><strong class="text-ink">No available times published yet.</strong><p class="mt-1">Booking will open after this mentor configures an availability schedule.</p><p class="mt-2">${SupportEmailLink({ label: 'Contact support', className: 'font-semibold text-brand underline' })}</p></div>
         <button class="btn btn-primary mt-5 w-full" type="button" disabled aria-disabled="true">Choose a time</button>
         <a class="btn btn-outline mt-3 w-full" href="#/mentors/${encodeURIComponent(mentor.id)}/sessions">View all sessions</a>
       </aside>
