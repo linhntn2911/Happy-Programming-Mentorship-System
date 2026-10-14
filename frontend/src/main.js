@@ -21,6 +21,7 @@ import { mountWishlist } from './roles/mentee/WishlistPage.js';
 import { mountNotificationHistory } from './roles/mentee/NotificationHistoryPage.js';
 import { mountCheckout } from './roles/mentee/CheckoutPage.js';
 import { mountMenteeApplications } from './roles/mentee/MenteeApplicationsPage.js';
+import { mountOneOffSessionPage } from './roles/mentee/OneOffSessionPage.js';
 import { bindAuthInfo } from './roles/auth/LoginForm.js';
 import './app.css';
 import { HomePage } from './roles/guest/HomePage.js';
@@ -511,6 +512,12 @@ function router() {
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash === '#/account') {
     mountAccount(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (/^#\/mentors\/[^/]+\/sessions(?:\?|$)/.test(hash)) {
+    const path = hash.split('?')[0];
+    const mentorId = decodeURIComponent(path.split('/')[2] || '');
+    const query = new URLSearchParams(hash.split('?')[1] || '');
+    void mountOneOffSessionPage(appEl, mentorId, query.get('offeringId') || '');
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash.startsWith('#/mentors/')) {
     let id;

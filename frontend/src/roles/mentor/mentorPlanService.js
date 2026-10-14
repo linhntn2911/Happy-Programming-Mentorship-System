@@ -23,6 +23,11 @@ export const mentorPlanService = {
     return Array.isArray(plans) ? plans : [];
   },
 
+  async getMentorOfferings(mentorId) {
+    const offerings = await apiClient(`/api/mentors/${encodeURIComponent(mentorId)}/offerings`);
+    return Array.isArray(offerings) ? offerings : [];
+  },
+
   async savePlans(plans) {
     const headers = await withCsrf();
     const saved = await apiClient('/api/mentors/me/plans', {
