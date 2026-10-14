@@ -52,6 +52,19 @@ public class MentorPlanService {
                      so.display_order, so.id
             """;
 
+    private static final String SELECT_PUBLIC_OFFERINGS = """
+            SELECT so.id, so.name, so.service_type, so.plan_tier, so.description, so.price, so.currency,
+                   so.session_duration_minutes, so.calls_per_period, so.trial_days,
+                   so.response_time_hours, so.chat_included, so.status
+            FROM dbo.service_offerings so
+            JOIN dbo.mentor_profiles mp ON mp.user_id = so.mentor_id
+            JOIN dbo.users u ON u.id = so.mentor_id
+            WHERE so.mentor_id = ? AND so.status = 'ACTIVE'
+              AND mp.is_public = 1 AND u.status = 'ACTIVE'
+            ORDER BY CASE so.service_type WHEN 'MONTHLY' THEN 0 ELSE 1 END,
+                     so.display_order, so.price, so.id
+            """;
+
     private static final String COUNT_TIER = """
             SELECT COUNT(1) FROM dbo.service_offerings
             WHERE mentor_id = ? AND service_type = 'MONTHLY' AND plan_tier = ?
@@ -102,6 +115,15 @@ public class MentorPlanService {
             return List.of();
         }
         return jdbc().query(SELECT_PUBLIC_PLANS, planRowMapper(), mentorId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<MentorPlanResponse> getPublicOfferings(String identifier) {
+        if (identifier == null || identifier.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A valid mentor identifier is required.");
+        }
+        Long mentorId = resolveMentorId(identifier.trim());
+        return mentorId == null ? List.of() : jdbc().query(SELECT_PUBLIC_OFFERINGS, planRowMapper(), mentorId);
     }
 
     private Long resolveMentorId(String identifier) {

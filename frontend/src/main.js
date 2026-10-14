@@ -5,6 +5,7 @@ import {
 } from './roles/mentor/MentorProfilePage.js';
 import { mountLogin } from './roles/auth/LoginPage.js';
 import { mountForgotPassword } from './roles/auth/ForgotPasswordPage.js';
+import { mountChangePassword } from './roles/auth/ChangePasswordPage.js';
 import { mountAdmin } from './roles/admin/AdminPage.js';
 import { mountMenteeSignup } from './roles/auth/MenteeSignupPage.js';
 import { mountAccount } from './roles/mentee/AccountPage.js';
@@ -21,6 +22,7 @@ import { mountWishlist } from './roles/mentee/WishlistPage.js';
 import { mountNotificationHistory } from './roles/mentee/NotificationHistoryPage.js';
 import { mountCheckout } from './roles/mentee/CheckoutPage.js';
 import { mountMenteeApplications } from './roles/mentee/MenteeApplicationsPage.js';
+import { mountOneOffSessionPage } from './roles/mentee/OneOffSessionPage.js';
 import { bindAuthInfo } from './roles/auth/LoginForm.js';
 import './app.css';
 import { HomePage } from './roles/guest/HomePage.js';
@@ -457,6 +459,9 @@ function router() {
   } else if (hash === '#/forgot-password' || hash.startsWith('#/forgot-password?')) {
     mountForgotPassword(appEl);
     window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/change-password' || hash.startsWith('#/change-password?')) {
+    mountChangePassword(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash === '#/staff/dashboard') {
     mountStaffDashboard(appEl);
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -511,6 +516,12 @@ function router() {
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash === '#/account') {
     mountAccount(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (/^#\/mentors\/[^/]+\/sessions(?:\?|$)/.test(hash)) {
+    const path = hash.split('?')[0];
+    const mentorId = decodeURIComponent(path.split('/')[2] || '');
+    const query = new URLSearchParams(hash.split('?')[1] || '');
+    void mountOneOffSessionPage(appEl, mentorId, query.get('offeringId') || '');
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash.startsWith('#/mentors/')) {
     let id;
@@ -787,6 +798,8 @@ mentorService
       '#/admin',
       '#/login',
       '#/signup',
+      '#/forgot-password',
+      '#/change-password',
       '#/apply',
       '#/staff/',
       '#/account',
