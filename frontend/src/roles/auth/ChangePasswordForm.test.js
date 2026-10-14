@@ -22,12 +22,13 @@ test('ChangePasswordForm renders success state when success is true', () => {
   assert.match(markup, /href="#\/"/);
 });
 
-test('Header user dropdown includes link to #/change-password', () => {
+test('Header user dropdown links to profile and applications without duplicate change-password', () => {
   const markup = renderUserDropdown({
     currentUser: { email: 'alice@example.com', role: 'MENTEE' },
     displayName: 'Alice User',
     initials: 'AU'
   });
-  assert.match(markup, /href="#\/change-password"/);
-  assert.match(markup, /Change password/);
+  assert.match(markup, /href="#\/account"/);
+  assert.match(markup, /My profile/);
+  assert.doesNotMatch(markup, /href="#\/change-password"/);
 });
