@@ -13,3 +13,16 @@ test('mentor wallet page explains the hold, available funds and payout flow', ()
   assert.match(html, /encrypted before storage/);
   assert.match(html, /id="toast"/);
 });
+
+test('mentor wallet page exposes saved bank account management and OTP verification', () => {
+  const html = MentorWalletPage();
+  assert.match(html, /id="bank-form"/);
+  assert.match(html, /id="bank-current"/);
+  assert.match(html, /Save bank account/);
+  assert.match(html, /id="payout-otp-dialog"/);
+  assert.match(html, /id="payout-otp-form"/);
+  assert.match(html, /name="otp"[^>]*pattern="\[0-9\]\{6\}"/);
+  assert.match(html, /Confirm withdrawal/);
+  assert.match(html, /Resend code/);
+});
+
