@@ -39,6 +39,9 @@ import { authService } from './roles/auth/authService.js';
 import { wishlistService } from './roles/mentee/wishlistService.js';
 import { bindUserDropdown } from './shared/Header.js';
 import { mountMentorshipWorkspace } from './shared/MentorshipWorkspacePage.js';
+import { registerSupportContact } from './shared/SupportContact.js';
+
+registerSupportContact();
 
 
 const INITIAL_MENTORS = [
