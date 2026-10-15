@@ -18,6 +18,7 @@ Acceptance criteria:
 - The workspace shows the partner, package, learning goals, period, and included call/session terms from the accepted snapshot.
 - A user with no active workspace sees an honest empty state.
 - Opening Mentorships first shows the user's active mentor/mentee list; conversation detail opens only after a selection or a direct checkout/application link.
+- The workspace uses a responsive messenger layout: mentorship conversations are listed together, the selected conversation remains visible beside its message history on larger screens, and mentorship context remains available without leaving the conversation.
 
 ### US-02 — Exchange private messages
 
@@ -33,6 +34,9 @@ Acceptance criteria:
 - Workspace refresh/polling is observational and cannot activate a subscription.
 - The global header message icon shows the total unread count, and each mentorship card shows its own unread count.
 - Opening a conversation marks its latest visible messages as read; messages in other mentorships remain unread.
+- The message composer and file action remain attached to the selected conversation while switching between mentorships.
+- Users can search the latest loaded conversation history by message text, sender, filename, or code language without exposing messages from another workspace.
+- The conversation list displays the server-provided unread count, and an opened conversation identifies the boundary of incoming messages that were unread when it was opened before updating the role-specific read pointer.
 
 ### US-03 — Share learning files
 
@@ -48,7 +52,7 @@ Acceptance criteria:
 ## Out of scope
 
 - Video calling, Google Calendar, or meeting-link provisioning.
-- Read receipts, typing indicators, WebSockets, message editing, deletion, and moderation workflow UI.
+- Per-message read receipts, typing indicators, WebSockets, message editing, deletion, and moderation workflow UI.
 - One-off booking workspaces.
 
 ## Security requirements

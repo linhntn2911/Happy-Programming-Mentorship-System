@@ -7,7 +7,7 @@
 - Add `MentorshipWorkspaceService` for authorization, validation, transaction boundaries, and DTO composition.
 - Add `MentorshipWorkspaceRepository` for SQL Server reads and idempotent message persistence.
 - Add DTOs for summaries, details, messages, downloads, and send-message input; JPA entities are not exposed.
-- Add a shared frontend workspace page and service because both mentor and mentee use the same API and conversation.
+- Add a shared frontend workspace page and service because both mentor and mentee use the same API and conversation. Present summaries and detail in a responsive messenger layout with a conversation rail, selected message panel, and mentorship-context panel; collapse back to list/detail navigation on smaller screens.
 - Render the mentor view inside the established `MentorLayout`; render the mentee view with the public account header.
 - Link paid checkout and paid application states directly to their workspace while the sidebar Mentorships route opens the active participant list first.
 
@@ -21,6 +21,7 @@ The repository query requires the current user to match `subscriptions.mentor_id
 - The unique database constraint `(sender_id, client_message_key)` remains the final duplicate guard.
 - The page polls the selected workspace for new messages and stops polling when unmounted.
 - The latest 100 messages are returned in chronological order to bound response size.
+- Search is client-side and limited to those latest loaded messages. The unread divider is derived from the server-provided conversation unread count and incoming-message order; successful opening still advances the existing role-specific last-read pointer.
 
 ## Tradeoffs
 

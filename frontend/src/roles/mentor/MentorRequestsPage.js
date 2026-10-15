@@ -4,33 +4,32 @@ import {
   formatUtcDate,
   summarizeLearningGoals,
 } from './MentorDashboardPage.js';
+import { MentorLayout, bindMentorLayout } from './MentorLayout.js';
+import { authService } from '../auth/authService.js';
 
 export function MentorRequestsPage() {
-  return `
-<main id="mentor-requests" class="container max-w-7xl py-8 sm:py-12">
-  <nav class="mb-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm" aria-label="Mentor navigation">
-    <a href="#/mentor/dashboard" class="font-medium text-brand underline-offset-4 hover:underline">← Dashboard</a>
-    <a href="#/mentor/profile" class="font-medium text-brand underline-offset-4 hover:underline">Edit profile</a>
-    <a href="#/mentor/packages" class="font-medium text-brand underline-offset-4 hover:underline">Packages</a>
-  </nav>
-  <header class="mb-8">
-    <p class="eyebrow">MENTOR WORKSPACE</p>
-    <h1 class="section-title mt-2">Mentorship requests</h1>
-    <p class="section-copy mt-3">Review new applications and revisit every decision. Respond to pending requests within 48 hours.</p>
-  </header>
+  return MentorLayout(`
+<section id="mentor-requests" aria-labelledby="mentor-requests-title">
+  <div class="admin-page-heading">
+    <div>
+      <p class="eyebrow mb-3">MENTOR WORKSPACE</p>
+      <h1 id="mentor-requests-title">Mentorship requests</h1>
+      <p>Review new applications and revisit every decision. Respond to pending requests within 48 hours.</p>
+    </div>
+  </div>
 
-  <div id="action-status" class="mb-6 p-4 rounded-xl hidden" role="status" aria-live="polite"></div>
+  <div id="action-status" class="admin-notice mb-5 hidden" role="status" aria-live="polite"></div>
 
-  <div id="requests-loading" class="rounded-xl border border-line bg-white p-6 text-sm text-muted" role="status">
+  <div id="requests-loading" class="admin-panel admin-panel-body text-sm text-muted" role="status">
     Loading your requests…
   </div>
-  <div id="requests-error" class="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert" hidden></div>
+  <div id="requests-error" class="admin-notice notice-error mb-5" role="alert" hidden></div>
   <button id="requests-retry" class="btn btn-outline mb-5" type="button" hidden>Try again</button>
 
-  <div id="requests-content" hidden>
-    <div class="mb-5 flex flex-wrap items-end justify-between gap-4">
-      <label for="request-status-filter" class="text-xs font-semibold text-ink">Show requests
-        <select id="request-status-filter" class="mt-2 min-w-52 rounded-lg border border-line bg-white px-3.5 py-2.5 text-sm focus:border-brand focus:outline-none">
+  <div id="requests-content" class="admin-panel" hidden>
+    <div class="admin-toolbar justify-between">
+      <label for="request-status-filter" class="admin-field min-w-64">Show requests
+        <select id="request-status-filter">
           <option value="ALL">All requests</option>
           <option value="PENDING">Waiting for my decision</option>
           <option value="ACCEPTED">Accepted</option>
@@ -41,12 +40,12 @@ export function MentorRequestsPage() {
       </label>
       <p id="requests-count" class="text-xs text-muted" aria-live="polite"></p>
     </div>
-    <div id="requests-empty" class="rounded-2xl border border-line bg-white p-6 text-sm text-muted" hidden>
+    <div id="requests-empty" class="admin-panel-body text-sm text-muted" hidden>
       No requests match this status.
     </div>
-    <div id="requests-table-wrap" class="hidden overflow-x-auto rounded-2xl border border-line bg-white md:block">
-      <table class="w-full min-w-[720px] border-collapse text-left text-sm">
-        <thead class="bg-lilac/60 text-xs uppercase tracking-wide text-muted">
+    <div id="requests-table-wrap" class="data-table-scroll hidden md:block">
+      <table class="data-table min-w-[860px]">
+        <thead>
           <tr>
             <th scope="col" class="px-4 py-3">Mentee Name</th>
             <th scope="col" class="px-4 py-3">Package</th>
@@ -59,7 +58,7 @@ export function MentorRequestsPage() {
         <tbody id="requests-rows" class="divide-y divide-line"></tbody>
       </table>
     </div>
-    <div id="requests-cards" class="grid gap-3 md:hidden"></div>
+    <div id="requests-cards" class="grid gap-3 p-4 md:hidden"></div>
   </div>
 
   <div id="request-dialog-overlay" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
@@ -87,7 +86,7 @@ export function MentorRequestsPage() {
       </div>
     </div>
   </div>
-</main>`;
+</section>`, authService.getCurrentUser(), 'requests');
 }
 
 function createDetailsButton(requestId) {
@@ -116,18 +115,21 @@ const REQUEST_STATUS_LABELS = {
   CANCELLED: 'Cancelled',
 };
 const REQUEST_STATUS_STYLES = {
-  PENDING: 'border-amber-200 bg-amber-50 text-amber-800',
-  ACCEPTED: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-  REJECTED: 'border-rose-200 bg-rose-50 text-rose-800',
-  EXPIRED: 'border-line bg-cream text-muted',
-  CANCELLED: 'border-line bg-cream text-muted',
+  PENDING: 'status-warning',
+  ACCEPTED: 'status-success',
+  REJECTED: 'status-danger',
+  EXPIRED: 'status-neutral',
+  CANCELLED: 'status-neutral',
 };
 
 function createStatusElement(request) {
   const status = request.status || 'UNKNOWN';
   const badge = document.createElement('span');
-  badge.className = `inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${REQUEST_STATUS_STYLES[status] || REQUEST_STATUS_STYLES.EXPIRED}`;
-  badge.textContent = REQUEST_STATUS_LABELS[status] || status;
+  badge.className = `status-badge ${REQUEST_STATUS_STYLES[status] || REQUEST_STATUS_STYLES.EXPIRED}`;
+  const dot = document.createElement('span');
+  dot.setAttribute('aria-hidden', 'true');
+  dot.textContent = '●';
+  badge.append(dot, REQUEST_STATUS_LABELS[status] || status);
   return badge;
 }
 
@@ -167,24 +169,26 @@ function renderRows(root, requests) {
     ];
     for (const [index, value] of cells.entries()) {
       const cell = document.createElement('td');
-      cell.className = 'px-4 py-4 align-top text-sm text-ink';
+      cell.className = index === 2
+        ? 'max-w-[420px] whitespace-normal align-top leading-5 text-ink'
+        : 'align-top text-ink';
       cell.textContent = value;
       if (index === 1) cell.append(createTypeBadge(request.serviceType));
       row.append(cell);
     }
     const statusCell = document.createElement('td');
-    statusCell.className = 'px-4 py-4 align-top';
+    statusCell.className = 'align-top';
     statusCell.append(createStatusElement(request));
     row.append(statusCell);
 
     const deadlineCell = document.createElement('td');
-    deadlineCell.className = 'px-4 py-4 align-top text-xs text-muted';
+    deadlineCell.className = 'whitespace-normal align-top text-muted';
     if (request.status === 'PENDING') deadlineCell.append(createSlaElement(request));
     else deadlineCell.textContent = formatUtcDate(request.responseDeadline);
     row.append(deadlineCell);
 
     const actionCell = document.createElement('td');
-    actionCell.className = 'px-4 py-4 align-top';
+    actionCell.className = 'align-top';
     actionCell.append(createDetailsButton(request.id));
     row.append(actionCell);
     rows.append(row);
@@ -226,6 +230,7 @@ function renderRows(root, requests) {
 export function initializeMentorRequestsPage() {
   const root = document.querySelector('#mentor-requests');
   if (!root) return () => { };
+  const unbindLayout = bindMentorLayout(root.closest('.admin-shell'));
 
   const loading = root.querySelector('#requests-loading');
   const content = root.querySelector('#requests-content');
@@ -266,11 +271,9 @@ export function initializeMentorRequestsPage() {
   function setActionStatus(message, type = 'success') {
     if (!actionStatus) return;
     actionStatus.textContent = message;
-    if (type === 'success') {
-      actionStatus.className = 'mb-6 p-4 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800';
-    } else {
-      actionStatus.className = 'mb-6 p-4 rounded-xl border border-rose-200 bg-rose-50 text-rose-800';
-    }
+    actionStatus.className = type === 'success'
+      ? 'admin-notice mb-5'
+      : 'admin-notice notice-error mb-5';
     actionStatus.hidden = false;
     window.clearTimeout(actionStatusTimer);
     actionStatusTimer = window.setTimeout(() => {
@@ -421,10 +424,11 @@ export function initializeMentorRequestsPage() {
     }
   };
 
-  retry.addEventListener('click', () => {
+  const handleRetry = () => {
     actionStatus.hidden = true;
     void loadRequests();
-  });
+  };
+  retry.addEventListener('click', handleRetry);
   statusFilter.addEventListener('change', applyStatusFilter);
   root.addEventListener('click', handleClick);
   dialogOverlay.addEventListener('click', handleDialogClick);
@@ -435,9 +439,11 @@ export function initializeMentorRequestsPage() {
 
   return () => {
     disposed = true;
+    unbindLayout();
     window.clearInterval(timer);
     window.clearTimeout(actionStatusTimer);
     window.removeEventListener('keydown', handleKeydown);
+    retry.removeEventListener('click', handleRetry);
     root.removeEventListener('click', handleClick);
     dialogOverlay.removeEventListener('click', handleDialogClick);
   };

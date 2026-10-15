@@ -3,7 +3,8 @@ import { escapeHtml } from './html.js';
 
 export function supportContactMarkup(email) {
   if (!email) return '';
-  return `<a class="hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" href="mailto:${encodeURIComponent(email)}">Contact support: ${escapeHtml(email)}</a>`;
+  const composeUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}`;
+  return `<a class="hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" href="${composeUrl}" target="_blank" rel="noopener noreferrer">Contact support: ${escapeHtml(email)}</a>`;
 }
 
 export function mountSupportContact(host, load = contactService.read) {

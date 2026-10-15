@@ -11,13 +11,17 @@ function host() {
 }
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
-test('footer includes live contact and renders saved address as a mailto link', async () => {
-  assert.match(Footer(), /hp-support-contact/);
+test('footer includes one live contact and opens the saved address in Gmail Compose', async () => {
+  const footer = Footer();
+  assert.equal((footer.match(/<hp-support-contact>/g) || []).length, 1);
+  assert.doesNotMatch(footer, /data-support-email/);
   const el = host();
   mountSupportContact(el, async () => ({ supportEmail: ' help@example.com ' }));
   assert.match(el.innerHTML, /Loading/);
   await tick();
-  assert.match(el.innerHTML, /mailto:help%40example.com/);
+  assert.match(el.innerHTML, /https:\/\/mail\.google\.com\/mail\/\?view=cm&fs=1&to=help%40example\.com/);
+  assert.match(el.innerHTML, /target="_blank"/);
+  assert.match(el.innerHTML, /rel="noopener noreferrer"/);
   assert.match(el.innerHTML, /Contact support: help@example.com/);
   assert.equal(el.hidden, false);
 });
