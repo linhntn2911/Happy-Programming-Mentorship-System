@@ -67,7 +67,7 @@ Acceptance criteria:
 
 ## Out of scope
 
-- Video calling, Google Calendar, or meeting-link provisioning.
+- Video calling, automatic calendar synchronization, and meeting-link provisioning; mentors may send an external call link as a normal workspace message.
 - Per-message read receipts, typing indicators, WebSockets, message editing, deletion, and moderation workflow UI.
 - Combining monthly and one-off billing, cancellation, or review records.
 

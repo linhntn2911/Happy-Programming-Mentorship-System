@@ -36,7 +36,8 @@ The internal escrow ledger is an application accounting mechanism. It must not b
 - **Receiving Bank:** Receives the actual transfer into the configured HappyProgramming bank account.
 - **Google OAuth2 (API-02):** Supports third-party authentication.
 - **Email Service / Gmail SMTP (API-03):** Sends account verification, password-reset, application-decision, payment, payout, and session notifications.
-- **Google Calendar / Meet:** Creates confirmed session events and meeting links where enabled.
+
+Session availability and booking schedules are managed entirely inside HappyProgramming. The product does not integrate with Google Calendar or Google Meet; mentors may share an external call link through the private workspace when needed.
 
 `specs/016-vnpay-mentorship-checkout/` and `docs/payments/vnpay-setup.md` are historical. They are not authoritative for current implementation or configuration.
 
