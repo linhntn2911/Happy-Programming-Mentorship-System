@@ -1,0 +1,61 @@
+openapi: 3.0.3
+info:
+  title: Mentee Session Review API
+  version: 1.0.0
+paths:
+  /api/reviews:
+    post:
+      summary: Submit a review for a completed mentorship booking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bookingId, rating, comment]
+              properties:
+                bookingId:
+                  type: integer
+                  format: int64
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                comment:
+                  type: string
+                  minLength: 10
+                  maxLength: 500
+      responses:
+        '200':
+          description: Review created successfully
+        '400':
+          description: Session not completed or invalid payload
+        '403':
+          description: Forbidden - not booking owner
+        '409':
+          description: Conflict - booking already reviewed
+  /api/bookings/{bookingId}/review:
+    get:
+      summary: Get review for a booking
+      parameters:
+        - name: bookingId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Review details or null
+  /api/mentors/{identifier}/reviews:
+    get:
+      summary: List published reviews for a mentor
+      parameters:
+        - name: identifier
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of public reviews

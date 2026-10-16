@@ -93,12 +93,15 @@ public class MentorshipWorkspaceRepository {
                 SELECT b.id, b.booking_code, b.service_id,
                        COALESCE(so.name, N'One-off session') AS session_name,
                        b.agenda, b.start_at, b.end_at, b.price_snapshot, b.currency, b.status,
-                       COALESCE(TRY_CONVERT(INT, JSON_VALUE(b.terms_snapshot, '$.numberOfParticipants')), 1) AS participants
+                       COALESCE(TRY_CONVERT(INT, JSON_VALUE(b.terms_snapshot, '$.numberOfParticipants')), 1) AS participants,
+                       r.id AS review_id, r.rating AS review_rating, r.comment AS review_comment
                 FROM dbo.bookings b
                 JOIN dbo.conversations c
                   ON c.mentor_id = b.mentor_id AND c.mentee_id = b.mentee_id
                 LEFT JOIN dbo.service_offerings so
                   ON so.id = b.service_id AND so.mentor_id = b.mentor_id AND so.service_type = 'ONE_OFF'
+                LEFT JOIN dbo.reviews r
+                  ON r.booking_id = b.id
                 WHERE c.id = ? AND b.service_type = 'ONE_OFF'
                   AND b.status IN ('CONFIRMED','COMPLETED','NO_SHOW_REVIEW','NO_SHOW')
                 ORDER BY CASE WHEN b.status = 'CONFIRMED' AND b.end_at >= SYSUTCDATETIME() THEN 0 ELSE 1 END,
@@ -109,7 +112,10 @@ public class MentorshipWorkspaceRepository {
                         rs.getString("session_name"), rs.getString("agenda"),
                         instant(rs.getTimestamp("start_at")), instant(rs.getTimestamp("end_at")),
                         rs.getBigDecimal("price_snapshot"), rs.getString("currency"),
-                        rs.getString("status"), rs.getInt("participants")), conversationId);
+                        rs.getString("status"), rs.getInt("participants"),
+                        rs.getObject("review_id") != null ? rs.getLong("review_id") : null,
+                        rs.getObject("review_rating") != null ? rs.getInt("review_rating") : null,
+                        rs.getString("review_comment")), conversationId);
     }
 
     public List<MessageRow> findLatestMessages(long conversationId, int limit) {
@@ -300,8 +306,17 @@ public class MentorshipWorkspaceRepository {
     public record OneOffBookingRow(
             long id, String bookingCode, long serviceId, String sessionName, String agenda,
             Instant startAt, Instant endAt, java.math.BigDecimal price, String currency,
-            String status, int participants
-    ) {}
+            String status, int participants,
+            Long reviewId, Integer reviewRating, String reviewComment
+    ) {
+        public OneOffBookingRow(
+                long id, String bookingCode, long serviceId, String sessionName, String agenda,
+                Instant startAt, Instant endAt, java.math.BigDecimal price, String currency,
+                String status, int participants
+        ) {
+            this(id, bookingCode, serviceId, sessionName, agenda, startAt, endAt, price, currency, status, participants, null, null, null);
+        }
+    }
 
     public record MessageRow(
             long id, long senderId, String senderName, String messageType,

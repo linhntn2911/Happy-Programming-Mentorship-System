@@ -22,6 +22,7 @@ import { mountWishlist } from './roles/mentee/WishlistPage.js';
 import { mountNotificationHistory } from './roles/mentee/NotificationHistoryPage.js';
 import { mountCheckout } from './roles/mentee/CheckoutPage.js';
 import { mountMenteeApplications } from './roles/mentee/MenteeApplicationsPage.js';
+import { mountMenteeTransactions } from './roles/mentee/MenteeTransactionsPage.js';
 import { mountOneOffSessionPage } from './roles/mentee/OneOffSessionPage.js';
 import { bindAuthInfo } from './roles/auth/LoginForm.js';
 import './app.css';
@@ -490,6 +491,9 @@ function router() {
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash === '#/applications') {
     mountMenteeApplications(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/transactions') {
+    mountMenteeTransactions(appEl);
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash === '#/workspace' || hash.startsWith('#/workspace?')) {
     Promise.resolve(mountMentorshipWorkspace(appEl)).then(cleanup => {

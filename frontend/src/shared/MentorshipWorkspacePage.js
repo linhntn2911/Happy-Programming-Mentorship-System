@@ -4,6 +4,7 @@ import { bindUserDropdown, getInitials, renderNotificationBell, renderUserDropdo
 import { mentorshipWorkspaceService } from './mentorshipWorkspaceService.js';
 import { authService } from '../roles/auth/authService.js';
 import { MentorLayout, bindMentorLayout } from '../roles/mentor/MentorLayout.js';
+import { reviewService } from '../roles/mentee/reviewService.js';
 
 const esc = value => String(value ?? '')
   .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
@@ -159,21 +160,45 @@ export function workspaceListMarkup(workspaces, isMentor, status = 'ALL', query 
 const sessionStatusLabel = status => String(status || 'Completed')
   .toLocaleLowerCase().replaceAll('_', ' ').replace(/(^|\s)\S/g, letter => letter.toLocaleUpperCase());
 
-function oneOffSessionCard(session, displayStatus = session.status) {
+function oneOffSessionCard(session, displayStatus = session.status, isMentor = false) {
   const success = displayStatus === 'CONFIRMED' || displayStatus === 'COMPLETED';
-  return `<article class="rounded-xl border border-line bg-white p-3"><div class="flex items-start justify-between gap-2"><div><h4 class="text-xs font-semibold text-ink">${esc(session.sessionName)}</h4><p class="mt-1 text-[10px] leading-4 text-muted">${esc(dateTimeLabel(session.startAt))} – ${esc(new Date(session.endAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }))}</p></div><span class="status-badge ${success ? 'status-success' : 'status-neutral'}"><span aria-hidden="true">●</span>${esc(sessionStatusLabel(displayStatus))}</span></div><p class="mt-2 text-[10px] text-muted">${esc(moneyLabel(session.price, session.currency))} · ${esc(session.participants)} participant${Number(session.participants) === 1 ? '' : 's'}</p></article>`;
+  const isCompleted = displayStatus === 'COMPLETED' || session.status === 'COMPLETED';
+  const hasReviewed = Boolean(session.reviewId || session.reviewRating);
+
+  let reviewMarkup = '';
+  if (isCompleted) {
+    if (hasReviewed) {
+      const rating = Number(session.reviewRating || 5);
+      reviewMarkup = `<div class="mt-2.5 rounded-lg border border-line bg-cream p-2 text-[11px]" data-session-reviewed="${esc(session.bookingId)}">
+        <div class="flex items-center justify-between gap-2">
+          <span class="font-semibold text-brand tracking-wider">${'★'.repeat(rating)}${'☆'.repeat(5 - rating)} <span class="font-normal text-ink">(${rating}.0)</span></span>
+          <span class="text-[10px] font-medium text-muted">Reviewed</span>
+        </div>
+        ${session.reviewComment ? `<p class="mt-1 text-[10px] text-muted italic line-clamp-2" title="${esc(session.reviewComment)}">"${esc(session.reviewComment)}"</p>` : ''}
+      </div>`;
+    } else if (!isMentor) {
+      reviewMarkup = `<div class="mt-2.5 border-t border-line pt-2">
+        <button type="button" class="btn btn-outline btn-sm w-full justify-center text-xs text-brand hover:border-brand hover:bg-lilac" data-review-booking-id="${esc(session.bookingId)}" data-review-session-name="${esc(session.sessionName)}">
+          ★ Review mentor
+        </button>
+      </div>`;
+    }
+  }
+
+  return `<article class="rounded-xl border border-line bg-white p-3"><div class="flex items-start justify-between gap-2"><div><h4 class="text-xs font-semibold text-ink">${esc(session.sessionName)}</h4><p class="mt-1 text-[10px] leading-4 text-muted">${esc(dateTimeLabel(session.startAt))} – ${esc(new Date(session.endAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }))}</p></div><span class="status-badge ${success ? 'status-success' : 'status-neutral'}"><span aria-hidden="true">●</span>${esc(sessionStatusLabel(displayStatus))}</span></div><p class="mt-2 text-[10px] text-muted">${esc(moneyLabel(session.price, session.currency))} · ${esc(session.participants)} participant${Number(session.participants) === 1 ? '' : 's'}</p>${reviewMarkup}</article>`;
 }
 
-export function workspaceEngagementsMarkup(detail, now = new Date()) {
+export function workspaceEngagementsMarkup(detail, now = new Date(), isMentor = false) {
   const monthly = detail.hasMonthly ? `<section class="rounded-xl border border-line bg-cream p-4"><div class="flex items-center justify-between gap-2"><h4 class="text-xs font-semibold text-ink">${esc(detail.packageName || 'Monthly mentorship')}</h4><span class="status-badge status-success"><span aria-hidden="true">●</span>${esc(detail.subscriptionStatus)}</span></div><dl class="mt-3 space-y-2 text-[11px]"><div><dt class="text-muted">Current period</dt><dd class="mt-0.5 font-semibold text-ink">${esc(dateLabel(detail.currentPeriodStart))} – ${esc(dateLabel(detail.currentPeriodEnd))}</dd></div><div class="grid grid-cols-2 gap-3"><div><dt class="text-muted">Sessions</dt><dd class="mt-0.5 font-semibold text-ink">${esc(detail.callsPerPeriod ?? '—')} / month</dd></div><div><dt class="text-muted">Length</dt><dd class="mt-0.5 font-semibold text-ink">${esc(detail.sessionDurationMinutes ?? '—')} min</dd></div></div></dl></section>` : '';
   const nowTime = now instanceof Date ? now.getTime() : new Date(now).getTime();
   const sessions = detail.oneOffSessions || [];
   const upcoming = sessions.filter(session => session.status === 'CONFIRMED' && new Date(session.endAt).getTime() > nowTime);
   const past = sessions.filter(session => !upcoming.includes(session));
-  const upcomingMarkup = upcoming.map(session => oneOffSessionCard(session)).join('');
+  const upcomingMarkup = upcoming.map(session => oneOffSessionCard(session, session.status, isMentor)).join('');
   const pastMarkup = past.map(session => oneOffSessionCard(
     session,
     session.status === 'CONFIRMED' && new Date(session.endAt).getTime() <= nowTime ? 'COMPLETED' : session.status,
+    isMentor
   )).join('');
   const upcomingSection = upcomingMarkup ? `<section><div class="mb-2 flex items-center justify-between gap-2"><h4 class="text-xs font-semibold text-ink">One-off sessions</h4><span class="rounded-full bg-lilac px-2 py-0.5 text-[10px] font-semibold text-brand">${esc(upcoming.length)}</span></div><div class="space-y-2">${upcomingMarkup}</div></section>` : '';
   const historySection = pastMarkup ? `<details class="group rounded-xl border border-line bg-cream"><summary class="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-3 text-xs font-semibold text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"><span>Past sessions</span><span class="flex items-center gap-2"><span class="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-brand">${esc(past.length)}</span><span class="text-muted transition group-open:rotate-180" aria-hidden="true">⌄</span></span></summary><div class="space-y-2 border-t border-line p-2">${pastMarkup}</div></details>` : '';
@@ -199,7 +224,7 @@ export function workspaceConversationMarkup(detail, workspaces, isMentor, status
           <div class="mt-2 flex flex-wrap items-center gap-3"><label for="workspace-file-input" class="btn btn-outline btn-sm cursor-pointer">Attach file</label><p id="workspace-send-status" class="truncate text-[10px] text-muted" role="status">Enter to send · Shift + Enter for a new line · Files up to 10 MB.</p></div>
         </form>
       </section>
-      <aside class="hidden overflow-y-auto border-l border-line bg-white p-5 xl:block" aria-label="Mentorship details"><p class="eyebrow">ENGAGEMENTS</p><div class="mt-4 space-y-4">${workspaceEngagementsMarkup(detail)}</div>${detail.learningGoals ? `<div class="mt-5 border-t border-line pt-5"><h3 class="text-xs font-semibold text-ink">Learning goals</h3><p class="mt-2 whitespace-pre-wrap text-[11px] leading-5 text-muted">${esc(detail.learningGoals)}</p></div>` : ''}</aside>
+      <aside class="hidden overflow-y-auto border-l border-line bg-white p-5 xl:block" aria-label="Mentorship details"><p class="eyebrow">ENGAGEMENTS</p><div class="mt-4 space-y-4" data-engagements-container>${workspaceEngagementsMarkup(detail, new Date(), isMentor)}</div>${detail.learningGoals ? `<div class="mt-5 border-t border-line pt-5"><h3 class="text-xs font-semibold text-ink">Learning goals</h3><p class="mt-2 whitespace-pre-wrap text-[11px] leading-5 text-muted">${esc(detail.learningGoals)}</p></div>` : ''}</aside>
     </div></section>`;
 }
 
@@ -404,6 +429,15 @@ export async function mountMentorshipWorkspace(root) {
         send.disabled = false;
       }
     });
+    container.addEventListener('click', event => {
+      const reviewButton = event.target.closest('[data-review-booking-id]');
+      if (reviewButton) {
+        const bookingId = Number(reviewButton.dataset.reviewBookingId);
+        const sessionName = reviewButton.dataset.reviewSessionName || 'One-off session';
+        openReviewDialog(bookingId, sessionName, detail.partnerName);
+      }
+    });
+
     form.addEventListener('submit', async event => {
       event.preventDefault();
       const messageBody = body.value.trim();
@@ -424,6 +458,174 @@ export async function mountMentorshipWorkspace(root) {
         send.disabled = false;
       }
     });
+  }
+
+  function openReviewDialog(bookingId, sessionName, partnerName) {
+    const dialog = document.createElement('dialog');
+    dialog.className = 'modal';
+    dialog.id = 'review-mentor-modal';
+    dialog.innerHTML = `
+      <button class="modal-close" type="button" aria-label="Close"><span aria-hidden="true">×</span></button>
+      <p class="eyebrow mt-4">SESSION REVIEW</p>
+      <h2 class="mt-2 font-display text-3xl text-ink">Review your mentor</h2>
+      <p class="mt-2 text-sm text-muted">Share feedback for <strong>${esc(sessionName)}</strong> with ${esc(partnerName)}.</p>
+
+      <form id="review-modal-form" class="mt-6 space-y-5" novalidate>
+        <div>
+          <label class="block text-xs font-semibold text-ink">Rating <span class="text-red-600" aria-hidden="true">*</span></label>
+          <div class="mt-2 flex items-center gap-2" role="radiogroup" aria-label="Star rating">
+            ${[1, 2, 3, 4, 5].map(star => `
+              <button type="button" class="group grid h-10 w-10 place-items-center rounded-xl border border-line bg-cream transition hover:border-brand hover:bg-lilac focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" data-star-value="${star}" role="radio" aria-checked="false" aria-label="${star} star${star === 1 ? '' : 's'}">
+                <span class="text-2xl text-muted transition group-hover:text-brand" data-star-icon aria-hidden="true">★</span>
+              </button>
+            `).join('')}
+          </div>
+          <p id="review-rating-hint" class="mt-1.5 text-xs text-brand font-medium">Please select 1 to 5 stars</p>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between gap-2">
+            <label for="review-comment-input" class="block text-xs font-semibold text-ink">Your comments <span class="text-red-600" aria-hidden="true">*</span></label>
+            <span id="review-char-count" class="text-[11px] text-muted">0 / 500</span>
+          </div>
+          <textarea id="review-comment-input" rows="4" minlength="10" maxlength="500" required class="mt-2 w-full rounded-xl border border-line bg-cream p-3 text-sm text-ink focus:border-brand focus:bg-white focus:outline-none" placeholder="What went well? How did your mentor help you during this session? (at least 10 characters)"></textarea>
+          <p id="review-comment-hint" class="mt-1 text-[11px] text-muted">Write between 10 and 500 characters.</p>
+        </div>
+
+        <div id="review-error-message" class="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800" role="alert" hidden></div>
+
+        <div class="flex items-center justify-end gap-3 pt-2">
+          <button type="button" class="btn btn-outline btn-sm" data-close-review>Cancel</button>
+          <button type="submit" id="review-submit-button" class="btn btn-primary btn-sm" disabled>Submit review</button>
+        </div>
+      </form>
+    `;
+
+    document.body.appendChild(dialog);
+
+    let selectedRating = 0;
+    const starButtons = dialog.querySelectorAll('[data-star-value]');
+    const ratingHint = dialog.querySelector('#review-rating-hint');
+    const commentInput = dialog.querySelector('#review-comment-input');
+    const charCount = dialog.querySelector('#review-char-count');
+    const submitBtn = dialog.querySelector('#review-submit-button');
+    const errorBox = dialog.querySelector('#review-error-message');
+    const form = dialog.querySelector('#review-modal-form');
+    const closeBtn = dialog.querySelector('.modal-close');
+    const cancelBtn = dialog.querySelector('[data-close-review]');
+
+    const ratingDescriptions = {
+      1: '1 star - Needs improvement',
+      2: '2 stars - Fair',
+      3: '3 stars - Good',
+      4: '4 stars - Very good',
+      5: '5 stars - Excellent!',
+    };
+
+    const updateStarsVisual = (rating) => {
+      starButtons.forEach(btn => {
+        const val = Number(btn.dataset.starValue);
+        const icon = btn.querySelector('[data-star-icon]');
+        if (val <= rating) {
+          btn.classList.add('border-brand', 'bg-lilac');
+          btn.classList.remove('bg-cream');
+          btn.setAttribute('aria-checked', 'true');
+          icon.classList.remove('text-muted');
+          icon.classList.add('text-brand');
+        } else {
+          btn.classList.remove('border-brand', 'bg-lilac');
+          btn.classList.add('bg-cream');
+          btn.setAttribute('aria-checked', 'false');
+          icon.classList.remove('text-brand');
+          icon.classList.add('text-muted');
+        }
+      });
+    };
+
+    const validateForm = () => {
+      const commentLen = commentInput.value.trim().length;
+      const isValid = selectedRating >= 1 && selectedRating <= 5 && commentLen >= 10 && commentLen <= 500;
+      submitBtn.disabled = !isValid;
+    };
+
+    starButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        selectedRating = Number(btn.dataset.starValue);
+        updateStarsVisual(selectedRating);
+        ratingHint.textContent = ratingDescriptions[selectedRating] || `${selectedRating} stars`;
+        validateForm();
+      });
+    });
+
+    commentInput.addEventListener('input', () => {
+      const len = commentInput.value.length;
+      charCount.textContent = `${len} / 500`;
+      validateForm();
+    });
+
+    const close = () => {
+      if (dialog.open) dialog.close();
+      dialog.remove();
+    };
+
+    closeBtn.addEventListener('click', close);
+    cancelBtn.addEventListener('click', close);
+    dialog.addEventListener('click', (e) => { if (e.target === dialog) close(); });
+    dialog.addEventListener('close', () => dialog.remove(), { once: true });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const commentText = commentInput.value.trim();
+      if (selectedRating < 1 || selectedRating > 5) {
+        errorBox.textContent = 'Please choose a star rating (1 to 5).';
+        errorBox.hidden = false;
+        return;
+      }
+      if (commentText.length < 10) {
+        errorBox.textContent = 'Feedback must contain at least 10 characters.';
+        errorBox.hidden = false;
+        return;
+      }
+      errorBox.hidden = true;
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting…';
+
+      try {
+        const res = await reviewService.submitReview({
+          bookingId,
+          rating: selectedRating,
+          comment: commentText,
+        });
+
+        if (currentDetail?.oneOffSessions) {
+          const session = currentDetail.oneOffSessions.find(s => Number(s.bookingId) === Number(bookingId));
+          if (session) {
+            session.reviewId = res.id;
+            session.reviewRating = res.rating;
+            session.reviewComment = res.comment;
+          }
+        }
+
+        const engagementsContainers = container.querySelectorAll('[data-engagements-container]');
+        engagementsContainers.forEach(el => {
+          el.innerHTML = workspaceEngagementsMarkup(currentDetail, new Date(), isMentor);
+        });
+
+        close();
+
+        const sendStatus = container.querySelector('#workspace-send-status');
+        if (sendStatus) {
+          sendStatus.textContent = `★ Thank you! Your review for "${sessionName}" has been submitted.`;
+        }
+      } catch (err) {
+        errorBox.textContent = err.message || 'Could not submit review. Please try again.';
+        errorBox.hidden = false;
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit review';
+      }
+    });
+
+    dialog.showModal();
   }
 
   async function openWorkspace(id) {

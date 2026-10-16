@@ -194,7 +194,8 @@ public class MentorshipWorkspaceService {
     private static WorkspaceOneOffBookingDto toOneOffBooking(OneOffBookingRow row) {
         return new WorkspaceOneOffBookingDto(
                 row.id(), row.bookingCode(), row.serviceId(), row.sessionName(), row.agenda(),
-                row.startAt(), row.endAt(), row.price(), row.currency(), row.status(), row.participants());
+                row.startAt(), row.endAt(), row.price(), row.currency(), row.status(), row.participants(),
+                row.reviewId(), row.reviewRating(), row.reviewComment());
     }
 
     private static WorkspaceMessageDto toMessage(MessageRow row, long userId) {

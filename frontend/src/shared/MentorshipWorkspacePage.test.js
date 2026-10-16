@@ -161,3 +161,62 @@ test('ended one-off sessions leave upcoming engagements and remain in collapsed 
   assert.match(markup, /Upcoming Review/);
   assert.match(markup, /One-off sessions/);
 });
+
+test('completed unreviewed session renders review button for mentee, but not for mentor', () => {
+  const menteeMarkup = workspaceEngagementsMarkup({
+    hasMonthly: false,
+    oneOffSessions: [{
+      bookingId: 88,
+      sessionName: 'System Architecture',
+      startAt: '2026-10-16T09:00:00Z',
+      endAt: '2026-10-16T10:00:00Z',
+      price: 150000,
+      currency: 'VND',
+      status: 'COMPLETED',
+      participants: 1,
+    }],
+  }, new Date('2026-10-16T11:00:00Z'), false);
+  assert.match(menteeMarkup, /data-review-booking-id="88"/);
+  assert.match(menteeMarkup, /Review mentor/);
+
+  const mentorMarkup = workspaceEngagementsMarkup({
+    hasMonthly: false,
+    oneOffSessions: [{
+      bookingId: 88,
+      sessionName: 'System Architecture',
+      startAt: '2026-10-16T09:00:00Z',
+      endAt: '2026-10-16T10:00:00Z',
+      price: 150000,
+      currency: 'VND',
+      status: 'COMPLETED',
+      participants: 1,
+    }],
+  }, new Date('2026-10-16T11:00:00Z'), true);
+  assert.doesNotMatch(mentorMarkup, /data-review-booking-id/);
+});
+
+test('reviewed session renders star rating and feedback badge instead of review button', () => {
+  const markup = workspaceEngagementsMarkup({
+    hasMonthly: false,
+    oneOffSessions: [{
+      bookingId: 99,
+      sessionName: 'Database Tuning',
+      startAt: '2026-10-16T08:00:00Z',
+      endAt: '2026-10-16T09:00:00Z',
+      price: 200000,
+      currency: 'VND',
+      status: 'COMPLETED',
+      participants: 1,
+      reviewId: 5,
+      reviewRating: 5,
+      reviewComment: 'Very knowledgeable mentor with great examples.',
+    }],
+  }, new Date('2026-10-16T11:00:00Z'), false);
+
+  assert.match(markup, /data-session-reviewed="99"/);
+  assert.match(markup, /Reviewed/);
+  assert.match(markup, /\(5\.0\)/);
+  assert.match(markup, /Very knowledgeable mentor with great examples\./);
+  assert.doesNotMatch(markup, /data-review-booking-id/);
+});
+

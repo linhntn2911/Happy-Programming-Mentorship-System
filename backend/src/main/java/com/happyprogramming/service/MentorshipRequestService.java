@@ -9,6 +9,7 @@ import com.happyprogramming.dto.CreateOneOffSessionRequest;
 import com.happyprogramming.dto.MentorshipRequestResponse;
 import com.happyprogramming.dto.MenteeApplicationDto;
 import com.happyprogramming.dto.MenteeApplicationPageDto;
+import com.happyprogramming.dto.MenteeTransactionDto;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -365,6 +366,34 @@ public class MentorshipRequestService {
                 rs.getString("payment_status"),
                 toInstant(rs.getTimestamp("payment_expires_at"))), listArgs);
         return new MenteeApplicationPageDto(applications, totalElements, totalPages, page, size);
+    }
+
+    @Transactional(readOnly = true)
+    public List<MenteeTransactionDto> getMyTransactions() {
+        AuthenticatedUser user = currentUser();
+        if (user == null || user.id() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Please log in to view your transactions.");
+        }
+        if (user.roles() == null || !user.roles().contains("MENTEE")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only mentees can view their transactions.");
+        }
+        return jdbc().query("""
+                SELECT p.id AS payment_id, p.request_id, mentor.full_name AS mentor_name,
+                       COALESCE(JSON_VALUE(r.offer_snapshot, '$.name'), offering.name, 'Mentorship') AS package_name,
+                       r.service_type, p.amount, p.currency, p.status, p.merchant_reference,
+                       p.gateway_transaction_id, p.created_at, p.paid_at
+                FROM dbo.payments p
+                JOIN dbo.mentorship_requests r ON r.id = p.request_id
+                JOIN dbo.users mentor ON mentor.id = r.mentor_id
+                LEFT JOIN dbo.service_offerings offering ON offering.id = r.service_id
+                WHERE r.mentee_id = ?
+                ORDER BY p.created_at DESC, p.id DESC
+                """, (rs, rowNum) -> new MenteeTransactionDto(
+                rs.getLong("payment_id"), rs.getLong("request_id"), rs.getString("mentor_name"),
+                rs.getString("package_name"), rs.getString("service_type"), rs.getBigDecimal("amount"),
+                rs.getString("currency"), rs.getString("status"), rs.getString("merchant_reference"),
+                rs.getString("gateway_transaction_id"), toInstant(rs.getTimestamp("created_at")),
+                toInstant(rs.getTimestamp("paid_at"))), user.id());
     }
 
     @Transactional

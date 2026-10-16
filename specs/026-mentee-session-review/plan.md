@@ -1,0 +1,24 @@
+# Plan
+
+- **Database Layer**:
+  - `dbo.reviews` table is already defined in baseline `schema_31_tables.sql` with columns `id, booking_id, subscription_id, rating, comment, visibility_status, editable_until, created_at, updated_at`, unique index `UX_reviews_booking`, check constraints `CK_reviews_rating` (1..5) and `CK_reviews_comment` (10..500). No schema migration is required.
+- **Backend Architecture**:
+  - `ReviewRepository`: query booking details for review eligibility, check duplicate review, insert review record, and query published reviews for public mentor profile.
+  - Extend `MentorshipWorkspaceRepository.findOneOffBookings` to join `dbo.reviews` so `reviewId`, `rating`, `reviewComment` are returned with each session.
+  - Update `WorkspaceOneOffBookingDto` to include review fields while preserving backward compatibility.
+  - `ReviewService`: validate authentication (MENTEE role), booking ownership (`booking.mentee_id == currentUserId`), completion status (`COMPLETED` or `CONFIRMED` with `end_at <= now`), non-duplicate check, persist to `dbo.reviews`, and trigger notification to mentor.
+  - `ReviewController`:
+    - `POST /api/reviews`: submit review for a booking.
+    - `GET /api/bookings/{bookingId}/review`: get existing review for a booking.
+    - `GET /api/mentors/{identifier}/reviews`: list published reviews for a mentor.
+- **Frontend Architecture**:
+  - `frontend/src/roles/mentee/reviewService.js`: API methods for submitting reviews and retrieving mentor reviews with CSRF token support.
+  - `frontend/src/shared/MentorshipWorkspacePage.js`:
+    - Update session card markup: show "★ Review mentor" button if unreviewed & completed; show rating pill if reviewed.
+    - Add review modal dialog with 5-star interactive picker, character counter, error feedback, and loading state.
+    - Bind review dialog submission and update view state dynamically.
+  - `frontend/src/roles/mentor/MentorProfilePage.js`:
+    - Load and render published reviews in the `#profile-reviews` section.
+- **Verification**:
+  - Unit & integration tests for backend `ReviewControllerTest`, `ReviewServiceTest`, and `ReviewRepositoryTest`.
+  - Frontend unit tests for `reviewService.test.js` and `MentorshipWorkspacePage.test.js`.

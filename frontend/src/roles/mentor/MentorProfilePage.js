@@ -9,6 +9,7 @@ import { mentorPlanService } from './mentorPlanService.js';
 import { wishlistService } from '../mentee/wishlistService.js';
 import { authService } from '../auth/authService.js';
 import { bindUserDropdown, getInitials, renderUserDropdown } from '../../shared/Header.js';
+import { reviewService } from '../mentee/reviewService.js';
 
 
 export function MentorProfilePage() {
@@ -281,7 +282,8 @@ const profileHeader = () => {
   return `<header class="directory-header"><div class="container flex h-[76px] items-center justify-between gap-4">${BrandLogo()}<nav class="flex items-center gap-6" aria-label="Main navigation">${BrowseAllMentorsLink()}${user ? renderUserDropdown({ currentUser: user, displayName, initials: getInitials(displayName) }) : '<a href="#/login" class="btn btn-outline btn-sm">Log in</a>'}</nav></div></header>`;
 };
 const layout = body => `${profileHeader()}<main class="profile-page"><div class="container py-8 sm:py-12">${body}</div></main>${Footer()}`;
-export function ProfilePage(m, tiers = [], oneOffOfferings = []) {
+const dateLabel = value => value ? new Date(value).toLocaleDateString('en-US', { dateStyle: 'medium' }) : '—';
+export function ProfilePage(m, tiers = [], oneOffOfferings = [], reviews = []) {
   const lowestOneOff = oneOffOfferings
     .map(item => Number(item.price))
     .filter(Number.isFinite)
@@ -293,7 +295,38 @@ export function ProfilePage(m, tiers = [], oneOffOfferings = []) {
       <section class="profile-block" id="profile-about"><p class="eyebrow">MEET YOUR MENTOR</p><h2 class="mt-2">About ${esc(m.name)}</h2><p class="profile-copy">${esc(m.description)}</p></section>
       <section class="profile-block" id="profile-experience"><h2>Experience</h2><div class="profile-experience"><span class="profile-monogram" aria-hidden="true">${esc(m.initials)}</span><div><h3 class="font-semibold">${esc(m.role)}</h3><p class="mt-1 text-sm text-muted">${esc(m.company)}</p><p class="mt-2 text-sm text-brand">${esc(m.experience)}</p></div></div>${m.languages?.length ? `<p class="mt-5 text-sm text-muted">Languages: ${m.languages.map(esc).join(', ')}</p>` : ''}</section>
       <section class="profile-block" id="profile-skills"><h2>Skills</h2><div class="mt-5 flex flex-wrap gap-2">${(m.skills || []).map(s => `<a class="directory-skill" href="?${esc(new URLSearchParams({skills:s}).toString())}#/mentors">${esc(s)}</a>`).join('') || '<p class="text-sm text-muted">No skills shared yet.</p>'}</div></section>
-      <section class="profile-block" id="profile-reviews"><h2>What mentees say</h2><div class="profile-empty"><span aria-hidden="true">☆</span><h3 class="font-semibold">Reviews are not available yet</h3><p class="mt-2 text-sm text-muted">Moderated learner reviews will appear here when available.</p></div></section>
+      <section class="profile-block" id="profile-reviews">
+        <div class="flex items-center justify-between gap-4">
+          <h2>What mentees say</h2>
+          ${reviews.length > 0 ? `<span class="rounded-full bg-lilac px-3 py-1 text-xs font-semibold text-brand">${reviews.length} verified review${reviews.length === 1 ? '' : 's'}</span>` : ''}
+        </div>
+        ${reviews.length > 0 ? `
+          <div class="mt-6 space-y-4">
+            ${reviews.map(r => `
+              <div class="rounded-xl border border-line bg-cream p-4">
+                <div class="flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2.5">
+                    <span class="grid h-8 w-8 place-items-center rounded-full bg-lilac text-xs font-semibold text-brand">${esc(getInitials(r.menteeName || 'Learner'))}</span>
+                    <div>
+                      <strong class="text-xs text-ink block">${esc(r.menteeName || 'Learner')}</strong>
+                      <span class="text-[10px] text-muted">${esc(r.sessionName || 'Mentorship session')}</span>
+                    </div>
+                  </div>
+                  <span class="text-xs font-semibold text-brand tracking-wider">${'★'.repeat(r.rating || 5)}${'☆'.repeat(5 - (r.rating || 5))} <span class="font-normal text-ink">(${Number(r.rating || 5).toFixed(1)})</span></span>
+                </div>
+                <p class="mt-3 text-xs leading-5 text-ink">${esc(r.comment)}</p>
+                <p class="mt-2 text-right text-[10px] text-muted">${esc(dateLabel(r.createdAt))}</p>
+              </div>
+            `).join('')}
+          </div>
+        ` : `
+          <div class="profile-empty">
+            <span aria-hidden="true">☆</span>
+            <h3 class="font-semibold">Reviews are not available yet</h3>
+            <p class="mt-2 text-sm text-muted">Moderated learner reviews will appear here when available.</p>
+          </div>
+        `}
+      </section>
     </div><aside class="profile-sidebar" aria-label="Mentorship services">
       ${MentorPricingCard({
         tiers,
@@ -329,7 +362,9 @@ export async function mountMentorProfile(app, id) {
       oneOffOfferings = offerings.filter(item => item.serviceType === 'ONE_OFF');
     } catch { tiers = []; oneOffOfferings = []; }
     if (app.firstElementChild !== marker) return;
-    app.innerHTML = ProfilePage(m, tiers, oneOffOfferings);
+    let reviews = [];
+    try { reviews = await reviewService.getMentorReviews(m.id); } catch { reviews = []; }
+    app.innerHTML = ProfilePage(m, tiers, oneOffOfferings, reviews);
     bindMentorPricingCardEvents(app);
     bindUserDropdown(app, () => { location.hash = '#/'; location.reload(); });
     const saveButton = app.querySelector('[data-profile-save]');
