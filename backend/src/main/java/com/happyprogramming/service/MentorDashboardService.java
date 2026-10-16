@@ -86,6 +86,11 @@ public class MentorDashboardService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<MentorDashboardRequest> getMyBookings() {
+        return getMyRequests();
+    }
+
     @Transactional
     public MentorRequestDecisionResponse decideOnRequest(
             long requestId, MentorRequestDecisionRequest request) {
@@ -164,8 +169,13 @@ public class MentorDashboardService {
                 goals,
                 summarizeLearningGoals(goals),
                 request.getStatus(),
+                request.getLifecycleStatus(),
                 toInstant(request.getSubmittedAt()),
-                toInstant(request.getResponseDeadline()));
+                toInstant(request.getResponseDeadline()),
+                toInstant(request.getStartAt()),
+                toInstant(request.getEndAt()),
+                request.getNumberOfSessions(),
+                request.getNumberOfParticipants());
     }
 
     private static MentorSystemNotice toNotice(MentorSystemNoticeProjection notice) {

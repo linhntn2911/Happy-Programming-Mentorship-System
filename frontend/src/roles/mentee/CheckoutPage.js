@@ -56,6 +56,29 @@ function headerHtml(user) {
   `;
 }
 
+export function checkoutFacts(info, isOneOff) {
+  if (isOneOff) {
+    const start = info.sessionStartAt ? formatDate(info.sessionStartAt) : 'Reserved time';
+    const schedule = info.sessionEndAt ? `${start} – ${formatDate(info.sessionEndAt)}` : start;
+    const duration = Number(info.sessionDurationMinutes) || 10;
+    const sessions = Number(info.numberOfSessions) || 1;
+    const participants = Number(info.numberOfParticipants) || 1;
+    return `<dl class="mt-5 grid grid-cols-2 gap-4 text-sm">
+      <div class="col-span-2"><dt class="text-xs text-muted">Session schedule</dt><dd class="mt-1 font-semibold text-ink">${esc(schedule)}</dd></div>
+      <div><dt class="text-xs text-muted">Session length</dt><dd class="mt-1 font-semibold text-ink">${duration} minutes</dd></div>
+      <div><dt class="text-xs text-muted">Sessions booked</dt><dd class="mt-1 font-semibold text-ink">${sessions}</dd></div>
+      <div><dt class="text-xs text-muted">Participants</dt><dd class="mt-1 font-semibold text-ink">${participants}</dd></div>
+      <div><dt class="text-xs text-muted">Booking</dt><dd class="mt-1 font-semibold text-ink">#${esc(info.requestId)}</dd></div>
+    </dl>`;
+  }
+  return `<dl class="mt-5 grid grid-cols-2 gap-4 text-sm">
+    <div><dt class="text-xs text-muted">Mentor sessions</dt><dd class="mt-1 font-semibold text-ink">${Number(info.callsPerPeriod) || 4} calls / month</dd></div>
+    <div><dt class="text-xs text-muted">Session length</dt><dd class="mt-1 font-semibold text-ink">${Number(info.sessionDurationMinutes) || 45} minutes</dd></div>
+    <div><dt class="text-xs text-muted">Billing period</dt><dd class="mt-1 font-semibold text-ink">Monthly</dd></div>
+    <div><dt class="text-xs text-muted">Application</dt><dd class="mt-1 font-semibold text-ink">#${esc(info.requestId)}</dd></div>
+  </dl>`;
+}
+
 export async function mountCheckout(root, requestId, paymentReturn = false) {
   clearTimers();
   document.title = 'Mentorship Checkout | HappyProgramming';
@@ -117,25 +140,30 @@ export async function mountCheckout(root, requestId, paymentReturn = false) {
 function renderCheckoutDetails(root, container, user, info, paymentReturn) {
   const isPaid = Boolean(info.isPaid);
   const isAccepted = info.status === 'ACCEPTED';
+  const isOneOff = info.serviceType === 'ONE_OFF';
   const priceAvailable = info.priceAvailable !== false;
   const amountFormatted = priceAvailable ? formatVnd(info.amount) : 'Price unavailable';
   const currency = info.currency || 'VND';
   const paymentStatus = info.paymentStatus || '';
   const isPending = paymentStatus === 'PENDING';
-  const hasActiveAttempt = isPending && Boolean(info.qrCodeUrl || info.paymentReference);
+  const hasActiveAttempt = isPending && Boolean(info.qrCodeUrl && info.paymentReference);
 
   if (isPaid) {
     clearTimers();
+    const oneOffConfirmation = isOneOff
+      ? `<div class="mt-3 flex justify-between gap-4"><span class="text-muted">Session booking</span><strong class="text-emerald-700">Confirmed${info.sessionStartAt ? ` · ${esc(formatDate(info.sessionStartAt))}` : ''}</strong></div>`
+      : '';
     container.innerHTML = `<div class="mx-auto max-w-2xl rounded-2xl border border-line bg-white p-8 text-center shadow-sm sm:p-12">
       <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-3xl font-bold text-emerald-600">✓</span>
       <span class="eyebrow mt-5 inline-block text-emerald-600">PAYMENT CONFIRMED · ESCROW ACTIVE</span>
-      <h1 class="mt-2 font-display text-3xl font-bold text-ink">Your mentorship is active</h1>
+      <h1 class="mt-2 font-display text-3xl font-bold text-ink">${isOneOff ? 'Your session is confirmed' : 'Your mentorship is active'}</h1>
       <p class="mt-3 text-sm leading-6 text-muted">Your payment for <strong>${esc(info.packageName)}</strong> with <strong>${esc(info.mentorName)}</strong> was received via SePay and placed in platform escrow.</p>
       <div class="mt-7 rounded-xl border border-line bg-cream p-5 text-left text-sm">
         <div class="flex justify-between gap-4"><span class="text-muted">Amount paid</span><strong>${amountFormatted} ${esc(currency)}</strong></div>
         <div class="mt-3 flex justify-between gap-4"><span class="text-muted">Payment state</span><strong class="text-emerald-700">Verified & Active</strong></div>
+        ${oneOffConfirmation}
       </div>
-      <div class="mt-7 flex flex-wrap justify-center gap-3"><a href="#/workspace?requestId=${encodeURIComponent(info.requestId)}" class="btn btn-primary">Open mentorship workspace</a><a href="#/applications" class="btn btn-outline">View my applications</a></div>
+      <div class="mt-7 flex flex-wrap justify-center gap-3"><a href="${isOneOff ? '#/workspace' : `#/workspace?requestId=${encodeURIComponent(info.requestId)}`}" class="btn btn-primary">Open mentorship workspace</a><a href="#/applications" class="btn btn-outline">View my bookings</a></div>
     </div>`;
     return;
   }
@@ -145,7 +173,7 @@ function renderCheckoutDetails(root, container, user, info, paymentReturn) {
     container.innerHTML = `<div class="mx-auto max-w-xl rounded-2xl border border-line bg-white p-8 text-center shadow-sm">
       <span class="eyebrow text-amber-700">APPLICATION: ${esc(info.status)}</span>
       <h1 class="mt-2 font-display text-2xl font-bold text-ink">Payment is unavailable</h1>
-      <p class="mt-2 text-sm leading-6 text-muted">The mentor must accept this application before checkout can begin.</p>
+      <p class="mt-2 text-sm leading-6 text-muted">${isOneOff ? 'This reserved time is no longer eligible for payment. Please choose another available slot.' : 'The mentor must accept this application before checkout can begin.'}</p>
       <a href="#/applications" class="btn btn-primary mt-6">My applications</a>
     </div>`;
     return;
@@ -157,17 +185,19 @@ function renderCheckoutDetails(root, container, user, info, paymentReturn) {
     ? `<img src="${esc(info.mentorAvatarUrl)}" alt="${esc(info.mentorName)}" class="h-14 w-14 rounded-full border border-line object-cover">`
     : `<div class="grid h-14 w-14 place-items-center rounded-full bg-brand text-lg font-bold uppercase text-white">${esc(mentorInitials)}</div>`;
 
-  const bankName = info.bankName || 'TPBank';
-  const accountNumber = info.accountNumber || '00000806194';
-  const accountHolder = info.accountHolder || 'NGUYEN THI NGOC LINH';
-  const qrUrl = info.qrCodeUrl || (info.paymentReference ? `https://qr.sepay.vn/img?bank=${encodeURIComponent(bankName)}&acc=${encodeURIComponent(accountNumber)}&template=compact&amount=${Number(info.amount) || 0}&des=${encodeURIComponent(info.paymentReference)}` : null);
+  // Checkout may only show the configured HappyProgramming receiving account returned by SePay.
+  // Do not construct a browser-side QR from placeholder bank details.
+  const bankName = info.bankName || '—';
+  const accountNumber = info.accountNumber || '—';
+  const accountHolder = info.accountHolder || '—';
+  const qrUrl = info.qrCodeUrl || null;
 
   container.innerHTML = `<div>
     <a href="#/applications" class="mb-6 inline-flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline">← Back to my applications</a>
     <div class="mb-8">
       <p class="eyebrow">SEPAY SECURE QR CHECKOUT</p>
-      <h1 class="mt-1 font-display text-3xl font-bold text-ink sm:text-4xl">Review your mentorship</h1>
-      <p class="mt-2 text-sm text-muted">Scan the SePay VietQR code using your banking app to transfer payment. Your mentorship activates automatically upon confirmation.</p>
+      <h1 class="mt-1 font-display text-3xl font-bold text-ink sm:text-4xl">${isOneOff ? 'Review your one-off session' : 'Review your mentorship'}</h1>
+      <p class="mt-2 text-sm text-muted">Scan HappyProgramming's SePay VietQR code using your banking app to transfer payment. ${isOneOff ? 'Your selected session is confirmed automatically after verification.' : 'Your mentorship activates automatically upon confirmation.'}</p>
     </div>
 
     ${failed ? `<div class="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" role="status">
@@ -177,7 +207,7 @@ function renderCheckoutDetails(root, container, user, info, paymentReturn) {
     <div class="grid grid-cols-1 items-start gap-8 lg:grid-cols-3">
       <div class="space-y-6 lg:col-span-2">
         <section class="rounded-2xl border border-line bg-white p-6 shadow-sm sm:p-7" aria-labelledby="checkout-mentor-heading">
-          <h2 id="checkout-mentor-heading" class="mb-4 text-xs font-bold uppercase tracking-wider text-muted">Accepted mentorship package</h2>
+          <h2 id="checkout-mentor-heading" class="mb-4 text-xs font-bold uppercase tracking-wider text-muted">${isOneOff ? 'Reserved one-off session' : 'Accepted mentorship package'}</h2>
           <div class="flex items-start gap-4 border-b border-line pb-5">
             ${avatarHtml}
             <div class="min-w-0 flex-1">
@@ -188,25 +218,21 @@ function renderCheckoutDetails(root, container, user, info, paymentReturn) {
               <p class="mt-1 text-xs text-muted">${esc(info.mentorTitle || 'Mentor')}</p>
             </div>
           </div>
-          <dl class="mt-5 grid grid-cols-2 gap-4 text-sm">
-            <div><dt class="text-xs text-muted">Mentor sessions</dt><dd class="mt-1 font-semibold text-ink">${Number(info.callsPerPeriod) || 4} calls / month</dd></div>
-            <div><dt class="text-xs text-muted">Session length</dt><dd class="mt-1 font-semibold text-ink">${Number(info.sessionDurationMinutes) || 45} minutes</dd></div>
-            <div><dt class="text-xs text-muted">Billing period</dt><dd class="mt-1 font-semibold text-ink">Monthly</dd></div>
-            <div><dt class="text-xs text-muted">Application</dt><dd class="mt-1 font-semibold text-ink">#${esc(info.requestId)}</dd></div>
-          </dl>
-          ${info.learningGoals ? `<div class="mt-5 border-t border-line pt-4"><h3 class="text-xs font-bold uppercase tracking-wider text-muted">Your learning goals</h3><p class="mt-2 whitespace-pre-wrap rounded-xl border border-line bg-cream p-4 text-sm leading-6 text-ink">${esc(info.learningGoals)}</p></div>` : ''}
+          ${checkoutFacts(info, isOneOff)}
+          ${info.learningGoals ? `<div class="mt-5 border-t border-line pt-4"><h3 class="text-xs font-bold uppercase tracking-wider text-muted">${isOneOff ? 'Discussion agenda' : 'Your learning goals'}</h3><p class="mt-2 whitespace-pre-wrap rounded-xl border border-line bg-cream p-4 text-sm leading-6 text-ink">${esc(info.learningGoals)}</p></div>` : ''}
         </section>
 
         <!-- Payment QR & Bank Transfer Section -->
         <section class="rounded-2xl border border-line bg-white p-6 shadow-sm sm:p-7" aria-labelledby="checkout-method-heading">
-          <h2 id="checkout-method-heading" class="text-xs font-bold uppercase tracking-wider text-muted">Payment method: Bank Transfer QR</h2>
+          <h2 id="checkout-method-heading" class="text-xs font-bold uppercase tracking-wider text-muted">Payment method: HappyProgramming SePay Bank Transfer</h2>
           
-          <div id="qr-panel" class="${hasActiveAttempt ? '' : 'hidden'} mt-5">
+          <div id="qr-panel" class="${hasActiveAttempt ? '' : 'hidden'} mt-5" aria-live="polite">
             <div class="rounded-2xl border border-brand/20 bg-gradient-to-b from-lilac/30 to-white p-6 text-center">
               <div class="inline-block rounded-2xl bg-white p-3 shadow-md border border-line">
                 <img id="qr-image" src="${esc(qrUrl || '')}" alt="SePay VietQR Payment" class="h-60 w-60 object-contain mx-auto">
               </div>
               <p class="mt-3 text-xs font-medium text-ink">Scan with any Mobile Banking App (Napas 24/7)</p>
+              <p class="mt-1 text-[11px] text-muted">This page updates automatically when SePay confirms your transfer.</p>
               
               <!-- Countdown timer -->
               <div class="mt-3 inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-brand shadow-sm border border-line">
@@ -277,7 +303,7 @@ function renderCheckoutDetails(root, container, user, info, paymentReturn) {
           <div class="space-y-3 border-b border-line pb-5 text-sm">
             <div class="flex justify-between gap-4"><span class="text-muted">${esc(info.packageName || 'Monthly Mentorship')}</span><strong class="text-ink">${amountFormatted}${priceAvailable ? ` ${esc(currency)}` : ''}</strong></div>
             <div class="flex justify-between gap-4 text-xs"><span class="text-muted">Platform escrow</span><span class="font-semibold text-emerald-700">Included</span></div>
-            <div class="flex justify-between gap-4 text-xs"><span class="text-muted">Billing</span><span class="font-semibold text-ink">Monthly</span></div>
+            <div class="flex justify-between gap-4 text-xs"><span class="text-muted">Billing</span><span class="font-semibold text-ink">${isOneOff ? 'One-time' : 'Monthly'}</span></div>
           </div>
           <div class="flex items-baseline justify-between gap-4 pt-4"><span class="font-bold text-ink">Due now</span><strong class="font-display text-2xl text-brand">${amountFormatted}${priceAvailable ? ` ${esc(currency)}` : ''}</strong></div>
           
@@ -289,7 +315,7 @@ function renderCheckoutDetails(root, container, user, info, paymentReturn) {
             ${!priceAvailable ? 'Payment unavailable' : hasActiveAttempt ? 'Refresh Payment QR' : 'Prepare SePay QR payment'}
           </button>
           
-          <p class="mt-3 text-center text-[11px] text-muted">Upon transfer, SePay automatically notifies HappyProgramming to activate your course.</p>
+          <p class="mt-3 text-center text-[11px] text-muted">Upon transfer, SePay automatically notifies HappyProgramming to ${isOneOff ? 'confirm your booking' : 'activate your mentorship'}.</p>
         </section>
       </aside>
     </div>
@@ -298,7 +324,7 @@ function renderCheckoutDetails(root, container, user, info, paymentReturn) {
   bindCopyButtons(container);
 
   if (hasActiveAttempt) {
-    startCountdown(container, info.paymentExpiresAt);
+    startCountdown(container, info.paymentExpiresAt, info.serverNow, info.paymentRemainingSeconds);
     startPolling(root, info.requestId);
   }
 
@@ -326,15 +352,31 @@ function bindCopyButtons(container) {
   });
 }
 
-function startCountdown(container, expiresAt) {
+export function countdownRemainingSeconds(expiresAt, serverNow, elapsedMs = 0, initialRemainingSeconds = null) {
+  const remaining = Number(initialRemainingSeconds);
+  if (initialRemainingSeconds !== null && initialRemainingSeconds !== undefined
+      && Number.isFinite(remaining) && remaining >= 0) {
+    return Math.max(0, Math.floor(remaining - elapsedMs / 1000));
+  }
+
+  const expiryTime = expiresAt ? Date.parse(expiresAt) : NaN;
+  if (!Number.isFinite(expiryTime)) return Math.max(0, Math.floor((15 * 60 * 1000 - elapsedMs) / 1000));
+
+  const serverTime = serverNow ? Date.parse(serverNow) : NaN;
+  const referenceTime = Number.isFinite(serverTime) ? serverTime + elapsedMs : Date.now();
+  return Math.max(0, Math.floor((expiryTime - referenceTime) / 1000));
+}
+
+function startCountdown(container, expiresAt, serverNow, initialRemainingSeconds) {
   if (countdownTimer) clearInterval(countdownTimer);
   const countdownEl = container.querySelector('#countdown-text');
   if (!countdownEl) return;
 
-  const expiryTime = expiresAt ? new Date(expiresAt).getTime() : Date.now() + 15 * 60 * 1000;
+  const startedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
 
   function update() {
-    const diff = Math.max(0, Math.floor((expiryTime - Date.now()) / 1000));
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const diff = countdownRemainingSeconds(expiresAt, serverNow, now - startedAt, initialRemainingSeconds);
     const mins = Math.floor(diff / 60);
     const secs = diff % 60;
     countdownEl.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;

@@ -1,11 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  formatUtcDate,
   formatVnd,
   formatSlaRemaining,
   summarizeLearningGoals,
 } from './MentorDashboardPage.js';
 import { DashboardMetricCard } from './DashboardMetricCard.js';
+
+test('missing timestamps render as a dash instead of the Unix epoch', () => {
+  assert.equal(formatUtcDate(null), '—');
+  assert.equal(formatUtcDate(undefined), '—');
+});
 
 test('formats VND earnings without losing fractional database values', () => {
   assert.match(formatVnd(1_250_000), /1,250,000/);

@@ -55,3 +55,14 @@ test('packages module renders one card per tier with enable toggles', () => {
   assert.match(packages, /id="tier-pro-description"/);
   assert.doesNotMatch(packages, /Package management is not available yet/);
 });
+
+test('packages module includes mentor-managed one-off session options', () => {
+  const packages = MentorWorkspacePage('packages');
+
+  assert.match(packages, /ONE-OFF SESSIONS/);
+  assert.match(packages, /id="one-off-add"/);
+  assert.match(packages, /id="one-off-form"/);
+  assert.match(packages, /id="one-off-list"/);
+  assert.match(packages, /Mentees will only see active options/);
+  assert.match(packages, /Save one-off sessions/);
+});

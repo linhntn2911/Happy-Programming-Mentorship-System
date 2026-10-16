@@ -15,7 +15,17 @@ public interface MentorDashboardRequestProjection {
 
     String getStatus();
 
+    String getLifecycleStatus();
+
     LocalDateTime getSubmittedAt();
 
     LocalDateTime getResponseDeadline();
+
+    LocalDateTime getStartAt();
+
+    LocalDateTime getEndAt();
+
+    Integer getNumberOfSessions();
+
+    Integer getNumberOfParticipants();
 }

@@ -32,7 +32,9 @@ export const mentorshipRequestService = {
   },
 
   async getCheckoutInfo(requestId) {
-    return apiClient(`/api/mentorship-requests/${requestId}/checkout-info`);
+    // This endpoint is polled after a bank transfer. Never reuse a cached pending
+    // response, otherwise a verified SePay payment could leave the checkout on its QR.
+    return apiClient(`/api/mentorship-requests/${requestId}/checkout-info`, { cache: 'no-store' });
   },
 
   async processCheckout(requestId) {

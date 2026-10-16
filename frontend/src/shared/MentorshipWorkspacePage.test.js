@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { filterWorkspaceList, workspaceConversationMarkup, workspaceListMarkup, workspaceMessages } from './MentorshipWorkspacePage.js';
+import { filterWorkspaceList, workspaceConversationMarkup, workspaceEngagementsMarkup, workspaceListMarkup, workspaceMessages } from './MentorshipWorkspacePage.js';
 
 test('workspace message renderer escapes text and renders code as code', () => {
   const markup = workspaceMessages([
@@ -41,8 +41,8 @@ test('workspace messages filter loaded history and mark the unread boundary', ()
 
 test('mentor workspace opens with a messenger-style mentee list before conversation detail', () => {
   const markup = workspaceListMarkup([
-    { subscriptionId: 30, partnerName: 'An Mentee', packageName: 'Lite', subscriptionStatus: 'ACTIVE', unreadCount: 2 },
-    { subscriptionId: 31, partnerName: 'Binh Mentee', packageName: 'Pro', subscriptionStatus: 'TRIALING' },
+    { workspaceId: 40, partnerName: 'An Mentee', packageName: 'Lite', subscriptionStatus: 'ACTIVE', hasMonthly: true, unreadCount: 2 },
+    { workspaceId: 41, partnerName: 'Binh Mentee', packageName: 'One-off sessions', subscriptionStatus: 'ONE_OFF', oneOffSessionCount: 1 },
   ], true);
   assert.match(markup, /Your mentees/);
   assert.match(markup, /data-workspace-messenger/);
@@ -51,26 +51,26 @@ test('mentor workspace opens with a messenger-style mentee list before conversat
   assert.match(markup, /data-toggle-workspace-search/);
   assert.match(markup, /id="workspace-list-search"/);
   assert.match(markup, /Select a conversation/);
-  assert.match(markup, /data-workspace-id="30"/);
-  assert.match(markup, /data-workspace-id="31"/);
+  assert.match(markup, /data-workspace-id="40"/);
+  assert.match(markup, /data-workspace-id="41"/);
   assert.match(markup, /data-workspace-unread/);
   assert.doesNotMatch(markup, /id="workspace-message-form"/);
 });
 
 test('workspace list filter searches partner and package while preserving status options', () => {
   const workspaces = [
-    { subscriptionId: 30, partnerName: 'An Mentee', packageName: 'Lite', subscriptionStatus: 'ACTIVE' },
-    { subscriptionId: 31, partnerName: 'Binh Mentee', packageName: 'Pro', subscriptionStatus: 'TRIALING' },
+    { workspaceId: 40, partnerName: 'An Mentee', packageName: 'Lite', subscriptionStatus: 'ACTIVE', hasMonthly: true },
+    { workspaceId: 41, partnerName: 'Binh Mentee', packageName: 'One-off sessions', subscriptionStatus: 'ONE_OFF', oneOffSessionCount: 1 },
   ];
-  assert.deepEqual(filterWorkspaceList(workspaces, 'ACTIVE').map(item => item.subscriptionId), [30]);
-  assert.deepEqual(filterWorkspaceList(workspaces, 'ALL', 'pro').map(item => item.subscriptionId), [31]);
-  assert.deepEqual(filterWorkspaceList(workspaces, 'TRIALING', 'an').map(item => item.subscriptionId), []);
+  assert.deepEqual(filterWorkspaceList(workspaces, 'ACTIVE').map(item => item.workspaceId), [40]);
+  assert.deepEqual(filterWorkspaceList(workspaces, 'ALL', 'one-off').map(item => item.workspaceId), [41]);
+  assert.deepEqual(filterWorkspaceList(workspaces, 'ONE_OFF').map(item => item.workspaceId), [41]);
 });
 
 test('selected mentorship keeps the conversation list beside messages and context', () => {
   const workspaces = [
-    { subscriptionId: 30, partnerName: 'An Mentee', packageName: 'Lite', subscriptionStatus: 'ACTIVE', unreadCount: 2, currentPeriodEnd: '2026-11-12T00:00:00Z' },
-    { subscriptionId: 31, partnerName: 'Binh Mentee', packageName: 'Pro', subscriptionStatus: 'TRIALING' },
+    { workspaceId: 40, conversationId: 40, subscriptionId: 30, partnerName: 'An Mentee', packageName: 'Lite', subscriptionStatus: 'ACTIVE', hasMonthly: true, unreadCount: 2, currentPeriodEnd: '2026-11-12T00:00:00Z' },
+    { workspaceId: 41, conversationId: 41, partnerName: 'Binh Mentee', packageName: 'One-off sessions', subscriptionStatus: 'ONE_OFF', oneOffSessionCount: 1 },
   ];
   const markup = workspaceConversationMarkup({
     ...workspaces[0],
@@ -78,6 +78,7 @@ test('selected mentorship keeps the conversation list beside messages and contex
     callsPerPeriod: 2,
     sessionDurationMinutes: 45,
     learningGoals: 'Improve backend design.',
+    oneOffSessions: [],
     messages: [],
   }, workspaces, true);
   assert.match(markup, /aria-current="true"/);
@@ -95,6 +96,68 @@ test('selected mentorship keeps the conversation list beside messages and contex
   assert.match(markup, /aria-label="Send message"/);
   assert.match(markup, /rows="1"/);
   assert.match(markup, /Enter to send · Shift \+ Enter for a new line/);
-  assert.match(markup, /Mentorship details/i);
+  assert.match(markup, /ENGAGEMENTS/);
   assert.match(markup, /Improve backend design\./);
+});
+
+test('one relationship workspace renders monthly and one-off engagements separately', () => {
+  const markup = workspaceEngagementsMarkup({
+    hasMonthly: true,
+    packageName: 'Lite',
+    subscriptionStatus: 'ACTIVE',
+    currentPeriodStart: '2026-10-01T00:00:00Z',
+    currentPeriodEnd: '2026-11-01T00:00:00Z',
+    callsPerPeriod: 4,
+    sessionDurationMinutes: 30,
+    oneOffSessions: [{
+      bookingId: 70,
+      sessionName: 'Work Review',
+      startAt: '2026-10-20T10:00:00Z',
+      endAt: '2026-10-20T10:30:00Z',
+      price: 180000,
+      currency: 'VND',
+      status: 'CONFIRMED',
+      participants: 2,
+    }],
+  }, new Date('2026-10-16T00:00:00Z'));
+  assert.match(markup, /Lite/);
+  assert.match(markup, /Work Review/);
+  assert.match(markup, /180\.000 VND/);
+  assert.match(markup, /2 participants/);
+});
+
+test('ended one-off sessions leave upcoming engagements and remain in collapsed history', () => {
+  const markup = workspaceEngagementsMarkup({
+    hasMonthly: false,
+    oneOffSessions: [
+      {
+        bookingId: 70,
+        sessionName: 'Finished Review',
+        startAt: '2026-10-16T10:00:00Z',
+        endAt: '2026-10-16T10:30:00Z',
+        price: 99000,
+        currency: 'VND',
+        status: 'CONFIRMED',
+        participants: 1,
+      },
+      {
+        bookingId: 71,
+        sessionName: 'Upcoming Review',
+        startAt: '2026-10-16T11:00:00Z',
+        endAt: '2026-10-16T11:30:00Z',
+        price: 180000,
+        currency: 'VND',
+        status: 'CONFIRMED',
+        participants: 2,
+      },
+    ],
+  }, new Date('2026-10-16T10:30:00Z'));
+
+  assert.match(markup, /<details[^>]*>/);
+  assert.doesNotMatch(markup, /<details[^>]*open/);
+  assert.match(markup, /Past sessions/);
+  assert.match(markup, /Finished Review/);
+  assert.match(markup, /Completed/);
+  assert.match(markup, /Upcoming Review/);
+  assert.match(markup, /One-off sessions/);
 });

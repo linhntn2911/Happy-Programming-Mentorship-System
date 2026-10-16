@@ -299,6 +299,9 @@ export function ProfilePage(m, tiers = [], oneOffOfferings = []) {
         tiers,
         oneOffPrice: Number.isFinite(lowestOneOff) ? lowestOneOff.toLocaleString('en-US') : '',
         showOneOff: true,
+        onOneOffHref: `#/mentors/${encodeURIComponent(m.id)}/sessions`,
+        oneOffOfferings,
+        oneOffMentorName: m.name,
         onApplyClick: `window.location.hash = '#/apply/monthly?mentor=${encodeURIComponent(m.id)}&name=${encodeURIComponent(m.name)}&offeringId=' + encodeURIComponent(this.dataset.applyOfferingId || '')`,
         onOneOffClick: `window.location.hash = '#/mentors/${encodeURIComponent(m.id)}/sessions'`
       })}

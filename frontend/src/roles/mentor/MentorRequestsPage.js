@@ -13,45 +13,57 @@ export function MentorRequestsPage() {
   <div class="admin-page-heading">
     <div>
       <p class="eyebrow mb-3">MENTOR WORKSPACE</p>
-      <h1 id="mentor-requests-title">Mentorship requests</h1>
-      <p>Review new applications and revisit every decision. Respond to pending requests within 48 hours.</p>
+      <h1 id="mentor-requests-title">Bookings</h1>
+      <p>Manage monthly mentorship applications and confirmed one-off sessions in one place.</p>
     </div>
   </div>
 
   <div id="action-status" class="admin-notice mb-5 hidden" role="status" aria-live="polite"></div>
 
   <div id="requests-loading" class="admin-panel admin-panel-body text-sm text-muted" role="status">
-    Loading your requests…
+    Loading your bookings…
   </div>
   <div id="requests-error" class="admin-notice notice-error mb-5" role="alert" hidden></div>
   <button id="requests-retry" class="btn btn-outline mb-5" type="button" hidden>Try again</button>
 
   <div id="requests-content" class="admin-panel" hidden>
     <div class="admin-toolbar justify-between">
-      <label for="request-status-filter" class="admin-field min-w-64">Show requests
+      <label for="request-status-filter" class="admin-field min-w-52">Status
         <select id="request-status-filter">
-          <option value="ALL">All requests</option>
-          <option value="PENDING">Waiting for my decision</option>
-          <option value="ACCEPTED">Accepted</option>
+          <option value="ALL">All statuses</option>
+          <option value="WAITING_DECISION">Waiting for my decision</option>
+          <option value="AWAITING_PAYMENT">Awaiting payment</option>
+          <option value="UPCOMING">Upcoming</option>
+          <option value="CONFIRMED">Confirmed</option>
+          <option value="ACTIVE">Active</option>
+          <option value="COMPLETED">Completed</option>
           <option value="REJECTED">Declined</option>
           <option value="EXPIRED">Expired</option>
           <option value="CANCELLED">Cancelled</option>
+          <option value="NO_SHOW">No-show</option>
+        </select>
+      </label>
+      <label for="request-type-filter" class="admin-field min-w-44">Type
+        <select id="request-type-filter">
+          <option value="ALL">All types</option>
+          <option value="MONTHLY">Monthly</option>
+          <option value="ONE_OFF">One-off session</option>
         </select>
       </label>
       <p id="requests-count" class="text-xs text-muted" aria-live="polite"></p>
     </div>
     <div id="requests-empty" class="admin-panel-body text-sm text-muted" hidden>
-      No requests match this status.
+      No bookings match these filters.
     </div>
     <div id="requests-table-wrap" class="data-table-scroll hidden md:block">
       <table class="data-table min-w-[860px]">
         <thead>
           <tr>
             <th scope="col" class="px-4 py-3">Mentee Name</th>
-            <th scope="col" class="px-4 py-3">Package</th>
-            <th scope="col" class="px-4 py-3">Learning Goals Summary</th>
+            <th scope="col" class="px-4 py-3">Package / session</th>
+            <th scope="col" class="px-4 py-3">Agenda / learning goals</th>
             <th scope="col" class="px-4 py-3">Status</th>
-            <th scope="col" class="px-4 py-3">Response deadline</th>
+            <th scope="col" class="px-4 py-3">Schedule / deadline</th>
             <th scope="col" class="px-4 py-3"><span class="sr-only">Actions</span></th>
           </tr>
         </thead>
@@ -64,18 +76,19 @@ export function MentorRequestsPage() {
   <div id="request-dialog-overlay" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
     <div id="request-dialog" class="relative mx-auto my-auto w-full max-w-2xl rounded-2xl border border-line bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="request-dialog-title" tabindex="-1">
       <div class="flex items-start justify-between gap-4 p-6 pb-5">
-        <div><p class="eyebrow">MENTORSHIP REQUEST DETAILS</p><h2 id="request-dialog-title" class="mt-2 font-display text-3xl text-ink">Mentee application</h2><p class="mt-1 text-sm text-muted">Review the saved application before deciding.</p></div>
+        <div><p class="eyebrow">BOOKING DETAILS</p><h2 id="request-dialog-title" class="mt-2 font-display text-3xl text-ink">Booking information</h2><p class="mt-1 text-sm text-muted">Review the saved application or scheduled one-off session.</p></div>
         <button type="button" data-close-dialog class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line bg-lilac text-xl text-muted hover:text-ink" aria-label="Close request details">×</button>
       </div>
       <div class="mx-6 border-t border-line"></div>
       <dl class="grid gap-4 p-6 sm:grid-cols-2">
         <div><dt class="text-sm font-semibold text-ink">Mentee</dt><dd id="request-dialog-mentee" class="mt-1 break-words text-sm text-muted"></dd></div>
         <div><dt class="text-sm font-semibold text-ink">Package</dt><dd id="request-dialog-package" class="mt-1 break-words text-sm text-muted"></dd></div>
-        <div><dt class="text-sm font-semibold text-ink">Request type</dt><dd id="request-dialog-type" class="mt-1 text-sm text-muted"></dd></div>
+        <div><dt class="text-sm font-semibold text-ink">Booking type</dt><dd id="request-dialog-type" class="mt-1 text-sm text-muted"></dd></div>
         <div><dt class="text-sm font-semibold text-ink">Current status</dt><dd id="request-dialog-status" class="mt-1 text-sm text-muted"></dd></div>
         <div><dt class="text-sm font-semibold text-ink">Submitted</dt><dd id="request-dialog-submitted" class="mt-1 text-sm text-muted"></dd></div>
-        <div class="sm:col-span-2"><dt class="text-sm font-semibold text-ink">Learning goals</dt><dd id="request-dialog-goals" class="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-muted"></dd></div>
-        <div><dt class="text-sm font-semibold text-ink">Response deadline</dt><dd id="request-dialog-deadline" class="mt-1 text-sm text-muted"></dd></div>
+        <div class="sm:col-span-2"><dt class="text-sm font-semibold text-ink">Agenda / learning goals</dt><dd id="request-dialog-goals" class="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-muted"></dd></div>
+        <div><dt id="request-dialog-date-label" class="text-sm font-semibold text-ink">Schedule / deadline</dt><dd id="request-dialog-deadline" class="mt-1 text-sm text-muted"></dd></div>
+        <div id="request-dialog-attendees-wrap"><dt class="text-sm font-semibold text-ink">Sessions and participants</dt><dd id="request-dialog-attendees" class="mt-1 text-sm text-muted"></dd></div>
       </dl>
       <div class="flex flex-col-reverse gap-3 border-t border-line p-6 sm:flex-row sm:items-center sm:justify-between">
         <button type="button" data-close-dialog class="btn btn-outline">Close</button>
@@ -86,7 +99,7 @@ export function MentorRequestsPage() {
       </div>
     </div>
   </div>
-</section>`, authService.getCurrentUser(), 'requests');
+</section>`, authService.getCurrentUser(), 'bookings');
 }
 
 function createDetailsButton(requestId) {
@@ -109,6 +122,13 @@ function createSlaElement(request) {
 
 const REQUEST_STATUS_LABELS = {
   PENDING: 'Waiting for mentor decision',
+  WAITING_DECISION: 'Waiting for mentor decision',
+  AWAITING_PAYMENT: 'Awaiting payment',
+  UPCOMING: 'Upcoming',
+  ACTIVE: 'Active',
+  CONFIRMED: 'Confirmed',
+  COMPLETED: 'Completed',
+  NO_SHOW: 'No-show',
   ACCEPTED: 'Accepted',
   REJECTED: 'Declined',
   EXPIRED: 'Expired',
@@ -116,6 +136,13 @@ const REQUEST_STATUS_LABELS = {
 };
 const REQUEST_STATUS_STYLES = {
   PENDING: 'status-warning',
+  WAITING_DECISION: 'status-warning',
+  AWAITING_PAYMENT: 'status-warning',
+  UPCOMING: 'status-success',
+  ACTIVE: 'status-success',
+  CONFIRMED: 'status-success',
+  COMPLETED: 'status-success',
+  NO_SHOW: 'status-danger',
   ACCEPTED: 'status-success',
   REJECTED: 'status-danger',
   EXPIRED: 'status-neutral',
@@ -123,7 +150,7 @@ const REQUEST_STATUS_STYLES = {
 };
 
 function createStatusElement(request) {
-  const status = request.status || 'UNKNOWN';
+  const status = request.lifecycleStatus || request.status || 'UNKNOWN';
   const badge = document.createElement('span');
   badge.className = `status-badge ${REQUEST_STATUS_STYLES[status] || REQUEST_STATUS_STYLES.EXPIRED}`;
   const dot = document.createElement('span');
@@ -131,6 +158,13 @@ function createStatusElement(request) {
   dot.textContent = '●';
   badge.append(dot, REQUEST_STATUS_LABELS[status] || status);
   return badge;
+}
+
+function formatSchedule(request) {
+  if (request.serviceType !== 'ONE_OFF' || !request.startAt) return '—';
+  const start = formatUtcDate(request.startAt);
+  const end = request.endAt ? formatUtcDate(request.endAt) : '';
+  return end && end !== '—' ? start + ' – ' + end : start;
 }
 
 const REQUEST_TYPE_LABELS = {
@@ -183,8 +217,8 @@ function renderRows(root, requests) {
 
     const deadlineCell = document.createElement('td');
     deadlineCell.className = 'whitespace-normal align-top text-muted';
-    if (request.status === 'PENDING') deadlineCell.append(createSlaElement(request));
-    else deadlineCell.textContent = formatUtcDate(request.responseDeadline);
+    if (request.serviceType === 'MONTHLY' && request.status === 'PENDING') deadlineCell.append(createSlaElement(request));
+    else deadlineCell.textContent = formatSchedule(request);
     row.append(deadlineCell);
 
     const actionCell = document.createElement('td');
@@ -209,14 +243,17 @@ function renderRows(root, requests) {
     heading.append(status);
     const goalsLabel = document.createElement('p');
     goalsLabel.className = 'mt-4 text-xs font-semibold uppercase tracking-wide text-muted';
-    goalsLabel.textContent = 'Learning goals';
+    goalsLabel.textContent = request.serviceType === 'ONE_OFF' ? 'Agenda' : 'Learning goals';
     const goals = document.createElement('p');
     goals.className = 'mt-1 text-sm leading-6 text-ink';
     goals.textContent = summarizeLearningGoals(request.learningGoalsSummary || request.learningGoals);
     const sla = document.createElement('p');
     sla.className = 'mt-3 flex flex-wrap items-center gap-2 text-xs text-muted';
-    sla.append(request.status === 'PENDING' ? 'Response due: ' : 'Deadline: ');
-    sla.append(request.status === 'PENDING' ? createSlaElement(request) : formatUtcDate(request.responseDeadline));
+    if (request.serviceType === 'MONTHLY' && request.status === 'PENDING') {
+      sla.append('Response due: ', createSlaElement(request));
+    } else {
+      sla.append(request.serviceType === 'ONE_OFF' ? 'Schedule: ' + formatSchedule(request) : 'Schedule: —');
+    }
     const actionWrap = document.createElement('div');
     actionWrap.className = 'mt-4';
     actionWrap.append(createDetailsButton(request.id));
@@ -238,6 +275,7 @@ export function initializeMentorRequestsPage() {
   const retry = root.querySelector('#requests-retry');
   const actionStatus = root.querySelector('#action-status');
   const statusFilter = root.querySelector('#request-status-filter');
+  const typeFilter = root.querySelector('#request-type-filter');
   const requestCount = root.querySelector('#requests-count');
   const empty = root.querySelector('#requests-empty');
   const dialog = root.querySelector('#request-dialog');
@@ -259,7 +297,10 @@ export function initializeMentorRequestsPage() {
 
   function isActionable(request) {
     const deadline = Date.parse(request?.responseDeadline);
-    return request?.status === 'PENDING' && Number.isFinite(deadline) && deadline > Date.now();
+    return request?.serviceType === 'MONTHLY'
+      && request?.status === 'PENDING'
+      && Number.isFinite(deadline)
+      && deadline > Date.now();
   }
 
   function updateSlaTimers() {
@@ -293,17 +334,19 @@ export function initializeMentorRequestsPage() {
       requestsById.set(String(request.id), request);
     }
     renderRows(root, requests);
-    requestCount.textContent = `${requests.length} request${requests.length === 1 ? '' : 's'}`;
+    requestCount.textContent = `${requests.length} booking${requests.length === 1 ? '' : 's'}`;
     empty.textContent = statusFilter.value === 'ALL'
-      ? 'No mentorship requests have been submitted yet.'
-      : `No ${REQUEST_STATUS_LABELS[statusFilter.value]?.toLowerCase() || 'matching'} requests.`;
+      ? 'No bookings have been created yet.'
+      : `No ${REQUEST_STATUS_LABELS[statusFilter.value]?.toLowerCase() || 'matching'} bookings.`;
     updateSlaTimers();
   }
 
   function applyStatusFilter() {
-    const requests = statusFilter.value === 'ALL'
-      ? allRequests
-      : allRequests.filter(request => request.status === statusFilter.value);
+    const requests = allRequests.filter(request => {
+      const status = request.lifecycleStatus || request.status;
+      return (statusFilter.value === 'ALL' || status === statusFilter.value)
+        && (typeFilter.value === 'ALL' || request.serviceType === typeFilter.value);
+    });
     applyRequests(requests);
   }
 
@@ -317,11 +360,11 @@ export function initializeMentorRequestsPage() {
     }
     let data;
     try {
-      data = await mentorDashboardService.getMyRequests();
+      data = await mentorDashboardService.getMyBookings();
     } catch (loadError) {
       if (disposed || background) return;
       if (requestsById.size === 0) {
-        error.textContent = loadError.message || 'Unable to load your requests. Please try again.';
+        error.textContent = loadError.message || 'Unable to load your bookings. Please try again.';
         error.hidden = false;
         retry.hidden = false;
         content.hidden = true;
@@ -344,9 +387,20 @@ export function initializeMentorRequestsPage() {
     root.querySelector('#request-dialog-package').textContent = request.packageName || 'Offering unavailable';
     root.querySelector('#request-dialog-type').textContent = requestTypeLabel(request.serviceType);
     root.querySelector('#request-dialog-goals').textContent = request.learningGoals || 'No goals provided.';
-    root.querySelector('#request-dialog-status').textContent = REQUEST_STATUS_LABELS[request.status] || request.status || 'Unknown';
+    const lifecycleStatus = request.lifecycleStatus || request.status;
+    root.querySelector('#request-dialog-status').textContent = REQUEST_STATUS_LABELS[lifecycleStatus] || lifecycleStatus || 'Unknown';
     root.querySelector('#request-dialog-submitted').textContent = formatUtcDate(request.submittedAt);
-    root.querySelector('#request-dialog-deadline').textContent = formatUtcDate(request.responseDeadline);
+    const oneOff = request.serviceType === 'ONE_OFF';
+    root.querySelector('#request-dialog-date-label').textContent = oneOff ? 'Session schedule' : 'Response deadline';
+    root.querySelector('#request-dialog-deadline').textContent = oneOff
+      ? formatSchedule(request)
+      : request.responseDeadline ? formatUtcDate(request.responseDeadline) : '—';
+    root.querySelector('#request-dialog-attendees-wrap').hidden = !oneOff;
+    const sessionCount = request.numberOfSessions || 1;
+    const participantCount = request.numberOfParticipants || 1;
+    root.querySelector('#request-dialog-attendees').textContent = oneOff
+      ? `${sessionCount} session${sessionCount === 1 ? '' : 's'} · ${participantCount} participant${participantCount === 1 ? '' : 's'}`
+      : '';
     const actionable = isActionable(request);
     rejectButton.hidden = !actionable;
     acceptButton.hidden = !actionable;
@@ -430,6 +484,7 @@ export function initializeMentorRequestsPage() {
   };
   retry.addEventListener('click', handleRetry);
   statusFilter.addEventListener('change', applyStatusFilter);
+  typeFilter.addEventListener('change', applyStatusFilter);
   root.addEventListener('click', handleClick);
   dialogOverlay.addEventListener('click', handleDialogClick);
   window.addEventListener('keydown', handleKeydown);
@@ -444,6 +499,8 @@ export function initializeMentorRequestsPage() {
     window.clearTimeout(actionStatusTimer);
     window.removeEventListener('keydown', handleKeydown);
     retry.removeEventListener('click', handleRetry);
+    statusFilter.removeEventListener('change', applyStatusFilter);
+    typeFilter.removeEventListener('change', applyStatusFilter);
     root.removeEventListener('click', handleClick);
     dialogOverlay.removeEventListener('click', handleDialogClick);
   };

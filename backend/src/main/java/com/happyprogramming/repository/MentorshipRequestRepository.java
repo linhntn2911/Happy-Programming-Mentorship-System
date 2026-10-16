@@ -19,6 +19,7 @@ public interface MentorshipRequestRepository extends JpaRepository<MentorshipReq
                 updated_at = CASE WHEN submitted_at > SYSUTCDATETIME() THEN DATEADD(HOUR, 7, SYSUTCDATETIME()) ELSE SYSUTCDATETIME() END
             WHERE id = :requestId
               AND mentor_id = :mentorId
+              AND service_type = 'MONTHLY'
               AND status = 'PENDING'
               AND CASE WHEN submitted_at > SYSUTCDATETIME() THEN DATEADD(HOUR, -7, response_deadline) ELSE response_deadline END >= SYSUTCDATETIME()
             """, nativeQuery = true)

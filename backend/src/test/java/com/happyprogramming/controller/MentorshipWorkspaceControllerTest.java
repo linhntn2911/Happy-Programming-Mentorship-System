@@ -35,11 +35,13 @@ class MentorshipWorkspaceControllerTest {
     @Test
     void listsActiveWorkspaces() throws Exception {
         when(service.listMine()).thenReturn(List.of(new MentorshipWorkspaceSummary(
-                30L, 5L, 40L, 20L, "Mentor", "MENTEE", "Standard", "ACTIVE",
-                Instant.parse("2026-10-12T00:00:00Z"), Instant.parse("2026-11-12T00:00:00Z"), 4, 60, 3L)));
+                40L, 40L, 30L, 5L, 20L, "Mentor", "MENTEE", "Standard", "ACTIVE",
+                Instant.parse("2026-10-12T00:00:00Z"), Instant.parse("2026-11-12T00:00:00Z"),
+                4, 60, true, 1, 1, Instant.parse("2026-10-20T10:00:00Z"), 3L)));
 
         mvc.perform(get("/api/mentorship-workspaces"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].workspaceId").value(40))
                 .andExpect(jsonPath("$.data[0].subscriptionId").value(30))
                 .andExpect(jsonPath("$.data[0].partnerName").value("Mentor"))
                 .andExpect(jsonPath("$.data[0].unreadCount").value(3));

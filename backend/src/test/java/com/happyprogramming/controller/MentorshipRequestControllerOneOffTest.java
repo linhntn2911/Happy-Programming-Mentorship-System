@@ -45,14 +45,17 @@ class MentorshipRequestControllerOneOffTest {
                 + "\"serviceOfferingId\":" + (offeringId == null ? "null" : offeringId) + ","
                 + "\"agenda\":" + (agenda == null ? "null" : "\"" + agenda + "\"") + ","
                 + "\"experienceLevel\":" + (experience == null ? "null" : "\"" + experience + "\"") + ","
-                + "\"termsVersion\":" + (terms == null ? "null" : "\"" + terms + "\"")
+                + "\"termsVersion\":" + (terms == null ? "null" : "\"" + terms + "\"") + ","
+                + "\"slotHoldId\":91,"
+                + "\"numberOfSessions\":2,"
+                + "\"numberOfParticipants\":3"
                 + "}";
     }
 
     @Test
     void createOneOffReturnsCreatedAndDelegatesToTheService() throws Exception {
         when(mentorshipRequestService.createOneOff(any()))
-                .thenReturn(new MentorshipRequestResponse(55L, "PENDING", false, Instant.parse("2026-10-14T02:00:00Z")));
+                .thenReturn(new MentorshipRequestResponse(55L, "ACCEPTED", true, Instant.parse("2026-10-14T02:00:00Z")));
 
         mockMvc.perform(post("/api/one-off-requests")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -60,14 +63,17 @@ class MentorshipRequestControllerOneOffTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.requestId").value(55))
-                .andExpect(jsonPath("$.data.status").value("PENDING"))
-                .andExpect(jsonPath("$.data.paymentRequired").value(false));
+                .andExpect(jsonPath("$.data.status").value("ACCEPTED"))
+                .andExpect(jsonPath("$.data.paymentRequired").value(true));
 
         ArgumentCaptor<CreateOneOffSessionRequest> captor = ArgumentCaptor.forClass(CreateOneOffSessionRequest.class);
         verify(mentorshipRequestService).createOneOff(captor.capture());
         assertThat(captor.getValue().serviceOfferingId()).isEqualTo(17L);
         assertThat(captor.getValue().agenda()).isEqualTo(VALID_AGENDA);
         assertThat(captor.getValue().experienceLevel()).isEqualTo("MID");
+        assertThat(captor.getValue().slotHoldId()).isEqualTo(91L);
+        assertThat(captor.getValue().numberOfSessions()).isEqualTo(2);
+        assertThat(captor.getValue().numberOfParticipants()).isEqualTo(3);
     }
 
     @Test

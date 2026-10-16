@@ -64,9 +64,22 @@ public class MentorAvailabilityRepository {
             SELECT ae.id, ae.start_at, ae.end_at,
                    CASE WHEN EXISTS (
                         SELECT 1 FROM dbo.slot_holds sh
-                        WHERE sh.mentor_id = ae.mentor_id AND sh.status IN ('HELD', 'CONVERTED')
+                        WHERE sh.mentor_id = ae.mentor_id
+                          AND (sh.status = 'CONVERTED' OR (sh.status = 'HELD' AND sh.expires_at > SYSUTCDATETIME()))
                           AND sh.start_at < ae.end_at AND sh.end_at > ae.start_at
                    ) THEN 0 ELSE 1 END AS available
+            FROM dbo.availability_exceptions ae
+            JOIN dbo.mentor_profiles mp ON mp.user_id = ae.mentor_id
+            JOIN dbo.users u ON u.id = ae.mentor_id
+            WHERE ae.mentor_id = ? AND ae.exception_type = 'EXTRA_AVAILABLE'
+              AND mp.is_public = 1 AND u.status = 'ACTIVE'
+              AND ae.start_at >= ? AND ae.start_at <= ?
+            ORDER BY ae.start_at, ae.id
+            """;
+
+    private static final String SELECT_PUBLIC_AVAILABILITY_WINDOWS = """
+            SELECT ae.id, ae.start_at, ae.end_at,
+                   CAST(1 AS bit) AS available
             FROM dbo.availability_exceptions ae
             JOIN dbo.mentor_profiles mp ON mp.user_id = ae.mentor_id
             JOIN dbo.users u ON u.id = ae.mentor_id
@@ -96,7 +109,9 @@ public class MentorAvailabilityRepository {
 
     private static final String COUNT_OVERLAPPING_HOLDS = """
             SELECT COUNT(1) FROM dbo.slot_holds WITH (HOLDLOCK, UPDLOCK)
-            WHERE mentor_id = ? AND status IN ('HELD', 'CONVERTED') AND start_at < ? AND end_at > ?
+            WHERE mentor_id = ?
+              AND (status = 'CONVERTED' OR (status = 'HELD' AND expires_at > SYSUTCDATETIME()))
+              AND start_at < ? AND end_at > ?
             """;
 
     private static final String INSERT_HOLD = """
@@ -182,6 +197,10 @@ public class MentorAvailabilityRepository {
 
     public List<PublicAvailabilitySlotResponse> findPublicSlots(long mentorId, Instant from, Instant to) {
         return jdbc().query(SELECT_PUBLIC_SLOTS, publicSlotMapper(), mentorId, toUtc(from), toUtc(to));
+    }
+
+    public List<PublicAvailabilitySlotResponse> findPublicAvailabilityWindows(long mentorId, Instant from, Instant to) {
+        return jdbc().query(SELECT_PUBLIC_AVAILABILITY_WINDOWS, publicSlotMapper(), mentorId, toUtc(from), toUtc(to));
     }
 
     public Map<String, Object> findPublicMentorBySlug(String slug) {

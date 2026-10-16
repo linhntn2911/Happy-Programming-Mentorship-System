@@ -75,7 +75,9 @@ class MentorAvailabilityIntegrationTest {
     void clear() { SecurityContextHolder.clearContext(); }
 
     private static Instant base() {
-        return Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        long epochSecond = Instant.now().getEpochSecond();
+        long nextInterval = (epochSecond - (epochSecond % 600)) + 600;
+        return Instant.ofEpochSecond(nextInterval);
     }
 
     @Test
@@ -129,7 +131,7 @@ class MentorAvailabilityIntegrationTest {
         login(mentee, "MENTEE");
         // BR-11: a session must be booked at least 2 hours before it starts.
         ResponseStatusException error = assertThrows(ResponseStatusException.class, () ->
-                slotHolds.holdSlot(new HoldSlotRequest(slug, offering, base().plus(Duration.ofMinutes(30)))));
+                slotHolds.holdSlot(new HoldSlotRequest(slug, offering, base().plus(Duration.ofMinutes(30)), 1)));
         assertEquals(400, error.getStatusCode().value());
     }
 
@@ -137,7 +139,7 @@ class MentorAvailabilityIntegrationTest {
     void holdRejectsTimeOutsidePublishedAvailability() {
         login(mentee, "MENTEE");
         ResponseStatusException error = assertThrows(ResponseStatusException.class, () ->
-                slotHolds.holdSlot(new HoldSlotRequest(slug, offering, base().plus(Duration.ofHours(3)))));
+                slotHolds.holdSlot(new HoldSlotRequest(slug, offering, base().plus(Duration.ofHours(3)), 1)));
         assertEquals(409, error.getStatusCode().value());
     }
 
@@ -149,7 +151,7 @@ class MentorAvailabilityIntegrationTest {
 
         login(mentee, "MENTEE");
         Instant before = Instant.now();
-        SlotHoldResponse hold = slotHolds.holdSlot(new HoldSlotRequest(slug, offering, start));
+        SlotHoldResponse hold = slotHolds.holdSlot(new HoldSlotRequest(slug, offering, start, 1));
         Instant after = Instant.now();
 
         assertEquals("HELD", hold.status());
@@ -170,11 +172,11 @@ class MentorAvailabilityIntegrationTest {
         availability.createSlot(new MentorAvailabilitySlotRequest(start, start.plus(Duration.ofHours(2)), null));
 
         login(mentee, "MENTEE");
-        slotHolds.holdSlot(new HoldSlotRequest(slug, offering, start));
+        slotHolds.holdSlot(new HoldSlotRequest(slug, offering, start, 1));
 
         login(mentee2, "MENTEE");
         ResponseStatusException error = assertThrows(ResponseStatusException.class, () ->
-                slotHolds.holdSlot(new HoldSlotRequest(slug, offering, start.plus(Duration.ofMinutes(30)))));
+                slotHolds.holdSlot(new HoldSlotRequest(slug, offering, start.plus(Duration.ofMinutes(30)), 1)));
         assertEquals(409, error.getStatusCode().value());
     }
 
@@ -185,7 +187,7 @@ class MentorAvailabilityIntegrationTest {
         availability.createSlot(new MentorAvailabilitySlotRequest(start, start.plus(Duration.ofHours(2)), null));
 
         login(mentee, "MENTEE");
-        SlotHoldResponse hold = slotHolds.holdSlot(new HoldSlotRequest(slug, offering, start));
+        SlotHoldResponse hold = slotHolds.holdSlot(new HoldSlotRequest(slug, offering, start, 1));
         slotHolds.releaseSlot(hold.id());
 
         List<PublicAvailabilitySlotResponse> publicSlots = availability.listPublicSlots(slug, null, null);
@@ -201,7 +203,7 @@ class MentorAvailabilityIntegrationTest {
                 availability.createSlot(new MentorAvailabilitySlotRequest(start, start.plus(Duration.ofHours(2)), null));
 
         login(mentee, "MENTEE");
-        slotHolds.holdSlot(new HoldSlotRequest(slug, offering, start));
+        slotHolds.holdSlot(new HoldSlotRequest(slug, offering, start, 1));
 
         login(mentor, "MENTOR");
         ResponseStatusException error = assertThrows(ResponseStatusException.class,

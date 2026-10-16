@@ -66,17 +66,20 @@ public class SlotHoldService {
         }
         int durationMinutes = offering.get("session_duration_minutes") == null
                 ? 0 : ((Number) offering.get("session_duration_minutes")).intValue();
-        if (durationMinutes <= 0) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "This session does not define a valid duration.");
+        if (durationMinutes < 10) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "One-off sessions must be at least 10 minutes long.");
         }
-
         Instant startAt = request.startAt();
+        if (startAtMinuteNotOnTenMinuteBoundary(startAt)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Session start times must use 10-minute intervals.");
+        }
         Instant earliest = Instant.now(clock).plus(Duration.ofHours(MIN_ADVANCE_HOURS));
         if (startAt.isBefore(earliest)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Sessions must be booked at least " + MIN_ADVANCE_HOURS + " hours in advance.");
         }
-        Instant endAt = startAt.plus(Duration.ofMinutes(durationMinutes));
+        Instant endAt = startAt.plus(Duration.ofMinutes((long) durationMinutes * request.numberOfSessions()));
 
         if (!repository.isWithinOpenSlot(mentorId, startAt, endAt)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
@@ -107,6 +110,11 @@ public class SlotHoldService {
         if (repository.releaseHold(holdId, user.id()) == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Active slot hold not found.");
         }
+    }
+
+    private static boolean startAtMinuteNotOnTenMinuteBoundary(Instant startAt) {
+        java.time.ZonedDateTime utc = startAt.atZone(java.time.ZoneOffset.UTC);
+        return utc.getSecond() != 0 || utc.getNano() != 0 || utc.getMinute() % 10 != 0;
     }
 
     private static AuthenticatedUser currentUser() {

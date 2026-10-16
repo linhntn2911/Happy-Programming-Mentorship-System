@@ -1,0 +1,15 @@
+openapi: 3.0.3
+info:
+  title: Unified Mentor Bookings
+  version: 1.0.0
+paths:
+  /api/mentors/me/bookings:
+    get:
+      summary: List monthly applications and one-off bookings owned by the current mentor
+      responses:
+        '200':
+          description: Unified booking records in the standard API envelope
+  /api/mentors/me/requests/{requestId}/decision:
+    put:
+      summary: Accept or reject a pending monthly application
+      description: One-off orders are not eligible for mentor decisions.

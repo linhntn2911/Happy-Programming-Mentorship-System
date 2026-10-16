@@ -60,9 +60,13 @@ public class MentorAvailabilityController {
     @GetMapping("/api/mentors/{identifier}/availability")
     public ApiResponse<List<PublicAvailabilitySlotResponse>> getMentorAvailability(
             @PathVariable String identifier,
+            @RequestParam(required = false) Long serviceOfferingId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
-        return ApiResponse.ok(availabilityService.listPublicSlots(identifier, from, to));
+        var slots = serviceOfferingId == null
+                ? availabilityService.listPublicSlots(identifier, from, to)
+                : availabilityService.listPublicSlots(identifier, serviceOfferingId, from, to);
+        return ApiResponse.ok(slots);
     }
 
     @PostMapping("/api/slot-holds")

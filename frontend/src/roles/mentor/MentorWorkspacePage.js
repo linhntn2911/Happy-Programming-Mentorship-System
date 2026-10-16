@@ -110,6 +110,45 @@ function tierCard({ tier, label, blurb }) {
     </article>`;
 }
 
+function oneOffSessionCard(session, index) {
+  const key = session.id || `new-${index}`;
+  const active = session.status !== 'INACTIVE';
+  return `
+    <article class="one-off-session-card rounded-2xl border border-line bg-white p-5" data-one-off-index="${index}">
+      <div class="flex items-start justify-between gap-3">
+        <div><p class="eyebrow mb-1">ONE-OFF SESSION</p><p class="text-xs text-muted">Mentee-facing session option</p></div>
+        <label class="flex items-center gap-2 text-xs font-semibold text-ink" for="one-off-${key}-active">
+          <input id="one-off-${key}-active" type="checkbox" data-one-off-field="active" class="h-4 w-4 accent-brand" ${active ? 'checked' : ''}>
+          Active
+        </label>
+      </div>
+      <div class="mt-4 grid gap-4 sm:grid-cols-[minmax(0,1fr)_150px_150px]">
+        <div class="space-y-1.5"><label class="block text-xs font-semibold text-ink" for="one-off-${key}-name">Session name</label><input id="one-off-${key}-name" data-one-off-field="name" class="${fieldClass}" maxlength="200" value="${escapeHtml(session.name || '')}" placeholder="e.g. Work review"></div>
+        <div class="space-y-1.5"><label class="block text-xs font-semibold text-ink" for="one-off-${key}-duration">Minutes</label><input id="one-off-${key}-duration" data-one-off-field="duration" class="${fieldClass}" type="number" min="10" max="1440" value="${session.sessionDurationMinutes || ''}" placeholder="30"></div>
+        <div class="space-y-1.5"><label class="block text-xs font-semibold text-ink" for="one-off-${key}-price">Price (VND)</label><input id="one-off-${key}-price" data-one-off-field="price" class="${fieldClass}" type="number" min="0" step="1000" value="${session.price ?? ''}" placeholder="99000"></div>
+      </div>
+      <div class="mt-4 space-y-1.5"><label class="block text-xs font-semibold text-ink" for="one-off-${key}-description">Description</label><textarea id="one-off-${key}-description" data-one-off-field="description" class="${fieldClass} resize-y" rows="3" maxlength="4000" placeholder="What will this session help the mentee with?">${escapeHtml(session.description || '')}</textarea></div>
+      <input type="hidden" data-one-off-field="id" value="${session.id || ''}">
+    </article>`;
+}
+
+function oneOffSessionsPanel() {
+  return `
+    <div class="mt-8 border-t border-line pt-8">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div><p class="eyebrow mb-2">ONE-OFF SESSIONS</p><h2>Session options</h2><p class="mt-1 max-w-2xl text-sm text-muted">Create focused sessions such as Introductory Call, Work Review, Career Strategy or Mock Interview. Mentees will only see active options.</p></div>
+        <button id="one-off-add" type="button" class="btn btn-outline">Add session</button>
+      </div>
+      <div id="one-off-error" class="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert" hidden></div>
+      <p id="one-off-save-status" class="mt-4 text-sm font-medium text-brand" role="status" aria-live="polite"></p>
+      <form id="one-off-form" class="mt-5 space-y-4" hidden novalidate>
+        <div id="one-off-list" class="space-y-4"></div>
+        <div class="flex justify-end"><button id="one-off-save" type="submit" class="btn btn-primary">Save one-off sessions</button></div>
+      </form>
+      <div id="one-off-loading" class="mt-5 rounded-xl border border-line bg-cream p-4 text-sm text-muted" role="status">Loading one-off sessions…</div>
+    </div>`;
+}
+
 function packagesPanel() {
   const cards = PLAN_TIERS.map(tierCard).join('');
   return `
@@ -133,6 +172,7 @@ function packagesPanel() {
           <button id="packages-save" type="submit" class="btn btn-primary">Save packages</button>
         </div>
       </form>
+      ${oneOffSessionsPanel()}
     </div>`;
 }
 
@@ -279,6 +319,53 @@ function initializeMentorPackages(root) {
 
   retry.addEventListener('click', () => void load());
   form.addEventListener('submit', handleSubmit);
+  void load();
+  initializeOneOffSessions(root);
+}
+
+function initializeOneOffSessions(root) {
+  const form = root.querySelector('#one-off-form');
+  const list = root.querySelector('#one-off-list');
+  const loading = root.querySelector('#one-off-loading');
+  const error = root.querySelector('#one-off-error');
+  const status = root.querySelector('#one-off-save-status');
+  const add = root.querySelector('#one-off-add');
+  const save = root.querySelector('#one-off-save');
+  if (!form || !list) return;
+  let sessions = [];
+
+  const showError = message => { error.textContent = message; error.hidden = false; status.textContent = ''; };
+  const render = () => {
+    list.innerHTML = sessions.length
+      ? sessions.map(oneOffSessionCard).join('')
+      : '<div class="rounded-xl border border-dashed border-line bg-cream p-6 text-center text-sm text-muted">No one-off sessions yet. Add your first session option.</div>';
+  };
+  const load = async () => {
+    loading.hidden = false; form.hidden = true; error.hidden = true; status.textContent = '';
+    try { sessions = await mentorPlanService.getMyOneOffSessions(); render(); form.hidden = false; }
+    catch (loadError) { showError(loadError.message || 'Unable to load one-off sessions.'); }
+    finally { loading.hidden = true; }
+  };
+  add.addEventListener('click', () => {
+    sessions = [...sessions, { id: null, name: '', description: '', price: '', sessionDurationMinutes: '', status: 'ACTIVE' }];
+    render(); form.hidden = false;
+    list.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    list.lastElementChild?.querySelector('[data-one-off-field="name"]')?.focus();
+  });
+  form.addEventListener('submit', async event => {
+    event.preventDefault(); error.hidden = true; status.textContent = '';
+    const payload = [...list.querySelectorAll('[data-one-off-index]')].map(card => {
+      const value = field => card.querySelector(`[data-one-off-field="${field}"]`)?.value.trim() || '';
+      return { id: value('id') ? Number(value('id')) : null, name: value('name'), description: value('description'), price: Number(value('price')), sessionDurationMinutes: Number(value('duration')), status: card.querySelector('[data-one-off-field="active"]')?.checked ? 'ACTIVE' : 'INACTIVE' };
+    });
+    if (payload.some(item => !item.name || !item.description || !Number.isFinite(item.price) || item.price < 0 || !Number.isInteger(item.sessionDurationMinutes) || item.sessionDurationMinutes < 10)) {
+      showError('Complete the name, description, price and duration for every session.'); return;
+    }
+    save.disabled = true; save.textContent = 'Saving…';
+    try { sessions = await mentorPlanService.saveOneOffSessions(payload); render(); status.textContent = 'One-off sessions saved.'; }
+    catch (saveError) { showError(saveError.message || 'Unable to save one-off sessions.'); }
+    finally { save.disabled = false; save.textContent = 'Save one-off sessions'; }
+  });
   void load();
 }
 

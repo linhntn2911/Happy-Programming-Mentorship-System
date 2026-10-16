@@ -5,7 +5,7 @@ Hệ thống HappyProgramming sử dụng cổng thanh toán tự động qua ch
 - **Số tài khoản**: `00000806194`
 - **Chủ tài khoản**: `NGUYEN THI NGOC LINH`
 - **Mã API Key Webhook**: `<private SEPAY_API_KEY>`
-- **Đường dẫn Webhook**: `/api/payments/sepay/webhook` (ví dụ qua Cloudflare Tunnel: `https://council-tribute-uses-ftp.trycloudflare.com/api/payments/sepay/webhook`)
+- **Đường dẫn Webhook**: `/api/payments/sepay/webhook` trên một HTTPS hostname ổn định. Không lưu URL `trycloudflare.com` mẫu hoặc URL quick tunnel đã hết hạn trong SePay.
 
 ## Cấu hình biến môi trường (`application.properties`)
 
@@ -36,6 +36,8 @@ hpms.sepay.qr-template=compact
    - Khi có tiền về tài khoản TPBank `00000806194`, SePay gửi webhook kèm `Authorization: Apikey <private SEPAY_API_KEY>`.
    - Backend xác thực API Key, kiểm tra đúng STK, đúng số tiền và khớp mã đơn `HP...`.
    - Chuyển trạng thái thanh toán sang `SUCCEEDED`, đưa tiền vào Escrow, tự động kích hoạt gói Mentorship và mở kênh trao đổi với Mentor.
+   - Endpoint phải truy cập được công khai bằng HTTPS trong suốt thời gian nhận thanh toán. Với local development, khởi động tunnel trước rồi cập nhật đúng URL hiện tại trong dashboard SePay.
+   - Nếu giao dịch đã phát sinh khi webhook/tunnel không hoạt động, vào **Nhật ký Webhooks** của SePay và gửi lại sự kiện sau khi endpoint đã hoạt động. Không cập nhật trực tiếp payment thành `SUCCEEDED` trong database.
    - Frontend tự động nhận diện và chuyển ngay sang màn hình *"Thanh toán thành công!"*.
 
 ## Current checkout configuration

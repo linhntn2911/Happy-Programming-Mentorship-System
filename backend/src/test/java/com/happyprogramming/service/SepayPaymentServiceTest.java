@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.sql.Timestamp;
+import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -114,5 +116,34 @@ class SepayPaymentServiceTest {
         assertFalse(SepayPaymentService.matchesExpectedAmount(
                 new BigDecimal("1200001"), requiredAmount));
         assertFalse(SepayPaymentService.matchesExpectedAmount(null, requiredAmount));
+    }
+
+    @Test
+    void usesCalculatedTotalForOneOffCheckout() {
+        String snapshot = """
+                {"serviceType":"ONE_OFF","price":99000,"numberOfSessions":2,
+                 "numberOfParticipants":2,"totalPrice":396000,"currency":"VND"}
+                """;
+
+        assertEquals(new BigDecimal("396000"), service.amountFromSnapshot(snapshot));
+    }
+
+    @Test
+    void interpretsSePayTransactionTimeInVietnamForDelayedWebhookValidation() {
+        SepayWebhookPayload payload = new SepayWebhookPayload(
+                1L, "TPBank", "2026-10-15 21:03:00", "00000806194", "HP123A1",
+                "HP123A1", "in", new BigDecimal("5000"), null, null, "REF", "");
+
+        assertEquals(Instant.parse("2026-10-15T14:03:00Z"),
+                SepayPaymentService.transferOccurredAt(payload, Instant.EPOCH));
+    }
+
+    @Test
+    void treatsSqlServerDatetime2FieldsAsUtcWallClockValues() {
+        Timestamp databaseValue = Timestamp.valueOf("2026-10-15 14:33:26.782");
+        Instant expected = Instant.parse("2026-10-15T14:33:26.782Z");
+
+        assertEquals(expected, SepayPaymentService.sqlUtcInstant(databaseValue));
+        assertEquals(databaseValue, SepayPaymentService.sqlUtcTimestamp(expected));
     }
 }

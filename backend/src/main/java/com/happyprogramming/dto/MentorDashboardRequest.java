@@ -10,6 +10,11 @@ public record MentorDashboardRequest(
         String learningGoals,
         String learningGoalsSummary,
         String status,
+        String lifecycleStatus,
         Instant submittedAt,
-        Instant responseDeadline) {
+        Instant responseDeadline,
+        Instant startAt,
+        Instant endAt,
+        Integer numberOfSessions,
+        Integer numberOfParticipants) {
 }

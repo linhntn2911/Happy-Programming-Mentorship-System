@@ -98,7 +98,7 @@ class MentorAvailabilityControllerTest {
 
         mockMvc.perform(post("/api/slot-holds")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"mentorSlug\":\"jane\",\"serviceOfferingId\":5,\"startAt\":\"2026-10-20T10:00:00Z\"}"))
+                        .content("{\"mentorSlug\":\"jane\",\"serviceOfferingId\":5,\"startAt\":\"2026-10-20T10:00:00Z\",\"numberOfSessions\":2}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.id").value(7))
                 .andExpect(jsonPath("$.data.status").value("HELD"));

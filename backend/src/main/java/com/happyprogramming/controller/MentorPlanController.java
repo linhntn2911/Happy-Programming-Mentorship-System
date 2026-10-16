@@ -3,6 +3,7 @@ package com.happyprogramming.controller;
 import com.happyprogramming.dto.ApiResponse;
 import com.happyprogramming.dto.MentorPlanResponse;
 import com.happyprogramming.dto.MentorPlanSetRequest;
+import com.happyprogramming.dto.MentorOneOffSessionSetRequest;
 import com.happyprogramming.service.MentorPlanService;
 
 
@@ -37,6 +38,19 @@ public class MentorPlanController {
     @Transactional
     public ApiResponse<List<MentorPlanResponse>> savePlans(@Valid @RequestBody MentorPlanSetRequest request) {
         return ApiResponse.ok("Mentorship packages saved.", mentorPlanService.savePlans(request.plans()));
+    }
+
+    @GetMapping("/api/mentors/me/one-off-sessions")
+    @Transactional(readOnly = true)
+    public ApiResponse<List<MentorPlanResponse>> getMyOneOffSessions() {
+        return ApiResponse.ok(mentorPlanService.getMyOneOffSessions());
+    }
+
+    @PutMapping("/api/mentors/me/one-off-sessions")
+    @Transactional
+    public ApiResponse<List<MentorPlanResponse>> saveOneOffSessions(
+            @Valid @RequestBody MentorOneOffSessionSetRequest request) {
+        return ApiResponse.ok("One-off sessions saved.", mentorPlanService.saveOneOffSessions(request.sessions()));
     }
 
     @GetMapping("/api/mentors/{identifier}/plans")

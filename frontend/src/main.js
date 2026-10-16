@@ -556,7 +556,7 @@ function router() {
     appEl.innerHTML = MentorDashboardPage();
     window.scrollTo({ top: 0, behavior: 'instant' });
     cleanupCurrentPage = initializeMentorDashboardPage();
-  } else if (hash === '#/mentor/requests') {
+  } else if (hash === '#/mentor/bookings' || hash === '#/mentor/requests') {
     appEl.innerHTML = MentorRequestsPage();
     window.scrollTo({ top: 0, behavior: 'instant' });
     cleanupCurrentPage = initializeMentorRequestsPage() || (() => {});

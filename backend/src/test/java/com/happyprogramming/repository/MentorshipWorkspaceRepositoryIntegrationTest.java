@@ -1,6 +1,8 @@
 package com.happyprogramming.repository;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import java.util.List;
@@ -40,6 +42,34 @@ class MentorshipWorkspaceRepositoryIntegrationTest {
         assertEquals(1L, repository.countUnread(conversationId, mentorId));
         repository.markRead(conversationId, mentorId, true);
         assertEquals(0L, repository.countUnread(conversationId, mentorId));
+    }
+
+    @Test
+    void returnsOneConversationWorkspaceAndIncludesItsPaidOneOffBookings() {
+        List<Map<String, Object>> rows = jdbc.queryForList("""
+                SELECT TOP 1 c.id AS conversation_id, c.mentee_id
+                FROM dbo.conversations c
+                JOIN dbo.bookings b
+                  ON b.mentor_id = c.mentor_id AND b.mentee_id = c.mentee_id
+                WHERE c.inquiry_status = 'APPROVED'
+                  AND b.service_type = 'ONE_OFF'
+                  AND b.status IN ('CONFIRMED','COMPLETED','NO_SHOW_REVIEW','NO_SHOW')
+                ORDER BY c.id
+                """);
+        assumeFalse(rows.isEmpty(), "Requires one verified one-off booking.");
+        long conversationId = ((Number) rows.get(0).get("conversation_id")).longValue();
+        long menteeId = ((Number) rows.get(0).get("mentee_id")).longValue();
+
+        var workspaces = repository.findForUser(menteeId);
+
+        assertEquals(1L, workspaces.stream()
+                .filter(row -> row.conversationId() == conversationId)
+                .count());
+        var workspace = workspaces.stream()
+                .filter(row -> row.conversationId() == conversationId)
+                .findFirst().orElseThrow();
+        assertTrue(workspace.oneOffSessionCount() > 0);
+        assertFalse(repository.findOneOffBookings(conversationId).isEmpty());
     }
 }
 

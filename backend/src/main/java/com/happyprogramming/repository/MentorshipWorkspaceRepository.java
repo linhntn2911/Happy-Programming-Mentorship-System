@@ -3,6 +3,7 @@ package com.happyprogramming.repository;
 import java.sql.PreparedStatement;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -13,22 +14,51 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class MentorshipWorkspaceRepository {
     private static final String WORKSPACE_SELECT = """
-            SELECT s.id AS subscription_id, s.request_id, c.id AS conversation_id,
-                   s.mentor_id, mentor.full_name AS mentor_name,
-                   s.mentee_id, mentee.full_name AS mentee_name,
-                   COALESCE(JSON_VALUE(s.plan_snapshot, '$.name'),
-                            JSON_VALUE(r.offer_snapshot, '$.name'), N'Monthly Mentorship') AS package_name,
-                   s.status AS subscription_status, s.current_period_start, s.current_period_end,
-                   TRY_CONVERT(INT, JSON_VALUE(s.plan_snapshot, '$.callsPerPeriod')) AS calls_per_period,
-                   TRY_CONVERT(INT, JSON_VALUE(s.plan_snapshot, '$.sessionDurationMinutes')) AS session_duration_minutes,
-                   r.learning_goals, c.inquiry_status
-            FROM dbo.subscriptions s
-            JOIN dbo.mentorship_requests r ON r.id = s.request_id
-            JOIN dbo.users mentor ON mentor.id = s.mentor_id
-            JOIN dbo.users mentee ON mentee.id = s.mentee_id
-            LEFT JOIN dbo.conversations c
-              ON c.mentor_id = s.mentor_id AND c.mentee_id = s.mentee_id
-            WHERE s.status IN ('TRIALING','ACTIVE')
+            SELECT c.id AS conversation_id,
+                   monthly.subscription_id, monthly.request_id,
+                   c.mentor_id, mentor.full_name AS mentor_name,
+                   c.mentee_id, mentee.full_name AS mentee_name,
+                   COALESCE(monthly.package_name,
+                            CASE WHEN sessions.session_count > 0 THEN N'One-off sessions' END,
+                            N'Mentorship') AS package_name,
+                   COALESCE(monthly.subscription_status,
+                            CASE WHEN sessions.session_count > 0 THEN 'ONE_OFF' END) AS subscription_status,
+                   monthly.current_period_start, monthly.current_period_end,
+                   monthly.calls_per_period, monthly.session_duration_minutes,
+                   monthly.learning_goals, c.inquiry_status,
+                   CASE WHEN monthly.subscription_id IS NULL THEN CAST(0 AS bit) ELSE CAST(1 AS bit) END AS has_monthly,
+                   COALESCE(sessions.session_count, 0) AS one_off_session_count,
+                   COALESCE(sessions.upcoming_count, 0) AS upcoming_session_count,
+                   sessions.next_session_at
+            FROM dbo.conversations c
+            JOIN dbo.users mentor ON mentor.id = c.mentor_id
+            JOIN dbo.users mentee ON mentee.id = c.mentee_id
+            OUTER APPLY (
+                SELECT TOP (1)
+                       s.id AS subscription_id, s.request_id,
+                       COALESCE(JSON_VALUE(s.plan_snapshot, '$.name'),
+                                JSON_VALUE(r.offer_snapshot, '$.name'), N'Monthly Mentorship') AS package_name,
+                       s.status AS subscription_status, s.current_period_start, s.current_period_end,
+                       TRY_CONVERT(INT, JSON_VALUE(s.plan_snapshot, '$.callsPerPeriod')) AS calls_per_period,
+                       TRY_CONVERT(INT, JSON_VALUE(s.plan_snapshot, '$.sessionDurationMinutes')) AS session_duration_minutes,
+                       r.learning_goals
+                FROM dbo.subscriptions s
+                JOIN dbo.mentorship_requests r ON r.id = s.request_id
+                WHERE s.mentor_id = c.mentor_id AND s.mentee_id = c.mentee_id
+                  AND s.status IN ('TRIALING','ACTIVE')
+                ORDER BY s.activated_at DESC, s.id DESC
+            ) monthly
+            OUTER APPLY (
+                SELECT COUNT_BIG(*) AS session_count,
+                       SUM(CASE WHEN b.status = 'CONFIRMED' AND b.end_at >= SYSUTCDATETIME() THEN 1 ELSE 0 END) AS upcoming_count,
+                       MIN(CASE WHEN b.status = 'CONFIRMED' AND b.end_at >= SYSUTCDATETIME() THEN b.start_at END) AS next_session_at
+                FROM dbo.bookings b
+                WHERE b.mentor_id = c.mentor_id AND b.mentee_id = c.mentee_id
+                  AND b.service_type = 'ONE_OFF'
+                  AND b.status IN ('CONFIRMED','COMPLETED','NO_SHOW_REVIEW','NO_SHOW')
+            ) sessions
+            WHERE c.inquiry_status = 'APPROVED'
+              AND (monthly.subscription_id IS NOT NULL OR sessions.session_count > 0)
             """;
     private static final String MESSAGE_SELECT = """
             SELECT m.id, m.sender_id, sender.full_name AS sender_name,
@@ -48,14 +78,38 @@ public class MentorshipWorkspaceRepository {
     }
 
     public List<WorkspaceRow> findForUser(long userId) {
-        return jdbc.query(WORKSPACE_SELECT + " AND (s.mentor_id = ? OR s.mentee_id = ?) ORDER BY s.activated_at DESC, s.id DESC",
+        return jdbc.query(WORKSPACE_SELECT + " AND (c.mentor_id = ? OR c.mentee_id = ?) ORDER BY COALESCE(sessions.next_session_at, monthly.current_period_start) DESC, c.id DESC",
                 MentorshipWorkspaceRepository::mapWorkspace, userId, userId);
     }
 
-    public Optional<WorkspaceRow> findActiveById(long subscriptionId) {
-        List<WorkspaceRow> rows = jdbc.query(WORKSPACE_SELECT + " AND s.id = ?",
-                MentorshipWorkspaceRepository::mapWorkspace, subscriptionId);
+    public Optional<WorkspaceRow> findAccessibleByConversationId(long conversationId) {
+        List<WorkspaceRow> rows = jdbc.query(WORKSPACE_SELECT + " AND c.id = ?",
+                MentorshipWorkspaceRepository::mapWorkspace, conversationId);
         return rows.stream().findFirst();
+    }
+
+    public List<OneOffBookingRow> findOneOffBookings(long conversationId) {
+        return jdbc.query("""
+                SELECT b.id, b.booking_code, b.service_id,
+                       COALESCE(so.name, N'One-off session') AS session_name,
+                       b.agenda, b.start_at, b.end_at, b.price_snapshot, b.currency, b.status,
+                       COALESCE(TRY_CONVERT(INT, JSON_VALUE(b.terms_snapshot, '$.numberOfParticipants')), 1) AS participants
+                FROM dbo.bookings b
+                JOIN dbo.conversations c
+                  ON c.mentor_id = b.mentor_id AND c.mentee_id = b.mentee_id
+                LEFT JOIN dbo.service_offerings so
+                  ON so.id = b.service_id AND so.mentor_id = b.mentor_id AND so.service_type = 'ONE_OFF'
+                WHERE c.id = ? AND b.service_type = 'ONE_OFF'
+                  AND b.status IN ('CONFIRMED','COMPLETED','NO_SHOW_REVIEW','NO_SHOW')
+                ORDER BY CASE WHEN b.status = 'CONFIRMED' AND b.end_at >= SYSUTCDATETIME() THEN 0 ELSE 1 END,
+                         CASE WHEN b.status = 'CONFIRMED' AND b.end_at >= SYSUTCDATETIME() THEN b.start_at END ASC,
+                         b.start_at DESC, b.id DESC
+                """, (rs, row) -> new OneOffBookingRow(
+                        rs.getLong("id"), rs.getString("booking_code"), rs.getLong("service_id"),
+                        rs.getString("session_name"), rs.getString("agenda"),
+                        instant(rs.getTimestamp("start_at")), instant(rs.getTimestamp("end_at")),
+                        rs.getBigDecimal("price_snapshot"), rs.getString("currency"),
+                        rs.getString("status"), rs.getInt("participants")), conversationId);
     }
 
     public List<MessageRow> findLatestMessages(long conversationId, int limit) {
@@ -205,9 +259,12 @@ public class MentorshipWorkspaceRepository {
         Number conversation = (Number) rs.getObject("conversation_id");
         Number calls = (Number) rs.getObject("calls_per_period");
         Number duration = (Number) rs.getObject("session_duration_minutes");
+        Number subscription = (Number) rs.getObject("subscription_id");
+        Number request = (Number) rs.getObject("request_id");
         return new WorkspaceRow(
-                rs.getLong("subscription_id"), rs.getLong("request_id"),
-                conversation == null ? null : conversation.longValue(),
+                conversation.longValue(),
+                subscription == null ? null : subscription.longValue(),
+                request == null ? null : request.longValue(),
                 rs.getLong("mentor_id"), rs.getString("mentor_name"),
                 rs.getLong("mentee_id"), rs.getString("mentee_name"),
                 rs.getString("package_name"), rs.getString("subscription_status"),
@@ -215,11 +272,13 @@ public class MentorshipWorkspaceRepository {
                 instant(rs.getTimestamp("current_period_end")),
                 calls == null ? null : calls.intValue(),
                 duration == null ? null : duration.intValue(),
-                rs.getString("learning_goals"), rs.getString("inquiry_status"));
+                rs.getString("learning_goals"), rs.getString("inquiry_status"),
+                rs.getBoolean("has_monthly"), rs.getInt("one_off_session_count"),
+                rs.getInt("upcoming_session_count"), instant(rs.getTimestamp("next_session_at")));
     }
 
     private static Instant instant(Timestamp value) {
-        return value == null ? null : value.toInstant();
+        return value == null ? null : value.toLocalDateTime().toInstant(ZoneOffset.UTC);
     }
 
     private static Long nullableLong(java.sql.ResultSet rs, String column) throws java.sql.SQLException {
@@ -228,12 +287,20 @@ public class MentorshipWorkspaceRepository {
     }
 
     public record WorkspaceRow(
-            long subscriptionId, long requestId, Long conversationId,
+            long conversationId, Long subscriptionId, Long requestId,
             long mentorId, String mentorName, long menteeId, String menteeName,
             String packageName, String subscriptionStatus,
             Instant currentPeriodStart, Instant currentPeriodEnd,
             Integer callsPerPeriod, Integer sessionDurationMinutes,
-            String learningGoals, String conversationStatus
+            String learningGoals, String conversationStatus,
+            boolean hasMonthly, int oneOffSessionCount, int upcomingSessionCount,
+            Instant nextSessionAt
+    ) {}
+
+    public record OneOffBookingRow(
+            long id, String bookingCode, long serviceId, String sessionName, String agenda,
+            Instant startAt, Instant endAt, java.math.BigDecimal price, String currency,
+            String status, int participants
     ) {}
 
     public record MessageRow(
