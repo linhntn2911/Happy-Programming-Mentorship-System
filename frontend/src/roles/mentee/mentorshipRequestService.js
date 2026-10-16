@@ -22,6 +22,15 @@ export const mentorshipRequestService = {
     });
   },
 
+  async createOneOff(payload) {
+    const headers = await withCsrf();
+    return apiClient('/api/one-off-requests', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+  },
+
   async getCheckoutInfo(requestId) {
     return apiClient(`/api/mentorship-requests/${requestId}/checkout-info`);
   },

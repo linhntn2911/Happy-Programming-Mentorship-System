@@ -7,9 +7,10 @@ import {
 } from './MentorDashboardPage.js';
 import { DashboardMetricCard } from './DashboardMetricCard.js';
 
-test('formats VND earnings without losing fractional database values', () => {
+test('formats VND earnings as whole dong without fractional decimals', () => {
   assert.match(formatVnd(1_250_000), /1,250,000/);
-  assert.match(formatVnd(1_250_000.25), /1,250,000\.25/);
+  assert.equal(formatVnd(1_250_000.05), formatVnd(1_250_000));
+  assert.doesNotMatch(formatVnd(1_250_000.25), /\.\d/);
 });
 
 test('formats remaining SLA time against an injectable current time', () => {

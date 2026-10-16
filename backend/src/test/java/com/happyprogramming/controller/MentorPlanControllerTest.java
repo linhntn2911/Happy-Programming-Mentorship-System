@@ -66,6 +66,16 @@ class MentorPlanControllerTest {
     }
 
     @Test
+    void getMentorOfferingsReturnsActivePublicOfferings() throws Exception {
+        when(mentorPlanService.getPublicOfferings("11")).thenReturn(List.of(samplePlan()));
+
+        mockMvc.perform(get("/api/mentors/11/offerings").accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].id").value(11));
+    }
+
+    @Test
     void savePlansPersistsTheTierSet() throws Exception {
         when(mentorPlanService.savePlans(ArgumentMatchers.anyList()))
                 .thenReturn(List.of(samplePlan()));

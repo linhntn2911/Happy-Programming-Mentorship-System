@@ -72,6 +72,7 @@ export function MentorRequestsPage() {
       <dl class="grid gap-4 p-6 sm:grid-cols-2">
         <div><dt class="text-sm font-semibold text-ink">Mentee</dt><dd id="request-dialog-mentee" class="mt-1 break-words text-sm text-muted"></dd></div>
         <div><dt class="text-sm font-semibold text-ink">Package</dt><dd id="request-dialog-package" class="mt-1 break-words text-sm text-muted"></dd></div>
+        <div><dt class="text-sm font-semibold text-ink">Request type</dt><dd id="request-dialog-type" class="mt-1 text-sm text-muted"></dd></div>
         <div><dt class="text-sm font-semibold text-ink">Current status</dt><dd id="request-dialog-status" class="mt-1 text-sm text-muted"></dd></div>
         <div><dt class="text-sm font-semibold text-ink">Submitted</dt><dd id="request-dialog-submitted" class="mt-1 text-sm text-muted"></dd></div>
         <div class="sm:col-span-2"><dt class="text-sm font-semibold text-ink">Learning goals</dt><dd id="request-dialog-goals" class="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-muted"></dd></div>
@@ -130,6 +131,23 @@ function createStatusElement(request) {
   return badge;
 }
 
+const REQUEST_TYPE_LABELS = {
+  ONE_OFF: 'One-off session',
+  MONTHLY: 'Monthly',
+};
+
+function requestTypeLabel(serviceType) {
+  return REQUEST_TYPE_LABELS[serviceType] || 'Monthly';
+}
+
+function createTypeBadge(serviceType) {
+  const badge = document.createElement('span');
+  const oneOff = serviceType === 'ONE_OFF';
+  badge.className = `ml-2 inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold ${oneOff ? 'border-brand/30 bg-lilac text-brand' : 'border-line bg-cream text-muted'}`;
+  badge.textContent = requestTypeLabel(serviceType);
+  return badge;
+}
+
 function renderRows(root, requests) {
   const rows = root.querySelector('#requests-rows');
   const cards = root.querySelector('#requests-cards');
@@ -147,10 +165,11 @@ function renderRows(root, requests) {
       request.packageName || 'Offering unavailable',
       summarizeLearningGoals(request.learningGoalsSummary || request.learningGoals),
     ];
-    for (const value of cells) {
+    for (const [index, value] of cells.entries()) {
       const cell = document.createElement('td');
       cell.className = 'px-4 py-4 align-top text-sm text-ink';
       cell.textContent = value;
+      if (index === 1) cell.append(createTypeBadge(request.serviceType));
       row.append(cell);
     }
     const statusCell = document.createElement('td');
@@ -180,6 +199,7 @@ function renderRows(root, requests) {
     const packageName = document.createElement('p');
     packageName.className = 'mt-1 text-sm text-muted';
     packageName.textContent = request.packageName || 'Offering unavailable';
+    packageName.append(createTypeBadge(request.serviceType));
     heading.append(name, packageName);
     const status = createStatusElement(request);
     heading.append(status);
@@ -319,6 +339,7 @@ export function initializeMentorRequestsPage() {
     activeRequestId = String(request.id);
     root.querySelector('#request-dialog-mentee').textContent = request.menteeName || 'Mentee unavailable';
     root.querySelector('#request-dialog-package').textContent = request.packageName || 'Offering unavailable';
+    root.querySelector('#request-dialog-type').textContent = requestTypeLabel(request.serviceType);
     root.querySelector('#request-dialog-goals').textContent = request.learningGoals || 'No goals provided.';
     root.querySelector('#request-dialog-status').textContent = REQUEST_STATUS_LABELS[request.status] || request.status || 'Unknown';
     root.querySelector('#request-dialog-submitted').textContent = formatUtcDate(request.submittedAt);
@@ -346,10 +367,18 @@ export function initializeMentorRequestsPage() {
       busy = false;
       return;
     }
+    const decided = requestsById.get(String(requestId));
+    const oneOff = decided?.serviceType === 'ONE_OFF';
     closeDialog();
-    setActionStatus(decision === 'ACCEPTED'
-      ? 'Request accepted. The mentee can now continue to payment.'
-      : 'Request declined. It remains available in your request history.');
+    if (decision === 'ACCEPTED') {
+      setActionStatus(oneOff
+        ? 'Session request accepted. The mentee has been notified to arrange the session.'
+        : 'Request accepted. The mentee can now continue to payment.');
+    } else {
+      setActionStatus(oneOff
+        ? 'Session request declined. It remains available in your request history.'
+        : 'Request declined. It remains available in your request history.');
+    }
     await loadRequests({ background: true });
     busy = false;
   }

@@ -40,6 +40,7 @@ public interface MentorshipRequestRepository extends JpaRepository<MentorshipReq
             SELECT r.mentee_id AS menteeId,
                    mu.full_name AS mentorName,
                    so.name AS packageName,
+                   r.service_type AS serviceType,
                    meu.email AS menteeEmail,
                    meu.full_name AS menteeName
             FROM dbo.mentorship_requests r

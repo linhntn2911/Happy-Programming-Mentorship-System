@@ -6,7 +6,7 @@ import { mentorDashboardService } from './mentorDashboardService.js';
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'VND',
-  maximumFractionDigits: 2,
+  maximumFractionDigits: 0,
 });
 
 export function formatVnd(value) {
