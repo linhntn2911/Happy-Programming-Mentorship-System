@@ -8,11 +8,15 @@ import { StaffApplicationsPage } from './StaffApplicationsPage.js';
 import { StaffMentorsPage } from './StaffMentorsPage.js';
 import { StaffMenteesPage } from './StaffMenteesPage.js';
 import { StaffSkillsPage } from './StaffSkillsPage.js';
+import { StaffPayoutsPage } from './StaffPayoutsPage.js';
 import { StaffAccessDeniedPage } from './StaffAccessDeniedPage.js';
 import { staffService } from './staffService.js';
 import { authService } from '../auth/authService.js';
 import { escapeHtml as e } from '../../shared/html.js';
-import { StatusBadge } from '../admin/AdminPrimitives.js';
+import { Button } from '../../shared/Button.js';
+import { Dialog } from '../../shared/Dialog.js';
+import { StatusBadge, Notice } from '../admin/AdminPrimitives.js';
+import { money } from '../admin/admin.js';
 
 async function checkStaffAccess(root) {
   try {
@@ -670,3 +674,137 @@ export async function mountStaffSkills(root) {
 
   if (await refreshData()) render();
 }
+
+export async function mountStaffPayouts(root) {
+  document.title = 'Mentor Payouts | HappyProgramming';
+  root.innerHTML = '<div class="min-h-screen bg-[#fbf9ff] flex items-center justify-center p-8 text-muted text-xs font-medium">Loading mentor payouts…</div>';
+
+  const user = await checkStaffAccess(root);
+  if (!user || !root.isConnected) return;
+
+  let requests = [];
+  let notice = null;
+
+  async function loadData() {
+    try {
+      requests = await staffService.getPayoutRequests();
+      render();
+    } catch (err) {
+      if (!root.isConnected) return;
+      staffError(root, err);
+    }
+  }
+
+  function render(query = '') {
+    if (!root.isConnected) return;
+    const q = query.trim().toLowerCase();
+    const filtered = q
+      ? requests.filter(r =>
+          (r.mentorName || '').toLowerCase().includes(q) ||
+          (r.mentorEmail || '').toLowerCase().includes(q) ||
+          (r.bankName || '').toLowerCase().includes(q) ||
+          (r.accountName || '').toLowerCase().includes(q)
+        )
+      : requests;
+
+    root.innerHTML = StaffPayoutsPage(filtered, user, notice);
+    bindStaffGlobalEvents(root);
+
+    const searchInput = root.querySelector('#staff-payout-query');
+    if (searchInput) {
+      searchInput.value = query;
+      searchInput.addEventListener('input', event => {
+        render(event.target.value);
+        const nextInput = root.querySelector('#staff-payout-query');
+        if (nextInput) {
+          nextInput.focus();
+          nextInput.setSelectionRange(nextInput.value.length, nextInput.value.length);
+        }
+      });
+    }
+
+    root.querySelectorAll('[data-payout-paid]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = Number(btn.dataset.payoutPaid);
+        const item = requests.find(r => r.id === id);
+        openPayoutDialog({
+          title: 'Record mentor payout',
+          eyebrow: 'RECORD BANK TRANSFER',
+          prompt: `<p>Confirm that the bank transfer of <strong>${money(item?.amount || 0)}</strong> to <strong>${e(item?.mentorName || '')}</strong> (${e(item?.bankName || '')} - ${e(item?.accountNumber || '')}) has already been completed. Enter its transaction reference to post the debit to the wallet ledger.</p>
+                   <label class="admin-field mt-4">Bank transfer reference <span class="text-rose-600">*</span><input name="transferReference" maxlength="150" required placeholder="e.g. FT26101700982312"></label>`,
+          action: async (form) => {
+            const transferReference = form.elements.transferReference.value.trim();
+            if (!transferReference) throw new Error('Enter the bank transfer reference.');
+            await staffService.decidePayout(id, { decision: 'PAID', transferReference });
+            notice = { message: `Payout #${id} of ${money(item?.amount || 0)} marked as PAID. Wallet ledger updated.`, type: 'info' };
+            await loadData();
+          }
+        });
+      });
+    });
+
+    root.querySelectorAll('[data-payout-reject]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = Number(btn.dataset.payoutReject);
+        const item = requests.find(r => r.id === id);
+        openPayoutDialog({
+          title: 'Reject payout request',
+          eyebrow: 'REJECT WITHDRAWAL',
+          prompt: `<p>The reserved amount (<strong>${money(item?.amount || 0)}</strong>) will return to the mentor’s available balance.</p>
+                   <label class="admin-field mt-4">Reason for rejection <span class="text-rose-600">*</span><textarea name="reason" rows="3" maxlength="500" required placeholder="Explain why this withdrawal cannot be processed (e.g. invalid account details)..."></textarea></label>`,
+          action: async (form) => {
+            const rejectionReason = form.elements.reason.value.trim();
+            if (!rejectionReason) throw new Error('Provide a reason for rejecting this payout.');
+            await staffService.decidePayout(id, { decision: 'REJECTED', rejectionReason });
+            notice = { message: `Payout #${id} rejected. Reserved funds restored to mentor available balance.`, type: 'info' };
+            await loadData();
+          }
+        });
+      });
+    });
+  }
+
+  function openPayoutDialog({ title, eyebrow, prompt, action }) {
+    const host = document.createElement('div');
+    host.innerHTML = Dialog({
+      id: 'staff-payout-dialog',
+      title: e(title),
+      eyebrow: e(eyebrow),
+      content: `<form id="staff-payout-form">
+                  ${prompt}
+                  <div id="staff-dialog-error" class="mt-4"></div>
+                  <div class="admin-actions mt-6">
+                    ${Button({ label: 'Cancel', variant: 'outline', id: 'staff-payout-cancel' })}
+                    ${Button({ label: 'Confirm decision', type: 'submit', variant: 'primary', id: 'staff-payout-submit' })}
+                  </div>
+                </form>`
+    });
+    root.append(host);
+    const dialog = host.querySelector('dialog');
+    dialog.showModal();
+
+    host.querySelectorAll('[data-close], #staff-payout-cancel').forEach(b => b.addEventListener('click', () => dialog.close()));
+    dialog.addEventListener('close', () => host.remove());
+
+    let busy = false;
+    host.querySelector('form').addEventListener('submit', async event => {
+      event.preventDefault();
+      if (busy) return;
+      const form = event.currentTarget;
+      busy = true;
+      host.querySelectorAll('button').forEach(b => { b.disabled = true; });
+      try {
+        await action(form);
+        dialog.close();
+      } catch (err) {
+        busy = false;
+        host.querySelectorAll('button').forEach(b => { b.disabled = false; });
+        const errorEl = host.querySelector('#staff-dialog-error');
+        if (errorEl) errorEl.innerHTML = Notice({ message: err.message || 'Operation failed.', type: 'error' });
+      }
+    });
+  }
+
+  await loadData();
+}
+

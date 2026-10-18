@@ -229,7 +229,7 @@ public class MentorWalletService {
 
     @Transactional(readOnly = true)
     public List<AdminPayoutRequest> pendingPayouts() {
-        requireRole("ADMIN");
+        requireAnyRole("ADMIN", "STAFF");
         return db().query("""
                 SELECT p.id,p.mentor_id,u.full_name,u.email,p.amount,p.bank_name,p.account_name,
                     p.account_number_ciphertext,p.status,p.requested_at
@@ -243,7 +243,7 @@ public class MentorWalletService {
 
     @Transactional
     public void decidePayout(long payoutId, PayoutDecisionRequest decision, String remoteAddress) {
-        long adminId = requireRole("ADMIN");
+        long reviewerId = requireAnyRole("ADMIN", "STAFF");
         if (decision == null || !("PAID".equals(decision.decision()) || "REJECTED".equals(decision.decision())))
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose PAID or REJECTED.");
         JdbcTemplate db = db();
@@ -262,8 +262,8 @@ public class MentorWalletService {
             db.update("""
                     UPDATE dbo.mentor_payout_requests SET status='REJECTED',rejection_reason=?,reviewed_by=?,reviewed_at=?
                     WHERE id=? AND status='REQUESTED'
-                    """, reason, adminId, Timestamp.from(now), payoutId);
-            audit(db, adminId, "MENTOR_PAYOUT_REJECTED", payoutId, "{\"status\":\"REQUESTED\"}",
+                    """, reason, reviewerId, Timestamp.from(now), payoutId);
+            audit(db, reviewerId, "MENTOR_PAYOUT_REJECTED", payoutId, "{\"status\":\"REQUESTED\"}",
                     "{\"status\":\"REJECTED\"}", reason, remoteAddress);
             return;
         }
@@ -276,9 +276,9 @@ public class MentorWalletService {
         db.update("""
                 UPDATE dbo.mentor_payout_requests SET status='PAID',transfer_reference=?,reviewed_by=?,reviewed_at=?
                 WHERE id=? AND status='REQUESTED'
-                """, transferReference, adminId, Timestamp.from(now), payoutId);
-        allocatePayout(db, mentorId, payoutId, amount, adminId, now);
-        audit(db, adminId, "MENTOR_PAYOUT_PAID", payoutId, "{\"status\":\"REQUESTED\"}",
+                """, transferReference, reviewerId, Timestamp.from(now), payoutId);
+        allocatePayout(db, mentorId, payoutId, amount, reviewerId, now);
+        audit(db, reviewerId, "MENTOR_PAYOUT_PAID", payoutId, "{\"status\":\"REQUESTED\"}",
                 "{\"status\":\"PAID\",\"amount\":\"" + amount.toPlainString() + "\"}",
                 "Bank transfer reference: " + transferReference, remoteAddress);
     }
@@ -456,6 +456,18 @@ public class MentorWalletService {
         if (user.roles() == null || !user.roles().contains(role))
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This account is not authorized to access the wallet operation.");
         return user.id();
+    }
+
+    private long requireAnyRole(String... roles) {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !(auth.getPrincipal() instanceof AuthenticatedUser user) || user.id() == null)
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Please log in to continue.");
+        if (user.roles() == null)
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This account is not authorized to access the wallet operation.");
+        for (String role : roles) {
+            if (user.roles().contains(role)) return user.id();
+        }
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This account is not authorized to access the wallet operation.");
     }
 
     private JdbcTemplate db() {

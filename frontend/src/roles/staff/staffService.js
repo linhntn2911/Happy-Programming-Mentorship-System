@@ -43,6 +43,15 @@ export const staffService = {
   getRequests: () => apiClient('/api/staff/requests'),
   getSkills: () => apiClient('/api/staff/skills'),
   getSkillCategories: () => apiClient('/api/staff/skill-categories'),
+  getPayoutRequests: () => apiClient('/api/staff/payout-requests'),
+
+  async decidePayout(id, change) {
+    return apiClient(`/api/staff/payout-requests/${id}`, {
+      method: 'PATCH',
+      headers: await withCsrf({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(change)
+    });
+  },
 
   async createSkill(data) {
     return apiClient('/api/staff/skills', {

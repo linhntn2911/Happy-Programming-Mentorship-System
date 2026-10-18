@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { staffService } from '../src/roles/staff/staffService.js';
-import { mountStaffDashboard, mountStaffApplications, mountStaffMentors, mountStaffMentees, mountStaffList } from '../src/roles/staff/StaffPortal.js';
+import { mountStaffDashboard, mountStaffApplications, mountStaffMentors, mountStaffMentees, mountStaffList, mountStaffPayouts } from '../src/roles/staff/StaffPortal.js';
 
 test('Staff pages render request failures as alerts, never as empty successful lists', async () => {
   const originals = { ...staffService };
@@ -13,7 +13,8 @@ test('Staff pages render request failures as alerts, never as empty successful l
     ['mentors','getMentors',mountStaffMentors],
     ['mentees','getMentees',mountStaffMentees],
     ['skills','getSkills',r=>mountStaffList(r,'skills')],
-    ['requests','getRequests',r=>mountStaffList(r,'requests')]
+    ['requests','getRequests',r=>mountStaffList(r,'requests')],
+    ['payouts','getPayoutRequests',mountStaffPayouts]
   ];
   try {
     staffService.access = async()=>({user:{name:'Staff'},permissions:['MENTOR_APPLICATION_MANAGE','MENTEE_MANAGE','MENTORSHIP_REQUEST_MANAGE','SKILL_MANAGE']});

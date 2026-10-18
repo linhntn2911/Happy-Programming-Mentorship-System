@@ -50,4 +50,12 @@ class StaffControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data").isArray());
     }
+
+    @Test
+    void shouldReturnPayoutRequestsForStaff() throws Exception {
+        mockMvc.perform(get("/api/staff/payout-requests").with(authentication(staffPrincipal())).accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data").isArray());
+    }
 }

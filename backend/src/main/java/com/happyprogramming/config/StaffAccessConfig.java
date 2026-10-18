@@ -36,7 +36,7 @@ public class StaffAccessConfig implements WebMvcConfigurer {
                     var permissions = access.permissions(principal);
                     String path = request.getRequestURI().substring(request.getContextPath().length());
                     String section = path.substring("/api/staff/".length()).split("/")[0];
-                    if (section.equals("access") || section.equals("dashboard")) return true;
+                    if (section.equals("access") || section.equals("dashboard") || section.equals("payout-requests") || section.equals("payouts")) return true;
                     String required = Map.of(
                         "mentor-applications", "MENTOR_APPLICATION_MANAGE",
                         "mentors", "MENTOR_APPLICATION_MANAGE",
