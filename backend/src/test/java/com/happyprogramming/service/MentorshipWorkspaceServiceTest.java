@@ -74,6 +74,34 @@ class MentorshipWorkspaceServiceTest {
     }
 
     @Test
+    void rejectsMessageFromAnAuthenticatedNonMember() {
+        when(repository.findAccessibleByConversationId(40L)).thenReturn(Optional.of(workspace()));
+        var other = new AuthenticatedUser(99L, "Other", "other@example.com", "MENTEE");
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(other, null, List.of()));
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class, () -> service.send(40L,
+                new SendWorkspaceMessageRequest("client-2", "TEXT", "Hello", null)));
+
+        assertEquals(403, error.getStatusCode().value());
+        verify(repository, never()).insertMessage(eq(40L), eq(99L), anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void blocksWorkspaceUntilConversationIsProvisioned() {
+        WorkspaceRow pending = new WorkspaceRow(
+                40L, 30L, 5L, 20L, "Mentor", 10L, "Mentee", "Standard", "ACTIVE",
+                Instant.parse("2026-10-12T00:00:00Z"), Instant.parse("2026-11-12T00:00:00Z"),
+                4, 60, "Learn Spring Boot", "PENDING", true, 0, 0, null);
+        when(repository.findAccessibleByConversationId(40L)).thenReturn(Optional.of(pending));
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class, () -> service.get(40L));
+
+        assertEquals(409, error.getStatusCode().value());
+        verify(repository, never()).findLatestMessages(40L, 100);
+    }
+
+    @Test
     void repeatedClientKeyReturnsExistingMessageWithoutAnotherInsert() {
         MessageRow existing = new MessageRow(7L, 10L, "Mentee", "TEXT", "Hello", null,
                 Instant.parse("2026-10-12T05:00:00Z"), "client-1", null, null, null, null);
