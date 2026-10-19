@@ -66,11 +66,11 @@ This feature establishes a formal **Dispute & Mediation Framework** focusing on:
 
 #### Form Specifications & Validation Rules
 1. **Category Selection (Single choice, required)**:
-   - `NO_SHOW`: Mentor did not attend the scheduled video session or left prematurely (< 10 minutes).
+   - `NO_SHOW`: Mentor did not provide access to or attend the scheduled one-off session, or left prematurely (< 10 minutes).
    - `QUALITY_MISMATCH`: Mentorship did not cover the agreed topic, skills, or curriculum stated in the package.
    - `UNRESPONSIVE`: Mentor ceased replying to messages for more than 72 hours during an active monthly cycle.
    - `CONDUCT_VIOLATION`: Inappropriate language, harassment, discrimination, or violation of community standards.
-   - `TECHNICAL_FAILURE`: Platform or room connection failure that prevented the session from occurring.
+   - `TECHNICAL_FAILURE`: Workspace failure or failure of an external meeting link shared by the mentor that prevented the session from occurring.
    - `OTHER`: Exceptional circumstances requiring staff intervention.
 2. **Detailed Description (Required)**:
    - Minimum 30 characters, maximum 2,000 characters.
@@ -80,14 +80,14 @@ This feature establishes a formal **Dispute & Mediation Framework** focusing on:
    - Supported file extensions: `.png`, `.jpg`, `.jpeg`, `.webp`.
    - Maximum file size: **5 MB per image**.
    - Client provides instant thumbnail previews with the ability to remove/re-upload before submitting.
-   - Allowed evidence examples: Screenshot of empty meeting room with timestamp, screenshot of unread chat messages with elapsed days, screenshot of conflicting code/chat logs.
+   - Allowed evidence examples: Screenshot of the mentor's external meeting link and related workspace messages, timestamped screenshot showing an unanswered attempt to join or contact the other party, screenshot of unread workspace messages with elapsed days, or screenshot of conflicting code/chat logs.
 4. **Terms Acknowledgement**:
    - Checkbox confirming: *"I confirm that the details and images provided are authentic and understand that fraudulent claims may lead to account penalties."*
 
 #### Post-Submission System Behavior
 - Dispute ticket is assigned a unique tracking code (e.g., `HP-DSP-202610-0042`).
 - The corresponding booking or subscription status transitions to `DISPUTED`.
-- **Immediate Escrow Freeze**: The internal escrow ledger records a `DISPUTE_HOLD` flag, immediately halting any automated 7-day or 24-hour release timer. Funds cannot be paid out to the mentor while the dispute is pending.
+- **Immediate Escrow Freeze**: The active dispute record is the authoritative hold for its verified payment. Wallet release jobs must exclude payments linked to a dispute in `SUBMITTED`, `IN_MEDIATION`, or `AWAITING_EVIDENCE`, immediately halting automated release without duplicating ledger value. Funds cannot be paid out to the mentor while the dispute is pending.
 - Mentee receives on-screen confirmation and is redirected to the **Dispute Detail & Tracker Page**.
 
 ---
@@ -179,7 +179,8 @@ This feature establishes a formal **Dispute & Mediation Framework** focusing on:
 3. **Escrow Status Notice**:
    - Visual alert indicating: `Escrow Hold: FROZEN (Amount: X,XXX,XXX VND)`.
 4. **Platform Audit Snapshot**:
-   - Quick indicators: Was meeting link generated? Did mentor join room? Number of messages exchanged in workspace chat prior to dispute.
+    - Quick indicators: Did the mentor share an external meeting link in the workspace? When was it shared? Did either party report joining, waiting, or encountering an error in workspace messages? Number of messages exchanged before the dispute.
+    - HappyProgramming does not generate meeting links or record attendance in an external meeting service. Staff decisions rely on immutable workspace messages, booking timestamps, and evidence submitted by both parties.
 
 ---
 
@@ -206,7 +207,7 @@ This feature establishes a formal **Dispute & Mediation Framework** focusing on:
 
 #### Staff Moderation Features
 1. Send official Staff messages with distinct highlight styling: purple background pill `[Staff Arbitrator - Name]`.
-2. Pin an **Official Notice / Directive** to the top of the chat (e.g., *"Staff requested Mentor to provide screenshot of meeting attendance logs by 15:00"*).
+2. Pin an **Official Notice / Directive** to the top of the chat (e.g., *"Staff requested Mentor to provide the external meeting link, relevant workspace messages, and timestamped attendance evidence by 15:00"*).
 3. If the Mentor's response countdown expires without any message or evidence:
    - System displays a prominent warning to Staff: `[!] Respondent failed to submit evidence within 24h. Default resolution enabled.`
    - Staff can proceed directly to resolve without further delay.
@@ -250,11 +251,11 @@ The following catalog defines all authorized dispute categories, required proof 
 
 | Case Code | Scenario Description | Required Complainant Evidence | Required Respondent Counter-Proof | Standard Adjudication |
 | :--- | :--- | :--- | :--- | :--- |
-| **CASE-1A** | **Mentor No-Show**: Mentor did not join call within 15 minutes of scheduled start time. | Screenshot of video call waiting room with system clock showing > 15 minutes past start time; chat message showing no answer. | Timestamped call log/screenshot proving presence in room within the first 15 minutes. | **Full Refund (100%)** to Mentee, 0 VND to Mentor. Mentor receives warning strike. |
-| **CASE-1B** | **Mentee No-Show**: Mentee failed to attend without prior notice >= 12h. | N/A (Mentee filed false claim). | Mentor provides meeting screenshot showing they waited in room for >= 15 minutes, plus workspace chat pinging Mentee. | **Dismiss Dispute (0% Refund)**. Full earnings credited to Mentor wallet. |
-| **CASE-1C** | **Session Interrupted / Late Cancellation by Mentor**: Mentor canceled < 2h before or left before 50% of agreed duration. | Screenshot of cancellation notice or call disconnect log. | Legitimate emergency justification with evidence; agreement to makeup. | Option to **Reschedule (Makeup session)**; if Mentee declines, **Full Refund (100%)**. |
+| **CASE-1A** | **Mentor No-Show**: Mentor failed to share a usable external meeting link or did not attend within 15 minutes of the scheduled start time. | Timestamped workspace messages showing the mentee requested access or reported waiting without a response; optional screenshot from the external meeting service. | Workspace message containing the external meeting link and timestamped evidence showing the mentor was available within the first 15 minutes. | **Full Refund (100%)** to Mentee, 0 VND to Mentor. Mentor receives warning strike. |
+| **CASE-1B** | **Mentee No-Show**: Mentee failed to attend without prior notice >= 12h. | N/A (Mentee filed false claim). | Workspace messages showing the external meeting link was provided and the mentor contacted the mentee during the session window, plus optional timestamped evidence from the external meeting service. | **Dismiss Dispute (0% Refund)**. Full earnings credited to Mentor wallet. |
+| **CASE-1C** | **Session Interrupted / Late Cancellation by Mentor**: Mentor canceled < 2h before or left before 50% of agreed duration. | Screenshot of the workspace cancellation notice, relevant messages, or timestamped evidence from the external meeting service. | Legitimate emergency justification with evidence; agreement to makeup. | Option to **Reschedule (Makeup session)**; if Mentee declines, **Full Refund (100%)**. |
 | **CASE-1D** | **Material Curriculum/Quality Breach**: Mentor taught entirely unrelated topic or lacked baseline expertise pledged in offering. | Screenshot of session notes, chat transcript, or code review demonstrating breach of agreed syllabus. | Proof of pre-session agreement on topic covered, or session delivery notes. | If breach verified: **Full Refund (100%)** or **Partial Refund (50%)** depending on severity. |
-| **CASE-1E** | **Technical Platform Malfunction**: Workspace link or third-party meeting provider broke unexpectedly. | Error message screenshot, network disconnect logs from either party. | Confirmation of technical error from both sides. | **Reschedule (Default)** to mutually agreed slot; or **Full Refund (100%)** if no slot can be agreed within 7 days. |
+| **CASE-1E** | **Technical Failure**: HappyProgramming workspace failed, or the mentor-provided external meeting link/service failed unexpectedly. | Error screenshot and relevant workspace messages; optional network or external-service error details from either party. | Confirmation of the technical error and any available timestamped evidence from both sides. | **Reschedule (Default)** to mutually agreed slot; or **Full Refund (100%)** if no slot can be agreed within 7 days. |
 
 ---
 

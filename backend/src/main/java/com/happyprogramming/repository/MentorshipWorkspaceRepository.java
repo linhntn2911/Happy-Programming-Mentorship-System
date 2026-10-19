@@ -45,7 +45,7 @@ public class MentorshipWorkspaceRepository {
                 FROM dbo.subscriptions s
                 JOIN dbo.mentorship_requests r ON r.id = s.request_id
                 WHERE s.mentor_id = c.mentor_id AND s.mentee_id = c.mentee_id
-                  AND s.status IN ('TRIALING','ACTIVE')
+                  AND s.status IN ('TRIALING','ACTIVE','DISPUTED')
                 ORDER BY s.activated_at DESC, s.id DESC
             ) monthly
             OUTER APPLY (
@@ -55,7 +55,7 @@ public class MentorshipWorkspaceRepository {
                 FROM dbo.bookings b
                 WHERE b.mentor_id = c.mentor_id AND b.mentee_id = c.mentee_id
                   AND b.service_type = 'ONE_OFF'
-                  AND b.status IN ('CONFIRMED','COMPLETED','NO_SHOW_REVIEW','NO_SHOW')
+                  AND b.status IN ('CONFIRMED','COMPLETED','NO_SHOW_REVIEW','NO_SHOW','DISPUTED')
             ) sessions
             WHERE c.inquiry_status = 'APPROVED'
               AND (monthly.subscription_id IS NOT NULL OR sessions.session_count > 0)
@@ -103,7 +103,7 @@ public class MentorshipWorkspaceRepository {
                 LEFT JOIN dbo.reviews r
                   ON r.booking_id = b.id
                 WHERE c.id = ? AND b.service_type = 'ONE_OFF'
-                  AND b.status IN ('CONFIRMED','COMPLETED','NO_SHOW_REVIEW','NO_SHOW')
+                  AND b.status IN ('CONFIRMED','COMPLETED','NO_SHOW_REVIEW','NO_SHOW','DISPUTED')
                 ORDER BY CASE WHEN b.status = 'CONFIRMED' AND b.end_at >= SYSUTCDATETIME() THEN 0 ELSE 1 END,
                          CASE WHEN b.status = 'CONFIRMED' AND b.end_at >= SYSUTCDATETIME() THEN b.start_at END ASC,
                          b.start_at DESC, b.id DESC

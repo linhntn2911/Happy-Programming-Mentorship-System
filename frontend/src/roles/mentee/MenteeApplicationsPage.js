@@ -3,12 +3,191 @@ import { BrowseAllMentorsLink } from '../../shared/BrowseAllMentorsLink.js';
 import { bindUserDropdown, getInitials, renderNotificationBell, renderUserDropdown } from '../../shared/Header.js';
 import { authService } from '../auth/authService.js';
 import { menteeApplicationsService } from './menteeApplicationsService.js';
+import { menteeDisputesService } from './menteeDisputesService.js';
 import { applicationDisplayStatus, canPayApplication } from './applicationPayment.js';
 
 const esc = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 const PAGE_SIZE = 10;
-const STATUS_LABELS = { PENDING: 'Pending', ACCEPTED: 'Accepted', REJECTED: 'Declined', EXPIRED: 'Expired', CANCELLED: 'Cancelled', PAID: 'Confirmed' };
+const STATUS_LABELS = { PENDING: 'Pending', ACCEPTED: 'Accepted', REJECTED: 'Declined', EXPIRED: 'Expired', CANCELLED: 'Cancelled', PAID: 'Confirmed', DISPUTED: 'Disputed' };
 const dateLabel = value => value ? new Date(value).toLocaleDateString('en-US', { dateStyle: 'medium' }) : '—';
+
+function openReportModal(booking, onSubmitted) {
+  const dialog = document.createElement('dialog');
+  dialog.className = 'modal w-full max-w-2xl';
+  let evidenceFiles = [];
+
+  function renderForm() {
+    dialog.innerHTML = `
+      <button class="modal-close" type="button" aria-label="Close"><span aria-hidden="true">×</span></button>
+      <p class="eyebrow mt-4">DISPUTE MEDIATION</p>
+      <h2 class="mt-2 font-display text-2xl text-ink">Report mentorship issue</h2>
+      <p class="mt-1 text-sm text-muted">For <strong>${esc(booking.packageName || 'Mentorship')}</strong> with ${esc(booking.mentorName || 'Mentor')} (Request #${esc(booking.requestId)})</p>
+      <div class="report-error hidden my-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800" role="alert"></div>
+      <form class="mt-4 space-y-4" data-report-form>
+        <div>
+          <label class="block text-xs font-semibold text-ink mb-1.5" for="report-category">Issue category</label>
+          <select id="report-category" name="category" required class="w-full rounded-xl border border-line bg-white p-3 text-sm text-ink focus:border-brand focus:outline-none">
+            <option value="" disabled selected>Select category...</option>
+            <option value="NO_SHOW">Mentor did not attend (No-show)</option>
+            <option value="QUALITY_MISMATCH">Content/Quality does not match commitment</option>
+            <option value="UNRESPONSIVE">Mentor unresponsive (> 72 hours)</option>
+            <option value="CONDUCT_VIOLATION">Unprofessional conduct / Harassment</option>
+            <option value="TECHNICAL_FAILURE">Technical platform / Room malfunction</option>
+            <option value="OTHER">Other issue</option>
+          </select>
+        </div>
+        <div>
+          <div class="flex justify-between items-center mb-1.5">
+            <label class="block text-xs font-semibold text-ink" for="report-description">Detailed description</label>
+            <span class="text-[11px] text-muted" data-char-count>0 / 2,000 (min 30)</span>
+          </div>
+          <textarea id="report-description" name="description" rows="4" required minlength="30" maxlength="2000"
+            class="w-full rounded-xl border border-line bg-white p-3 text-sm text-ink placeholder:text-muted focus:border-brand focus:outline-none"
+            placeholder="Describe what occurred, any agreements made, and why you are requesting assistance (minimum 30 characters)..."></textarea>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-ink mb-1.5">Image evidence (1 to 5 images, max 5MB each)</label>
+          <input type="file" accept="image/png,image/jpeg,image/webp" multiple class="hidden" data-file-input>
+          <button type="button" class="btn btn-outline btn-sm w-full flex items-center justify-center gap-2" data-btn-upload>
+            📷 Attach screenshots / photo proof
+          </button>
+          <div class="mt-2.5 flex flex-wrap gap-2" data-preview-container></div>
+        </div>
+        <label class="flex items-start gap-2.5 text-xs text-muted cursor-pointer pt-1">
+          <input type="checkbox" name="terms" required class="mt-0.5 rounded text-brand focus:ring-brand">
+          <span>I confirm that the details and images provided are authentic and accurate. Escrow payout for this booking will be frozen during arbitration.</span>
+        </label>
+        <div class="mt-6 flex flex-wrap justify-end gap-3 pt-2">
+          <button type="button" class="btn btn-outline" data-cancel-btn>Cancel</button>
+          <button type="submit" class="btn btn-primary" data-submit-btn>Submit report</button>
+        </div>
+      </form>
+    `;
+
+    const close = () => { if (dialog.open) dialog.close(); dialog.remove(); };
+    dialog.querySelector('.modal-close').addEventListener('click', close);
+    dialog.querySelector('[data-cancel-btn]').addEventListener('click', close);
+    dialog.addEventListener('click', event => { if (event.target === dialog) close(); });
+    dialog.addEventListener('close', () => dialog.remove(), { once: true });
+
+    const form = dialog.querySelector('[data-report-form]');
+    const errorBox = dialog.querySelector('.report-error');
+    const descInput = dialog.querySelector('#report-description');
+    const charCount = dialog.querySelector('[data-char-count]');
+    const fileInput = dialog.querySelector('[data-file-input]');
+    const uploadBtn = dialog.querySelector('[data-btn-upload]');
+    const previewContainer = dialog.querySelector('[data-preview-container]');
+    const submitBtn = dialog.querySelector('[data-submit-btn]');
+
+    descInput.addEventListener('input', () => {
+      charCount.textContent = `${descInput.value.length} / 2,000 (min 30)`;
+      charCount.className = descInput.value.length < 30 ? 'text-[11px] text-rose-600 font-semibold' : 'text-[11px] text-muted';
+    });
+
+    uploadBtn.addEventListener('click', () => fileInput.click());
+
+    function updatePreviews() {
+      previewContainer.innerHTML = evidenceFiles.map((file, idx) => {
+        const url = URL.createObjectURL(file);
+        return `<div class="relative h-16 w-16 rounded-lg border border-line overflow-hidden group">
+          <img src="${url}" alt="Evidence ${idx + 1}" class="h-full w-full object-cover">
+          <button type="button" data-remove-idx="${idx}" class="absolute inset-0 bg-black/60 text-white flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity" title="Remove">✕</button>
+        </div>`;
+      }).join('');
+    }
+
+    fileInput.addEventListener('change', () => {
+      const selected = Array.from(fileInput.files || []);
+      for (const file of selected) {
+        if (evidenceFiles.length >= 5) break;
+        if (file.size > 5 * 1024 * 1024) {
+          errorBox.textContent = `File "${file.name}" exceeds the 5MB size limit.`;
+          errorBox.classList.remove('hidden');
+          return;
+        }
+        if (!file.type.startsWith('image/')) {
+          errorBox.textContent = `File "${file.name}" is not a supported image.`;
+          errorBox.classList.remove('hidden');
+          return;
+        }
+        evidenceFiles.push(file);
+      }
+      fileInput.value = '';
+      errorBox.classList.add('hidden');
+      updatePreviews();
+    });
+
+    previewContainer.addEventListener('click', (e) => {
+      const removeBtn = e.target.closest('[data-remove-idx]');
+      if (removeBtn) {
+        const idx = Number(removeBtn.dataset.removeIdx);
+        evidenceFiles.splice(idx, 1);
+        updatePreviews();
+      }
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorBox.classList.add('hidden');
+
+      if (evidenceFiles.length === 0) {
+        errorBox.textContent = 'Please attach at least 1 image evidence (screenshot or photo).';
+        errorBox.classList.remove('hidden');
+        return;
+      }
+      if (descInput.value.trim().length < 30) {
+        errorBox.textContent = 'Description must be at least 30 characters long.';
+        errorBox.classList.remove('hidden');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting report…';
+
+      try {
+        const result = await menteeDisputesService.submit({
+          requestId: booking.requestId,
+          category: form.category.value,
+          description: descInput.value.trim(),
+          termsAccepted: form.terms.checked,
+          evidence: evidenceFiles,
+        });
+
+        dialog.innerHTML = `
+          <button class="modal-close" type="button" aria-label="Close"><span aria-hidden="true">×</span></button>
+          <div class="py-4 text-center">
+            <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 text-2xl font-bold">✓</div>
+            <p class="eyebrow mt-4">REPORT SUBMITTED</p>
+            <h2 class="mt-2 font-display text-2xl text-ink">Dispute Ticket Created</h2>
+            <div class="mt-4 divide-y divide-line rounded-xl border border-line bg-cream text-left text-sm">
+              <div class="flex justify-between p-3"><span class="text-muted">Ticket Code</span><strong class="font-mono text-brand">${esc(result.ticketCode || 'HP-DSP')}</strong></div>
+              <div class="flex justify-between p-3"><span class="text-muted">Status</span><span class="status-badge status-warning">● SUBMITTED</span></div>
+              <div class="flex justify-between p-3"><span class="text-muted">Escrow Status</span><strong class="text-rose-600">Frozen (Dispute Hold)</strong></div>
+            </div>
+            <p class="mt-4 text-xs text-muted leading-relaxed">Your report has been logged. Support staff will inspect the claim and open the 3-party dispute mediation room with your mentor. Any pending payout for this session is on hold.</p>
+            <div class="mt-6 flex flex-wrap gap-3">
+              <button type="button" class="btn btn-primary w-full" data-finish-btn>Done</button>
+            </div>
+          </div>
+        `;
+        dialog.querySelector('.modal-close').addEventListener('click', close);
+        dialog.querySelector('[data-finish-btn]').addEventListener('click', () => {
+          close();
+          onSubmitted();
+        });
+      } catch (err) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Submit report';
+        errorBox.textContent = err.message || 'Could not submit dispute. Please try again.';
+        errorBox.classList.remove('hidden');
+      }
+    });
+  }
+
+  renderForm();
+  document.body.append(dialog);
+  dialog.showModal();
+}
 
 function applicationCard(application) {
   const status = applicationDisplayStatus(application);
@@ -72,7 +251,7 @@ export async function mountMenteeApplications(root) {
       const action = canPayApplication(booking)
         ? `<a class="btn btn-primary" href="#/checkout?requestId=${encodeURIComponent(booking.requestId)}">${booking.latestPaymentStatus === 'PENDING' ? 'Continue payment' : 'Pay now'} →</a>`
         : paid
-          ? `<a class="btn btn-primary" href="#/workspace?requestId=${encodeURIComponent(booking.requestId)}">Open workspace →</a>`
+          ? `<button type="button" class="btn btn-outline" data-open-report="${esc(booking.requestId)}">Report an issue</button><a class="btn btn-primary" href="#/workspace?requestId=${encodeURIComponent(booking.requestId)}">Open workspace →</a>`
           : status === 'CANCELLED'
             ? '<a class="btn btn-outline" href="#/mentors">Browse mentors to apply again →</a>'
             : '';
@@ -82,7 +261,14 @@ export async function mountMenteeApplications(root) {
       results.append(dialog);
       const close = () => { if (dialog.open) dialog.close(); dialog.remove(); };
       dialog.querySelector('.modal-close').addEventListener('click', close);
-      dialog.addEventListener('click', event => { if (event.target === dialog) close(); });
+      dialog.addEventListener('click', event => {
+        if (event.target === dialog) close();
+        const reportBtn = event.target.closest('[data-open-report]');
+        if (reportBtn) {
+          close();
+          openReportModal(booking, () => load());
+        }
+      });
       dialog.addEventListener('close', () => dialog.remove(), { once: true });
       dialog.showModal();
       return;
