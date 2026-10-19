@@ -38,6 +38,21 @@ test('getMyRequests reads persisted request history', async () => {
   }
 });
 
+test('getMyBookings reads the unified mentor booking list', async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl;
+  globalThis.fetch = async url => {
+    requestedUrl = url;
+    return { ok: true, json: async () => ({ success: true, data: [] }) };
+  };
+  try {
+    await mentorDashboardService.getMyBookings();
+    assert.equal(requestedUrl, '/api/mentors/me/bookings');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('decideOnRequest sends the decision with a CSRF header', async () => {
   const originalFetch = globalThis.fetch;
   const calls = [];

@@ -18,3 +18,11 @@ The earlier verification above is upstream evidence, not current local verificat
 - [x] Correct wallet available/reservation calculations to subtract already-paid amounts; add payout regression coverage.
 - [x] Verify settlement/idempotency/refund/release/payout accounting on a disposable migrated SQL Server database.
 - [x] Resolve the three current backend suite failures and align Admin reporting with the documented ledger/rounding policy.
+
+## One-off checkout extension 2026-10-15
+
+- [x] Permit an owned active one-off slot hold to create an immediately payable order without mentor approval.
+- [x] Charge the immutable one-off total derived from session and participant quantities.
+- [x] Bound payment expiry by the selected slot-hold expiry.
+- [x] Convert the hold and create confirmed one-off bookings only from verified webhook settlement.
+- [x] Preserve the monthly approval-first subscription path.

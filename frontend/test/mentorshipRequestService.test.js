@@ -49,6 +49,8 @@ test('mentorshipRequestService fetches checkout info and posts checkout with csr
     const info = await mentorshipRequestService.getCheckoutInfo(42);
     assert.equal(info.requestId, 42);
     assert.equal(info.mentorName, 'Test Mentor');
+    const infoCall = calls.find(c => c.url.endsWith('/api/mentorship-requests/42/checkout-info'));
+    assert.equal(infoCall.options.cache, 'no-store');
 
     const result = await mentorshipRequestService.processCheckout(42, { paymentMethod: 'SEPAY' });
     assert.equal(result.subscriptionId, 101);

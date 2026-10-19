@@ -107,6 +107,38 @@ class MentorPlanControllerTest {
     }
 
     @Test
+    void getMyOneOffSessionsReturnsTheMentorOwnedOptions() throws Exception {
+        when(mentorPlanService.getMyOneOffSessions()).thenReturn(List.of(
+                new MentorPlanResponse(12L, "Work review", "ONE_OFF", null,
+                        "Review a pull request together.", new BigDecimal("99000.00"),
+                        "VND", 30, null, 0, 24, true, "ACTIVE")));
+
+        mockMvc.perform(get("/api/mentors/me/one-off-sessions").accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].name").value("Work review"))
+                .andExpect(jsonPath("$.data[0].serviceType").value("ONE_OFF"))
+                .andExpect(jsonPath("$.data[0].sessionDurationMinutes").value(30));
+    }
+
+    @Test
+    void saveOneOffSessionsAcceptsSessionOptions() throws Exception {
+        when(mentorPlanService.saveOneOffSessions(ArgumentMatchers.anyList())).thenReturn(List.of(
+                new MentorPlanResponse(12L, "Work review", "ONE_OFF", null,
+                        "Review a pull request together.", new BigDecimal("99000.00"),
+                        "VND", 30, null, 0, 24, true, "ACTIVE")));
+
+        mockMvc.perform(put("/api/mentors/me/one-off-sessions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"sessions":[{"name":"Work review","description":"Review a pull request together.",
+                                 "price":99000,"sessionDurationMinutes":30,"status":"ACTIVE"}]}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("One-off sessions saved."))
+                .andExpect(jsonPath("$.data[0].serviceType").value("ONE_OFF"));
+    }
+
+    @Test
     void storageFailureReturnsGenericRetryableServiceError() throws Exception {
         when(mentorPlanService.getMyPlans())
                 .thenThrow(new DataAccessResourceFailureException("private database detail"));

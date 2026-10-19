@@ -2,6 +2,7 @@ package com.happyprogramming.service;
 
 import com.happyprogramming.dto.MentorPlanRequest;
 import com.happyprogramming.dto.MentorPlanResponse;
+import com.happyprogramming.dto.MentorOneOffSessionRequest;
 
 
 import java.math.BigDecimal;
@@ -33,6 +34,39 @@ public class MentorPlanService {
             WHERE mentor_id = ?
             ORDER BY CASE plan_tier WHEN 'LITE' THEN 0 WHEN 'STANDARD' THEN 1 WHEN 'PRO' THEN 2 ELSE 3 END,
                      display_order, id
+            """;
+
+    private static final String SELECT_ONE_OFF_SESSIONS = """
+            SELECT id, name, service_type, plan_tier, description, price, currency,
+                   session_duration_minutes, calls_per_period, trial_days,
+                   response_time_hours, chat_included, status
+            FROM dbo.service_offerings
+            WHERE mentor_id = ? AND service_type = 'ONE_OFF'
+            ORDER BY display_order, id
+            """;
+
+    private static final String FIND_ONE_OFF = """
+            SELECT COUNT(1) FROM dbo.service_offerings
+            WHERE id = ? AND mentor_id = ? AND service_type = 'ONE_OFF'
+            """;
+
+    private static final String UPDATE_ONE_OFF = """
+            UPDATE dbo.service_offerings
+            SET name = ?, description = ?, price = ?, session_duration_minutes = ?,
+                status = ?, updated_at = SYSUTCDATETIME()
+            WHERE id = ? AND mentor_id = ? AND service_type = 'ONE_OFF'
+            """;
+
+    private static final String INSERT_ONE_OFF = """
+            INSERT INTO dbo.service_offerings
+                (mentor_id, name, service_type, description, price, currency,
+                 session_duration_minutes, calls_per_period, chat_included,
+                 response_time_hours, trial_days, benefits, status, display_order,
+                 created_at, updated_at)
+            VALUES
+                (?, ?, 'ONE_OFF', ?, ?, 'VND', ?, NULL, 1, 24, 0, N'[]', ?,
+                 (SELECT COALESCE(MAX(display_order), 0) + 1 FROM dbo.service_offerings WHERE mentor_id = ? AND service_type = 'ONE_OFF'),
+                 SYSUTCDATETIME(), SYSUTCDATETIME())
             """;
 
     private static final String RESOLVE_MENTOR_ID_BY_SLUG = """
@@ -103,6 +137,44 @@ public class MentorPlanService {
     public List<MentorPlanResponse> getMyPlans() {
         long mentorId = mentorService.currentActiveMentorUserId();
         return jdbc().query(SELECT_PLANS, planRowMapper(), mentorId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<MentorPlanResponse> getMyOneOffSessions() {
+        long mentorId = mentorService.currentActiveMentorUserId();
+        return jdbc().query(SELECT_ONE_OFF_SESSIONS, planRowMapper(), mentorId);
+    }
+
+    @Transactional
+    public List<MentorPlanResponse> saveOneOffSessions(List<MentorOneOffSessionRequest> requests) {
+        long mentorId = mentorService.currentActiveMentorUserId();
+        JdbcTemplate template = jdbc();
+        if (requests == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Provide one-off sessions to save.");
+        }
+        for (MentorOneOffSessionRequest request : requests) {
+            if (request.sessionDurationMinutes() < 10) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "One-off sessions must be at least 10 minutes long.");
+            }
+            String name = request.name().trim();
+            String description = request.description().trim();
+            String status = request.status() == null || request.status().isBlank()
+                    ? "ACTIVE" : request.status();
+            BigDecimal price = request.price().setScale(2, RoundingMode.HALF_UP);
+            if (request.id() == null) {
+                template.update(INSERT_ONE_OFF, mentorId, name, description, price,
+                        request.sessionDurationMinutes(), status, mentorId);
+            } else {
+                Integer owned = template.queryForObject(FIND_ONE_OFF, Integer.class, request.id(), mentorId);
+                if (owned == null || owned == 0) {
+                    throw new ResponseStatusException(HttpStatus.NOT_FOUND, "One-off session was not found.");
+                }
+                template.update(UPDATE_ONE_OFF, name, description, price,
+                        request.sessionDurationMinutes(), status, request.id(), mentorId);
+            }
+        }
+        return template.query(SELECT_ONE_OFF_SESSIONS, planRowMapper(), mentorId);
     }
 
     @Transactional(readOnly = true)

@@ -298,6 +298,8 @@ public class MentorWalletService {
                   AND p.amount>COALESCE(refunded.amount,0)
                   AND NOT EXISTS (SELECT 1 FROM dbo.escrow_ledger_entries e WHERE e.payment_id=p.id AND e.entry_type='MENTOR_RELEASE')
                   AND NOT EXISTS (SELECT 1 FROM dbo.refunds f WHERE f.payment_id=p.id AND f.status IN ('PENDING','PROCESSING'))
+                  AND NOT EXISTS (SELECT 1 FROM dbo.disputes d WHERE d.payment_id=p.id
+                                  AND d.status IN ('SUBMITTED','IN_MEDIATION','AWAITING_EVIDENCE'))
                 ORDER BY p.paid_at,p.id
                 """, (rs,n) -> new MaturePayment(rs.getLong("id"), rs.getBigDecimal("distributable_amount"),
                 rs.getBigDecimal("commission_rate_snapshot")), limit);

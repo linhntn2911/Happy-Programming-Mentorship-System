@@ -26,7 +26,7 @@ The internal escrow ledger is an application accounting mechanism. It must not b
 | :--- | :--- | :--- |
 | **Guest** | Unauthenticated | Explores public mentor profiles and skills; views verified reviews; registers as a Mentee or submits a Mentor application. |
 | **Mentee** | Authenticated Client | Searches mentors; applies for monthly mentorship; books eligible sessions; pays using SePay bank-transfer QR; collaborates after payment verification; rates completed mentorships. |
-| **Mentor** | Authenticated Provider | Manages profile, CV, packages, and teaching skills; accepts or rejects requests within 48 hours; conducts mentorship; views held and available wallet balances; requests payouts. |
+| **Mentor** | Authenticated Provider | Manages profile, CV, packages, teaching skills, availability, and unified bookings; accepts or rejects monthly applications within 48 hours; conducts mentorship; views held and available wallet balances; requests payouts. |
 | **Staff** | Operational Internal | Reviews mentor applications and CVs; manages mentees, mentorship requests, and global skills within assigned permissions. |
 | **Admin** | System Administrator | Manages accounts and Staff permissions; reviews configuration, audit logs, revenue, reconciliation cases, and mentor payout requests; records completed external payouts. |
 
@@ -36,7 +36,8 @@ The internal escrow ledger is an application accounting mechanism. It must not b
 - **Receiving Bank:** Receives the actual transfer into the configured HappyProgramming bank account.
 - **Google OAuth2 (API-02):** Supports third-party authentication.
 - **Email Service / Gmail SMTP (API-03):** Sends account verification, password-reset, application-decision, payment, payout, and session notifications.
-- **Google Calendar / Meet:** Creates confirmed session events and meeting links where enabled.
+
+Session availability and booking schedules are managed entirely inside HappyProgramming. The product does not integrate with Google Calendar or Google Meet; mentors may share an external call link through the private workspace when needed.
 
 `specs/016-vnpay-mentorship-checkout/` and `docs/payments/vnpay-setup.md` are historical. They are not authoritative for current implementation or configuration.
 
@@ -75,7 +76,16 @@ sequenceDiagram
     end
 ```
 
-### 3.2 Escrow, Mentor Wallet, and Payout
+### 3.2 Instant One-Off Session Booking
+
+1. A Mentor publishes one-off session types and available time windows.
+2. A Mentee selects a session type, a generated start time, the session quantity, and participant quantity.
+3. HappyProgramming validates the active offering and atomically holds the complete consecutive time range. Mentor acceptance is not required.
+4. The system creates an immediately payable order using an immutable total of `unit price × sessions × participants` and opens SePay checkout.
+5. Only a verified exact SePay webhook converts the hold and creates confirmed one-off bookings. Browser actions cannot confirm payment or reserve a slot permanently.
+6. An expired or conflicting hold cannot settle into a booking; the Mentee must select an available time again.
+
+### 3.3 Escrow, Mentor Wallet, and Payout
 
 1. A verified SePay payment creates one immutable gross `HOLD` entry.
 2. The mentor share remains held for seven days from verified `paid_at`.
@@ -85,13 +95,13 @@ sequenceDiagram
 6. An Admin performs the external bank transfer and records its reference before marking the request `PAID`, or rejects it with a reason and releases the reservation.
 7. Financial corrections use append-only compensating entries; historical entries are never rewritten.
 
-### 3.3 Mentor Onboarding and Approval
+### 3.4 Mentor Onboarding and Approval
 
 1. A Guest submits personal information, technical skills, experience, and permitted CV/certificate files.
 2. Staff reviews the application and records an `APPROVED` or `REJECTED` decision.
 3. Only approved, active mentors appear in public discovery.
 
-### 3.4 Rating and Feedback
+### 3.5 Rating and Feedback
 
 Mentees may submit a 1–5 star rating and comment only after an eligible mentorship or session is completed.
 
@@ -126,6 +136,14 @@ Mentees may submit a 1–5 star rating and comment only after an eligible mentor
 - A Mentor must accept or reject within 48 hours; an unanswered request expires without a refund because payment has not been enabled.
 - Acceptance changes the request to `ACCEPTED` and enables payment. It does not activate the subscription, chat, escrow, or mentor earnings.
 
+### US-05A: Unified Mentor Bookings
+
+- **As a** Mentor, **I want to** manage monthly applications and one-off sessions from one Bookings page, **so that** I can see every mentoring commitment without switching between duplicate lists.
+- Pending monthly applications retain Accept and Decline actions and show their 48-hour response deadline.
+- One-off orders never require mentor approval. They show `Awaiting payment` before settlement and the persisted booking status and schedule after a verified SePay payment.
+- Mentors can filter the combined list by lifecycle status and by Monthly or One-off type.
+- Missing deadlines and schedules display `—`; the interface must not fabricate epoch dates.
+
 ### US-06: SePay QR Payment and Activation
 
 - **As a** Mentee with an accepted request, **I want to** pay using a bank-transfer QR, **so that** the system can verify my transfer and activate mentorship.
@@ -156,11 +174,12 @@ Mentees may submit a 1–5 star rating and comment only after an eligible mentor
 
 ### US-07: Mentorship Workspace
 
-- **As a** paid Mentee or assigned Mentor, **I want to** use the private workspace, **so that** we can collaborate securely.
+- **As a** paid Mentee or assigned Mentor, **I want to** use one private workspace per mentor–mentee relationship, **so that** monthly mentorship and one-off sessions can be coordinated without duplicate conversations.
 - Workspace access requires an active subscription or confirmed eligible booking backed by a verified payment.
-- Monthly workspace access is limited to the assigned Mentor and Mentee and is provisioned only by verified SePay settlement.
-- The workspace presents the accepted package context, learning goals, active billing period, and private conversation history.
-- Mentorships first presents the user's active mentor/mentee list; selecting one opens that private workspace.
+- Workspace access is limited to the assigned Mentor and Mentee and is provisioned only by verified SePay settlement of a monthly plan or one-off booking.
+- The workspace is identified by the pair's approved conversation. It presents an optional active monthly context, independent paid one-off bookings, learning goals, and shared private conversation history.
+- When a confirmed one-off session reaches its scheduled end, the system completes it automatically, removes it from upcoming engagements, and retains it in collapsed session history for reviews, disputes, refunds, and audit.
+- Mentorships first presents each active mentor/mentee pair once; purchasing another service from the same partner reuses that workspace.
 - Members can exchange text messages and authorized learning-file attachments up to 10 MB.
 - The header and mentorship list show unread-message badges; reading one workspace does not clear unread messages in another.
 - Members may exchange text and code messages. Each message write uses a client key so retries do not create duplicates.

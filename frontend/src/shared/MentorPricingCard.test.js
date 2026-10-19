@@ -43,3 +43,9 @@ test('one-off entry remains visible without fabricating a price', () => {
   assert.match(html, /Book a one-off call/);
   assert.doesNotMatch(html, /Book a one-off call \(/);
 });
+
+test('one-off link can target the current mentor session route', () => {
+  const html = MentorPricingCard({ tiers: [lite], showOneOff: true, onOneOffHref: '#/mentors/alex/sessions' });
+  assert.match(html, /href="#\/mentors\/alex\/sessions"/);
+  assert.doesNotMatch(html, /href="#\/book-session"/);
+});

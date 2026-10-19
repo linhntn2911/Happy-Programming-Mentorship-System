@@ -19,6 +19,10 @@ export const mentorDashboardService = {
     return apiClient('/api/mentors/me/requests', { cache: 'no-store' });
   },
 
+  async getMyBookings() {
+    return apiClient('/api/mentors/me/bookings', { cache: 'no-store' });
+  },
+
   async decideOnRequest(requestId, decision) {
     const normalizedRequestId = typeof requestId === 'number'
       ? requestId

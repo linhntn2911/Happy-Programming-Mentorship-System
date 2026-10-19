@@ -6,11 +6,11 @@ import { bindWorkspaceMessageIndicator, renderWorkspaceMessageIndicator } from '
 const sections = [
   ['dashboard', 'Overview', '#/mentor/dashboard', 'overview'],
   ['profile', 'Edit profile', '#/mentor/profile', 'users'],
-  ['requests', 'Requests', '#/mentor/requests', 'audit'],
+  ['bookings', 'Bookings', '#/mentor/bookings', 'audit'],
   ['mentorships', 'Mentorships', '#/workspace', 'users'],
   ['availability', 'Availability', '#/mentor/availability', 'revenue'],
   ['packages', 'Packages', '#/mentor/packages', 'settings'],
-  ['wallet', 'Wallet', '#/mentor/wallet', 'revenue'],
+  ['wallet', 'Earnings & Feedback', '#/mentor/wallet', 'revenue'],
 ];
 
 export function MentorLayout(content, user = null, section = 'dashboard') {
@@ -32,7 +32,7 @@ export function MentorLayout(content, user = null, section = 'dashboard') {
         </nav>
       </div>
       <div class="admin-sidebar-bottom">
-        <div class="admin-sidebar-note"><strong class="text-ink">Your mentorship space</strong><p class="mt-2">Review requests, manage your profile, and keep track of your mentoring activity.</p></div>
+        <div class="admin-sidebar-note"><strong class="text-ink">Your mentorship space</strong><p class="mt-2">Manage bookings, your profile, and your mentoring activity.</p></div>
         <a href="#/" class="admin-nav-link">${adminIcon('arrow')}Back to website</a>
       </div>
     </aside>

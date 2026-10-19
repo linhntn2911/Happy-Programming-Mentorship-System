@@ -9,6 +9,7 @@ import com.happyprogramming.dto.CreateOneOffSessionRequest;
 import com.happyprogramming.dto.MentorshipRequestResponse;
 import com.happyprogramming.dto.MenteeApplicationDto;
 import com.happyprogramming.dto.MenteeApplicationPageDto;
+import com.happyprogramming.dto.MenteeTransactionDto;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -70,20 +71,19 @@ public class MentorshipRequestService {
             WHERE id = ? AND mentor_id = ? AND service_type = 'ONE_OFF' AND status = 'ACTIVE'
             """;
 
-    private static final String COUNT_ACTIVE_ONE_OFF_REQUESTS = """
+    private static final String COUNT_ONE_OFF_REQUESTS_FOR_HOLD = """
             SELECT COUNT(1) FROM dbo.mentorship_requests
-            WHERE mentee_id = ? AND mentor_id = ? AND service_type = 'ONE_OFF'
-              AND status IN ('PENDING', 'ACCEPTED')
+            WHERE service_type = 'ONE_OFF' AND JSON_VALUE(offer_snapshot, '$.slotHoldId') = ?
             """;
 
     private static final String INSERT_ONE_OFF_REQUEST = """
             INSERT INTO dbo.mentorship_requests
                 (mentee_id, mentor_id, service_id, service_type, experience_level, background,
                  learning_goals, expectations, project_links, offer_snapshot, status, submitted_at,
-                 response_deadline, terms_version, terms_accepted_at, created_at, updated_at)
+                 response_deadline, responded_at, terms_version, terms_accepted_at, created_at, updated_at)
             VALUES
-                (?, ?, ?, 'ONE_OFF', ?, NULL, ?, NULL, N'[]', ?, 'PENDING', SYSUTCDATETIME(),
-                 DATEADD(HOUR, 48, SYSUTCDATETIME()), ?, SYSUTCDATETIME(), SYSUTCDATETIME(), SYSUTCDATETIME())
+                (?, ?, ?, 'ONE_OFF', ?, NULL, ?, NULL, N'[]', ?, 'ACCEPTED', SYSUTCDATETIME(),
+                 NULL, SYSUTCDATETIME(), ?, SYSUTCDATETIME(), SYSUTCDATETIME(), SYSUTCDATETIME())
             """;
 
     private final JdbcTemplate jdbcTemplate;
@@ -241,14 +241,32 @@ public class MentorshipRequestService {
         long serviceId = ((Number) offering.get("id")).longValue();
         String sessionName = String.valueOf(offering.get("name"));
 
-        Integer activeRequests =
-                template.queryForObject(COUNT_ACTIVE_ONE_OFF_REQUESTS, Integer.class, menteeId, mentorId);
-        if (activeRequests != null && activeRequests > 0) {
+        List<Map<String, Object>> holds = template.queryForList("""
+                SELECT id, start_at, end_at, expires_at
+                FROM dbo.slot_holds WITH (UPDLOCK, HOLDLOCK)
+                WHERE id=? AND mentee_id=? AND mentor_id=? AND service_id=? AND service_type='ONE_OFF'
+                  AND status='HELD' AND expires_at>SYSUTCDATETIME()
+                """, payload.slotHoldId(), menteeId, mentorId, serviceId);
+        if (holds.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "You already have a one-off session request with this mentor awaiting a decision.");
+                    "The selected time is no longer held for you. Please choose an available time again.");
+        }
+        Map<String, Object> hold = holds.get(0);
+        java.sql.Timestamp holdStart = (java.sql.Timestamp) hold.get("start_at");
+        java.sql.Timestamp holdEnd = (java.sql.Timestamp) hold.get("end_at");
+        long heldMinutes = java.time.Duration.between(holdStart.toInstant(), holdEnd.toInstant()).toMinutes();
+        int durationMinutes = ((Number) offering.get("session_duration_minutes")).intValue();
+        if (heldMinutes != (long) durationMinutes * payload.numberOfSessions()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "The held time does not match the requested number of sessions.");
+        }
+        Integer duplicateHold = template.queryForObject(
+                COUNT_ONE_OFF_REQUESTS_FOR_HOLD, Integer.class, String.valueOf(payload.slotHoldId()));
+        if (duplicateHold != null && duplicateHold > 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This held time already has an order.");
         }
 
-        String offerSnapshot = buildOneOffSnapshot(offering);
+        String offerSnapshot = buildOneOffSnapshot(offering, payload, hold);
 
         KeyHolder keyHolder = new GeneratedKeyHolder();
         template.update(connection -> {
@@ -271,20 +289,14 @@ public class MentorshipRequestService {
         long requestId = generatedId.longValue();
 
         notificationService.create(
-                mentorId,
-                "New one-off session request",
-                menteeName + " requested the session \"" + sessionName + "\". Review it in your mentor dashboard.",
-                "MENTORSHIP_REQUEST_RECEIVED",
-                "#/mentor/requests");
-        notificationService.create(
                 menteeId,
-                "Session request submitted",
-                "Your request for \"" + sessionName + "\" with " + mentorName
-                        + " was sent. They have 48 hours to respond. Track its status in My applications.",
+                "One-off checkout ready",
+                "Your time for \"" + sessionName + "\" with " + mentorName
+                        + " is held temporarily. Complete payment to confirm the booking.",
                 "MENTORSHIP_REQUEST_SUBMITTED",
-                "#/applications");
+                "#/checkout?requestId=" + requestId);
 
-        return new MentorshipRequestResponse(requestId, "PENDING", false, Instant.now());
+        return new MentorshipRequestResponse(requestId, "ACCEPTED", true, Instant.now());
     }
 
     @Transactional(readOnly = true)
@@ -356,6 +368,34 @@ public class MentorshipRequestService {
         return new MenteeApplicationPageDto(applications, totalElements, totalPages, page, size);
     }
 
+    @Transactional(readOnly = true)
+    public List<MenteeTransactionDto> getMyTransactions() {
+        AuthenticatedUser user = currentUser();
+        if (user == null || user.id() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Please log in to view your transactions.");
+        }
+        if (user.roles() == null || !user.roles().contains("MENTEE")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only mentees can view their transactions.");
+        }
+        return jdbc().query("""
+                SELECT p.id AS payment_id, p.request_id, mentor.full_name AS mentor_name,
+                       COALESCE(JSON_VALUE(r.offer_snapshot, '$.name'), offering.name, 'Mentorship') AS package_name,
+                       r.service_type, p.amount, p.currency, p.status, p.merchant_reference,
+                       p.gateway_transaction_id, p.created_at, p.paid_at
+                FROM dbo.payments p
+                JOIN dbo.mentorship_requests r ON r.id = p.request_id
+                JOIN dbo.users mentor ON mentor.id = r.mentor_id
+                LEFT JOIN dbo.service_offerings offering ON offering.id = r.service_id
+                WHERE r.mentee_id = ?
+                ORDER BY p.created_at DESC, p.id DESC
+                """, (rs, rowNum) -> new MenteeTransactionDto(
+                rs.getLong("payment_id"), rs.getLong("request_id"), rs.getString("mentor_name"),
+                rs.getString("package_name"), rs.getString("service_type"), rs.getBigDecimal("amount"),
+                rs.getString("currency"), rs.getString("status"), rs.getString("merchant_reference"),
+                rs.getString("gateway_transaction_id"), toInstant(rs.getTimestamp("created_at")),
+                toInstant(rs.getTimestamp("paid_at"))), user.id());
+    }
+
     @Transactional
     public void cancelMyRequest(Long requestId) {
         JdbcTemplate template = jdbc();
@@ -413,6 +453,9 @@ public class MentorshipRequestService {
     @Transactional(readOnly = true)
     public CheckoutInfoDto getCheckoutInfo(Long requestId) {
         JdbcTemplate template = jdbc();
+        // The payment expiry is written with SQL Server's clock. Return that same clock so
+        // a browser with a different local time does not show a freshly-created QR as expired.
+        java.sql.Timestamp databaseNow = template.queryForObject("SELECT SYSUTCDATETIME()", java.sql.Timestamp.class);
         AuthenticatedUser user = currentUser();
         if (user == null || user.id() == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Please log in to view checkout details.");
@@ -420,7 +463,7 @@ public class MentorshipRequestService {
         long menteeId = user.id();
 
         String sql = """
-            SELECT r.id, r.mentee_id, r.mentor_id, r.service_id, r.status, r.learning_goals,
+            SELECT r.id, r.mentee_id, r.mentor_id, r.service_id, r.service_type, r.status, r.learning_goals,
                    r.offer_snapshot, r.funded_at, r.submitted_at,
                    mu.full_name AS mentor_name,
                    mp.job_title AS mentor_title,
@@ -433,7 +476,10 @@ public class MentorshipRequestService {
                    so.updated_at AS offering_updated_at,
                    latest_payment.payment_status,
                    latest_payment.payment_expires_at,
-                   latest_payment.payment_reference
+                   latest_payment.payment_reference,
+                   CASE WHEN latest_payment.payment_expires_at IS NULL THEN NULL
+                        ELSE DATEDIFF_BIG(SECOND, SYSUTCDATETIME(), latest_payment.payment_expires_at)
+                   END AS payment_remaining_seconds
             FROM dbo.mentorship_requests r
             JOIN dbo.users mu ON mu.id = r.mentor_id
             LEFT JOIN dbo.mentor_profiles mp ON mp.user_id = r.mentor_id
@@ -465,14 +511,20 @@ public class MentorshipRequestService {
         Integer duration = row.get("session_duration_minutes") != null ? ((Number) row.get("session_duration_minutes")).intValue() : 45;
         Integer calls = row.get("calls_per_period") != null ? ((Number) row.get("calls_per_period")).intValue() : 4;
         String packageName = row.get("package_name") != null ? (String) row.get("package_name") : "Monthly Mentorship";
+        Integer numberOfSessions = null;
+        Integer numberOfParticipants = null;
+        Instant sessionStartAt = null;
+        Instant sessionEndAt = null;
 
         String offerSnapshot = (String) row.get("offer_snapshot");
         boolean priceAvailable = false;
         if (offerSnapshot != null && !offerSnapshot.isBlank()) {
             try {
                 var json = objectMapper.readTree(offerSnapshot);
-                if (json.hasNonNull("price")) {
-                    BigDecimal snapshotPrice = new BigDecimal(json.get("price").asText());
+                var amountNode = "ONE_OFF".equals(row.get("service_type"))
+                        ? json.get("totalPrice") : json.get("price");
+                if (amountNode != null && !amountNode.isNull()) {
+                    BigDecimal snapshotPrice = new BigDecimal(amountNode.asText());
                     if (snapshotPrice.compareTo(BigDecimal.ZERO) > 0 && snapshotPrice.scale() <= 2) {
                         amount = snapshotPrice;
                         priceAvailable = true;
@@ -482,6 +534,12 @@ public class MentorshipRequestService {
                 if (json.has("sessionDurationMinutes")) duration = json.get("sessionDurationMinutes").asInt();
                 if (json.has("callsPerPeriod")) calls = json.get("callsPerPeriod").asInt();
                 if (json.has("name")) packageName = json.get("name").asText();
+                if ("ONE_OFF".equals(row.get("service_type"))) {
+                    numberOfSessions = json.path("numberOfSessions").asInt(1);
+                    numberOfParticipants = json.path("numberOfParticipants").asInt(1);
+                    sessionStartAt = instantFromSnapshot(json.path("startAt").asText(null));
+                    sessionEndAt = instantFromSnapshot(json.path("endAt").asText(null));
+                }
             } catch (Exception ignored) {}
         } else if (SepayPaymentService.isOfferingUnchangedSinceRequest(
                 (java.sql.Timestamp) row.get("submitted_at"),
@@ -516,6 +574,7 @@ public class MentorshipRequestService {
                 (String) row.get("mentor_title"),
                 null,
                 packageName,
+                (String) row.get("service_type"),
                 amount,
                 currency,
                 duration,
@@ -530,8 +589,25 @@ public class MentorshipRequestService {
                 qrCodeUrl,
                 bankName,
                 accountNumber,
-                accountHolder
+                accountHolder,
+                numberOfSessions,
+                numberOfParticipants,
+                sessionStartAt,
+                sessionEndAt,
+                toInstant(databaseNow),
+                row.get("payment_remaining_seconds") instanceof Number remaining
+                        ? Math.max(0L, remaining.longValue())
+                        : null
         );
+    }
+
+    private static Instant instantFromSnapshot(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return Instant.parse(value);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private String buildOfferSnapshot(Map<String, Object> offering) {
@@ -552,14 +628,27 @@ public class MentorshipRequestService {
         }
     }
 
-    private String buildOneOffSnapshot(Map<String, Object> offering) {
+    private String buildOneOffSnapshot(
+            Map<String, Object> offering,
+            CreateOneOffSessionRequest payload,
+            Map<String, Object> hold) {
         Map<String, Object> snapshot = new LinkedHashMap<>();
+        BigDecimal unitPrice = new BigDecimal(String.valueOf(offering.get("price")));
+        BigDecimal totalPrice = unitPrice
+                .multiply(BigDecimal.valueOf(payload.numberOfSessions()))
+                .multiply(BigDecimal.valueOf(payload.numberOfParticipants()));
         snapshot.put("serviceId", offering.get("id"));
         snapshot.put("serviceType", "ONE_OFF");
         snapshot.put("name", offering.get("name"));
-        snapshot.put("price", offering.get("price"));
+        snapshot.put("price", unitPrice);
         snapshot.put("currency", offering.get("currency"));
         snapshot.put("sessionDurationMinutes", offering.get("session_duration_minutes"));
+        snapshot.put("numberOfSessions", payload.numberOfSessions());
+        snapshot.put("numberOfParticipants", payload.numberOfParticipants());
+        snapshot.put("totalPrice", totalPrice);
+        snapshot.put("slotHoldId", payload.slotHoldId());
+        snapshot.put("startAt", ((java.sql.Timestamp) hold.get("start_at")).toInstant());
+        snapshot.put("endAt", ((java.sql.Timestamp) hold.get("end_at")).toInstant());
         try {
             return objectMapper.writeValueAsString(snapshot);
         } catch (Exception exception) {

@@ -12,6 +12,7 @@ import com.happyprogramming.dto.AuthenticatedUser;
 import com.happyprogramming.dto.SendWorkspaceMessageRequest;
 import com.happyprogramming.repository.MentorshipWorkspaceRepository;
 import com.happyprogramming.repository.MentorshipWorkspaceRepository.MessageRow;
+import com.happyprogramming.repository.MentorshipWorkspaceRepository.OneOffBookingRow;
 import com.happyprogramming.repository.MentorshipWorkspaceRepository.WorkspaceRow;
 import java.time.Instant;
 import java.util.List;
@@ -61,14 +62,42 @@ class MentorshipWorkspaceServiceTest {
 
     @Test
     void rejectsAnAuthenticatedNonMember() {
-        when(repository.findActiveById(30L)).thenReturn(Optional.of(workspace()));
+        when(repository.findAccessibleByConversationId(40L)).thenReturn(Optional.of(workspace()));
         var other = new AuthenticatedUser(99L, "Other", "other@example.com", "MENTEE");
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(other, null, List.of()));
 
-        ResponseStatusException error = assertThrows(ResponseStatusException.class, () -> service.get(30L));
+        ResponseStatusException error = assertThrows(ResponseStatusException.class, () -> service.get(40L));
 
         assertEquals(403, error.getStatusCode().value());
+        verify(repository, never()).findLatestMessages(40L, 100);
+    }
+
+    @Test
+    void rejectsMessageFromAnAuthenticatedNonMember() {
+        when(repository.findAccessibleByConversationId(40L)).thenReturn(Optional.of(workspace()));
+        var other = new AuthenticatedUser(99L, "Other", "other@example.com", "MENTEE");
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(other, null, List.of()));
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class, () -> service.send(40L,
+                new SendWorkspaceMessageRequest("client-2", "TEXT", "Hello", null)));
+
+        assertEquals(403, error.getStatusCode().value());
+        verify(repository, never()).insertMessage(eq(40L), eq(99L), anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void blocksWorkspaceUntilConversationIsProvisioned() {
+        WorkspaceRow pending = new WorkspaceRow(
+                40L, 30L, 5L, 20L, "Mentor", 10L, "Mentee", "Standard", "ACTIVE",
+                Instant.parse("2026-10-12T00:00:00Z"), Instant.parse("2026-11-12T00:00:00Z"),
+                4, 60, "Learn Spring Boot", "PENDING", true, 0, 0, null);
+        when(repository.findAccessibleByConversationId(40L)).thenReturn(Optional.of(pending));
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class, () -> service.get(40L));
+
+        assertEquals(409, error.getStatusCode().value());
         verify(repository, never()).findLatestMessages(40L, 100);
     }
 
@@ -76,10 +105,10 @@ class MentorshipWorkspaceServiceTest {
     void repeatedClientKeyReturnsExistingMessageWithoutAnotherInsert() {
         MessageRow existing = new MessageRow(7L, 10L, "Mentee", "TEXT", "Hello", null,
                 Instant.parse("2026-10-12T05:00:00Z"), "client-1", null, null, null, null);
-        when(repository.findActiveById(30L)).thenReturn(Optional.of(workspace()));
+        when(repository.findAccessibleByConversationId(40L)).thenReturn(Optional.of(workspace()));
         when(repository.findBySenderAndClientKey(10L, "client-1")).thenReturn(Optional.of(existing));
 
-        var result = service.send(30L,
+        var result = service.send(40L,
                 new SendWorkspaceMessageRequest("client-1", "TEXT", "Hello", null));
 
         assertEquals(7L, result.id());
@@ -92,12 +121,12 @@ class MentorshipWorkspaceServiceTest {
         MessageRow stored = new MessageRow(8L, 10L, "Mentee", "FILE", "lesson.pdf", null,
                 Instant.parse("2026-10-12T05:00:00Z"), "file-1", 50L,
                 "lesson.pdf", "application/pdf", 3L);
-        when(repository.findActiveById(30L)).thenReturn(Optional.of(workspace()));
+        when(repository.findAccessibleByConversationId(40L)).thenReturn(Optional.of(workspace()));
         when(repository.findBySenderAndClientKey(10L, "file-1")).thenReturn(Optional.empty());
         when(repository.insertFileMessage(eq(40L), eq(10L), eq("file-1"), eq("lesson.pdf"),
                 eq("application/pdf"), eq("pdf".getBytes()), anyString())).thenReturn(stored);
 
-        var result = service.upload(30L, "file-1", upload);
+        var result = service.upload(40L, "file-1", upload);
 
         assertEquals("FILE", result.messageType());
         assertEquals("lesson.pdf", result.fileName());
@@ -107,11 +136,11 @@ class MentorshipWorkspaceServiceTest {
     @Test
     void rejectsExecutableWorkspaceFile() {
         var upload = new MockMultipartFile("file", "run.exe", "application/x-msdownload", new byte[] {1});
-        when(repository.findActiveById(30L)).thenReturn(Optional.of(workspace()));
+        when(repository.findAccessibleByConversationId(40L)).thenReturn(Optional.of(workspace()));
         when(repository.findBySenderAndClientKey(10L, "file-1")).thenReturn(Optional.empty());
 
         ResponseStatusException error = assertThrows(ResponseStatusException.class,
-                () -> service.upload(30L, "file-1", upload));
+                () -> service.upload(40L, "file-1", upload));
 
         assertEquals(400, error.getStatusCode().value());
         verify(repository, never()).insertFileMessage(eq(40L), eq(10L), anyString(), anyString(),
@@ -120,20 +149,38 @@ class MentorshipWorkspaceServiceTest {
 
     @Test
     void marksOnlyTheCurrentMembersConversationAsRead() {
-        when(repository.findActiveById(30L)).thenReturn(Optional.of(workspace()));
+        when(repository.findAccessibleByConversationId(40L)).thenReturn(Optional.of(workspace()));
 
-        service.markRead(30L);
+        service.markRead(40L);
 
         verify(repository).markRead(40L, 10L, false);
     }
 
+    @Test
+    void returnsMonthlyAndOneOffEngagementsInsideOneConversationWorkspace() {
+        when(repository.findAccessibleByConversationId(40L)).thenReturn(Optional.of(workspace()));
+        when(repository.findLatestMessages(40L, 100)).thenReturn(List.of());
+        when(repository.findOneOffBookings(40L)).thenReturn(List.of(new OneOffBookingRow(
+                70L, "ONEOFF-125-1", 8L, "Work Review", "Review repository",
+                Instant.parse("2026-10-20T10:00:00Z"), Instant.parse("2026-10-20T10:30:00Z"),
+                new java.math.BigDecimal("180000"), "VND", "CONFIRMED", 2)));
+
+        var detail = service.get(40L);
+
+        assertEquals(40L, detail.workspaceId());
+        assertEquals(30L, detail.subscriptionId());
+        assertEquals(1, detail.oneOffSessions().size());
+        assertEquals("Work Review", detail.oneOffSessions().get(0).sessionName());
+    }
+
     private static WorkspaceRow workspace() {
         return new WorkspaceRow(
-                30L, 5L, 40L,
+                40L, 30L, 5L,
                 20L, "Mentor", 10L, "Mentee",
                 "Standard", "ACTIVE",
                 Instant.parse("2026-10-12T00:00:00Z"),
                 Instant.parse("2026-11-12T00:00:00Z"),
-                4, 60, "Learn Spring Boot", "APPROVED");
+                4, 60, "Learn Spring Boot", "APPROVED",
+                true, 1, 1, Instant.parse("2026-10-20T10:00:00Z"));
     }
 }

@@ -6,7 +6,7 @@ import { mentorDashboardService } from './mentorDashboardService.js';
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'VND',
-  maximumFractionDigits: 2,
+  maximumFractionDigits: 0,
 });
 
 export function formatVnd(value) {
@@ -43,6 +43,7 @@ export function summarizeLearningGoals(value) {
 }
 
 export function formatUtcDate(value) {
+  if (!value) return '—';
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? 'Time unavailable'
@@ -55,10 +56,10 @@ export function MentorDashboardPage() {
     <div>
       <p class="eyebrow mb-3">HAPPYPROGRAMMING MENTOR</p>
       <h1>Mentor dashboard</h1>
-      <p>Review your earnings, incoming requests, and mentorship updates.</p>
+      <p>Review your earnings, bookings, and mentorship updates.</p>
     </div>
     <div class="flex flex-wrap gap-3">
-      <a href="#/mentor/requests" class="btn btn-primary">View requests</a>
+      <a href="#/mentor/bookings" class="btn btn-primary">View bookings</a>
       <a href="#/mentor/profile" class="btn btn-outline">Edit mentor profile</a>
     </div>
   </div>
@@ -74,7 +75,7 @@ export function MentorDashboardPage() {
       <h2 id="dashboard-summary-title" class="sr-only">Summary</h2>
       <div id="dashboard-metrics" class="admin-stats"></div>
       <div class="mt-4 mb-6">
-        <a href="#/mentor/requests" class="btn btn-outline">Manage incoming requests →</a>
+        <a href="#/mentor/bookings" class="btn btn-outline">Manage bookings →</a>
       </div>
     </section>
 

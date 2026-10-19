@@ -26,10 +26,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * End-to-end coverage for the approval-first one-off session flow: a mentee requests a published
- * ONE_OFF offering (no payment), the mentor accepts/declines it exactly like a monthly request, and
- * the mentee receives one-off wording rather than checkout wording. Runs against the real schema so
- * the relaxed CK_requests_type constraint and the ONE_OFF insert path are exercised.
+ * End-to-end coverage for instant one-off checkout: an owned active slot hold creates an accepted,
+ * payment-required order without mentor review. Runs against the real schema so lifecycle
+ * constraints, immutable pricing and the ONE_OFF insert path are exercised.
  */
 @SpringBootTest
 @Transactional
@@ -45,6 +44,7 @@ class OneOffSessionRequestIntegrationTest {
     long mentee;
     String mentorSlug;
     long offeringId;
+    long holdId;
 
     private void login(long id, String name, String role) {
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
@@ -71,60 +71,51 @@ class OneOffSessionRequestIntegrationTest {
         String menteeEmail = UUID.randomUUID() + "@example.invalid";
         db.update("INSERT INTO dbo.users(email,full_name,role_code,status) VALUES (?,'One Off Mentee','MENTEE','ACTIVE')", menteeEmail);
         mentee = db.queryForObject("SELECT id FROM dbo.users WHERE email=?", Long.class, menteeEmail);
+        db.update("""
+                INSERT INTO dbo.slot_holds(mentor_id,mentee_id,service_id,service_type,start_at,end_at,expires_at,status)
+                VALUES (?, ?, ?, 'ONE_OFF', DATEADD(DAY,1,SYSUTCDATETIME()),
+                        DATEADD(MINUTE,120,DATEADD(DAY,1,SYSUTCDATETIME())),
+                        DATEADD(MINUTE,10,SYSUTCDATETIME()), 'HELD')
+                """, mentor, mentee, offeringId);
+        holdId = db.queryForObject(
+                "SELECT TOP 1 id FROM dbo.slot_holds WHERE mentee_id=? ORDER BY id DESC", Long.class, mentee);
     }
 
     @AfterEach
     void clear() { SecurityContextHolder.clearContext(); }
 
     private CreateOneOffSessionRequest payload(String agenda) {
-        return new CreateOneOffSessionRequest(mentorSlug, offeringId, agenda, "MID", "v1");
+        return new CreateOneOffSessionRequest(mentorSlug, offeringId, agenda, "MID", "v1", holdId, 2, 3);
     }
 
     @Test
-    void createOneOffInsertsAPendingRequestAndNotifiesBothParties() {
+    void createOneOffCreatesAnImmediatelyPayableOrder() {
         login(mentee, "One Off Mentee", "MENTEE");
 
         MentorshipRequestResponse response = requests.createOneOff(payload(AGENDA));
 
         assertNotNull(response.requestId());
-        assertEquals("PENDING", response.status());
-        assertFalse(response.paymentRequired());
+        assertEquals("ACCEPTED", response.status());
+        assertTrue(response.paymentRequired());
 
         String serviceType = db.queryForObject(
                 "SELECT service_type FROM dbo.mentorship_requests WHERE id=?", String.class, response.requestId());
         assertEquals("ONE_OFF", serviceType);
+        String snapshot = db.queryForObject(
+                "SELECT offer_snapshot FROM dbo.mentorship_requests WHERE id=?", String.class, response.requestId());
+        assertTrue(snapshot.contains("\"numberOfSessions\":2"), snapshot);
+        assertTrue(snapshot.contains("\"numberOfParticipants\":3"), snapshot);
+        assertTrue(snapshot.contains("\"totalPrice\":3000000"), snapshot);
         Integer fundedNull = db.queryForObject(
                 "SELECT COUNT(1) FROM dbo.mentorship_requests WHERE id=? AND funded_at IS NULL", Integer.class, response.requestId());
         assertEquals(1, fundedNull);
 
         Integer mentorNotice = db.queryForObject(
                 "SELECT COUNT(1) FROM dbo.notifications WHERE user_id=? AND type='MENTORSHIP_REQUEST_RECEIVED'", Integer.class, mentor);
-        assertEquals(1, mentorNotice);
+        assertEquals(0, mentorNotice);
         Integer menteeNotice = db.queryForObject(
                 "SELECT COUNT(1) FROM dbo.notifications WHERE user_id=? AND type='MENTORSHIP_REQUEST_SUBMITTED'", Integer.class, mentee);
         assertEquals(1, menteeNotice);
-    }
-
-    @Test
-    void mentorAcceptsAOneOffRequestWithoutPaymentAndMenteeGetsSessionCopy() {
-        login(mentee, "One Off Mentee", "MENTEE");
-        long requestId = requests.createOneOff(payload(AGENDA)).requestId();
-
-        login(mentor, "One Off Mentor", "MENTOR");
-        MentorRequestDecisionResponse decision =
-                dashboard.decideOnRequest(requestId, new MentorRequestDecisionRequest("ACCEPTED"));
-        assertEquals("ACCEPTED", decision.status());
-
-        Integer stillUnfunded = db.queryForObject(
-                "SELECT COUNT(1) FROM dbo.mentorship_requests WHERE id=? AND status='ACCEPTED' AND funded_at IS NULL",
-                Integer.class, requestId);
-        assertEquals(1, stillUnfunded);
-
-        String message = db.queryForObject(
-                "SELECT message FROM dbo.notifications WHERE user_id=? AND type='MENTORSHIP_REQUEST_ACCEPTED'",
-                String.class, mentee);
-        assertTrue(message.contains("arrange your session"), message);
-        assertFalse(message.toLowerCase().contains("payment"), message);
     }
 
     @Test
@@ -160,7 +151,8 @@ class OneOffSessionRequestIntegrationTest {
         login(mentee, "One Off Mentee", "MENTEE");
 
         ResponseStatusException error = assertThrows(ResponseStatusException.class,
-                () -> requests.createOneOff(new CreateOneOffSessionRequest(mentorSlug, 999_999_999L, AGENDA, "MID", "v1")));
+                () -> requests.createOneOff(new CreateOneOffSessionRequest(
+                        mentorSlug, 999_999_999L, AGENDA, "MID", "v1", holdId, 1, 1)));
         assertEquals(409, error.getStatusCode().value());
     }
 }

@@ -23,7 +23,10 @@ import java.nio.charset.StandardCharsets;
 import java.sql.PreparedStatement;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -32,6 +35,8 @@ import java.util.regex.Pattern;
 @Service
 public class SepayPaymentService {
     private static final Pattern CODE_PATTERN = Pattern.compile("HP\\d+(?:A\\d+)?", Pattern.CASE_INSENSITIVE);
+    private static final DateTimeFormatter SEPAY_TRANSACTION_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final ZoneId SEPAY_TIME_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper mapper;
@@ -95,10 +100,11 @@ public class SepayPaymentService {
         requireConfigured();
         long menteeId = currentMenteeId();
         JdbcTemplate db = db();
+        configureSqlServerSession(db);
         Map<String, Object> request = loadLockedRequest(db, requestId);
         requireOwnerAndPayable(request, menteeId, requestId);
 
-        Instant now = Instant.now();
+        Instant now = databaseNow(db);
         var active = db.query("""
                 SELECT TOP (1) id, merchant_reference, amount, currency, created_at, expires_at, status
                 FROM dbo.payments WITH (UPDLOCK, HOLDLOCK)
@@ -111,7 +117,7 @@ public class SepayPaymentService {
 
         if (!active.isEmpty()) {
             Map<String, Object> payment = active.get(0);
-            Instant expiresAt = ((Timestamp) payment.get("expiresAt")).toInstant();
+            Instant expiresAt = sqlUtcInstant((Timestamp) payment.get("expiresAt"));
             if (expiresAt.isAfter(now)) {
                 return buildCheckoutResponse(requestId, payment);
             }
@@ -119,7 +125,7 @@ public class SepayPaymentService {
                     UPDATE dbo.payments SET status='EXPIRED', failure_code='CHECKOUT_TIMEOUT',
                         failure_message=N'Payment attempt expired before completion.', updated_at=?
                     WHERE id=? AND status='PENDING'
-                    """, Timestamp.from(now), payment.get("id"));
+                    """, sqlUtcTimestamp(now), payment.get("id"));
         }
 
         String offerSnapshot = resolveOfferSnapshot(db, requestId, request);
@@ -137,7 +143,7 @@ public class SepayPaymentService {
                 : queryCommission;
 
         int attemptNo = db.queryForObject("SELECT ISNULL(MAX(attempt_no),0)+1 FROM dbo.payments WITH (UPDLOCK, HOLDLOCK) WHERE request_id=?", Integer.class, requestId);
-        Instant expiresAt = now.plusSeconds(15 * 60L);
+        Instant expiresAt = paymentExpiryFor(offerSnapshot, now, db);
         String reference = "HP" + requestId + "A" + attemptNo;
 
         KeyHolder keyHolder = new GeneratedKeyHolder();
@@ -153,9 +159,9 @@ public class SepayPaymentService {
             ps.setBigDecimal(4, amount);
             ps.setString(5, "VND");
             ps.setBigDecimal(6, commission);
-            ps.setTimestamp(7, Timestamp.from(expiresAt));
-            ps.setTimestamp(8, Timestamp.from(now));
-            ps.setTimestamp(9, Timestamp.from(now));
+            ps.setTimestamp(7, sqlUtcTimestamp(expiresAt));
+            ps.setTimestamp(8, sqlUtcTimestamp(now));
+            ps.setTimestamp(9, sqlUtcTimestamp(now));
             return ps;
         }, keyHolder);
 
@@ -169,8 +175,8 @@ public class SepayPaymentService {
                 "reference", reference,
                 "amount", amount,
                 "currency", "VND",
-                "createdAt", Timestamp.from(now),
-                "expiresAt", Timestamp.from(expiresAt)));
+                "createdAt", sqlUtcTimestamp(now),
+                "expiresAt", sqlUtcTimestamp(expiresAt)));
     }
 
     private CheckoutResponse buildCheckoutResponse(Long requestId, Map<String, Object> payment) {
@@ -178,7 +184,7 @@ public class SepayPaymentService {
         String reference = String.valueOf(payment.get("reference"));
         BigDecimal amount = (BigDecimal) payment.get("amount");
         String currency = String.valueOf(payment.get("currency"));
-        Instant expiresAt = ((Timestamp) payment.get("expiresAt")).toInstant();
+        Instant expiresAt = sqlUtcInstant((Timestamp) payment.get("expiresAt"));
         String qrUrl = buildQrUrl(amount, reference);
 
         return new CheckoutResponse(
@@ -225,6 +231,7 @@ public class SepayPaymentService {
         }
 
         JdbcTemplate db = db();
+        configureSqlServerSession(db);
         var requestIds = db.queryForList("SELECT request_id FROM dbo.payments WHERE merchant_reference=? AND gateway='SEPAY' AND currency='VND'", Long.class, reference);
         if (requestIds.isEmpty()) return new SepayWebhookResponse(false, "Order not found. Manual reconciliation is required.");
         Map<String, Object> request = loadLockedRequest(db, requestIds.get(0));
@@ -273,8 +280,14 @@ public class SepayPaymentService {
             return new SepayWebhookResponse(transactionId.equals(payment.get("transactionId")), "Payment already completed; reconcile any additional transfer.");
         }
 
-        Instant now = Instant.now();
-        if (!"PENDING".equals(payment.get("status")) || !((Timestamp) payment.get("expiresAt")).toInstant().isAfter(now)) {
+        Instant now = databaseNow(db);
+        Instant transferredAt = transferOccurredAt(payload, now);
+        Instant paymentCreatedAt = sqlUtcInstant((Timestamp) payment.get("createdAt"));
+        Instant paymentExpiresAt = sqlUtcInstant((Timestamp) payment.get("expiresAt"));
+        boolean transferWasInPaymentWindow = !transferredAt.isBefore(paymentCreatedAt.minusSeconds(60))
+                && !transferredAt.isAfter(paymentExpiresAt)
+                && !transferredAt.isAfter(now.plusSeconds(5 * 60L));
+        if (!"PENDING".equals(payment.get("status")) || !transferWasInPaymentWindow) {
             return new SepayWebhookResponse(false, "Payment attempt is expired or closed. Manual reconciliation is required.");
         }
 
@@ -282,20 +295,22 @@ public class SepayPaymentService {
             return new SepayWebhookResponse(false, "Application is not eligible for payment settlement.");
         }
 
-        Timestamp paidTimestamp = Timestamp.from(now);
-        Timestamp periodEnd = Timestamp.from(now.atZone(ZoneOffset.UTC).plusMonths(1).toInstant());
+        String offerSnapshot = (String) request.get("offerSnapshot");
+        OneOffSettlement oneOff = loadOneOffSettlement(db, request, offerSnapshot, transferredAt);
+        Timestamp paidTimestamp = sqlUtcTimestamp(transferredAt);
+        Timestamp periodEnd = sqlUtcTimestamp(transferredAt.atZone(ZoneOffset.UTC).plusMonths(1).toInstant());
 
         db.update("""
                 UPDATE dbo.payments SET status='SUCCEEDED', gateway='SEPAY', gateway_transaction_id=?, paid_at=?,
                     billing_period_start=?, billing_period_end=?, updated_at=?
                 WHERE id=?
-                """, transactionId, paidTimestamp, paidTimestamp, periodEnd, Timestamp.from(now), paymentId);
+                """, transactionId, paidTimestamp, paidTimestamp, periodEnd, sqlUtcTimestamp(now), paymentId);
 
         db.update("""
                 UPDATE dbo.payments SET status='CANCELLED', failure_code='OTHER_ATTEMPT_SUCCEEDED',
                     failure_message=N'Another payment attempt for this application completed.', updated_at=?
                 WHERE request_id=? AND id<>? AND status='PENDING'
-                """, Timestamp.from(now), requestId, paymentId);
+                """, sqlUtcTimestamp(now), requestId, paymentId);
 
         long menteeId = ((Number) request.get("menteeId")).longValue();
         long mentorId = ((Number) request.get("mentorId")).longValue();
@@ -307,46 +322,84 @@ public class SepayPaymentService {
                 """, paymentId, requiredAmount, "ESCROW-HOLD-" + paymentId, menteeId, paidTimestamp);
 
         db.update("UPDATE dbo.mentorship_requests SET funded_at=?, updated_at=? WHERE id=? AND status='ACCEPTED' AND funded_at IS NULL",
-                paidTimestamp, Timestamp.from(now), requestId);
+                paidTimestamp, sqlUtcTimestamp(now), requestId);
 
-        String offerSnapshot = (String) request.get("offerSnapshot");
-        KeyHolder subscriptionKey = new GeneratedKeyHolder();
-        db.update(connection -> {
-            PreparedStatement ps = connection.prepareStatement("""
-                    INSERT INTO dbo.subscriptions(request_id,service_id,mentor_id,mentee_id,agreed_price,currency,
-                        plan_snapshot,status,activated_at,trial_ends_at,current_period_start,current_period_end,
-                        next_billing_at,renewal_mode,cancel_at_period_end,created_at,updated_at)
-                    VALUES (?,?,?,?,?,'VND',?,'TRIALING',?,DATEADD(DAY,7,?),?,?,?,'MANUAL',0,?,?)
-                    """, new String[]{"id"});
-            ps.setLong(1, requestId);
-            ps.setLong(2, serviceId);
-            ps.setLong(3, mentorId);
-            ps.setLong(4, menteeId);
-            ps.setBigDecimal(5, requiredAmount);
-            ps.setString(6, offerSnapshot);
-            ps.setTimestamp(7, paidTimestamp);
-            ps.setTimestamp(8, paidTimestamp);
-            ps.setTimestamp(9, paidTimestamp);
-            ps.setTimestamp(10, periodEnd);
-            ps.setTimestamp(11, periodEnd);
-            ps.setTimestamp(12, Timestamp.from(now));
-            ps.setTimestamp(13, Timestamp.from(now));
-            return ps;
-        }, subscriptionKey);
+        if (oneOff != null) {
+            confirmOneOffBookings(db, requestId, menteeId, mentorId, serviceId,
+                    (String) request.get("learningGoals"), oneOff, transferredAt, now);
+        } else {
+            KeyHolder subscriptionKey = new GeneratedKeyHolder();
+            db.update(connection -> {
+                PreparedStatement ps = connection.prepareStatement("""
+                        INSERT INTO dbo.subscriptions(request_id,service_id,mentor_id,mentee_id,agreed_price,currency,
+                            plan_snapshot,status,activated_at,trial_ends_at,current_period_start,current_period_end,
+                            next_billing_at,renewal_mode,cancel_at_period_end,created_at,updated_at)
+                        VALUES (?,?,?,?,?,'VND',?,'TRIALING',?,DATEADD(DAY,7,?),?,?,?,'MANUAL',0,?,?)
+                        """, new String[]{"id"});
+                ps.setLong(1, requestId);
+                ps.setLong(2, serviceId);
+                ps.setLong(3, mentorId);
+                ps.setLong(4, menteeId);
+                ps.setBigDecimal(5, requiredAmount);
+                ps.setString(6, offerSnapshot);
+                ps.setTimestamp(7, paidTimestamp);
+                ps.setTimestamp(8, paidTimestamp);
+                ps.setTimestamp(9, paidTimestamp);
+                ps.setTimestamp(10, periodEnd);
+                ps.setTimestamp(11, periodEnd);
+                ps.setTimestamp(12, sqlUtcTimestamp(now));
+                ps.setTimestamp(13, sqlUtcTimestamp(now));
+                return ps;
+            }, subscriptionKey);
+
+        }
 
         db.update("""
-                IF NOT EXISTS (SELECT 1 FROM dbo.conversations WITH (UPDLOCK,HOLDLOCK) WHERE mentor_id=? AND mentee_id=?)
+                IF EXISTS (SELECT 1 FROM dbo.conversations WITH (UPDLOCK,HOLDLOCK) WHERE mentor_id=? AND mentee_id=?)
+                    UPDATE dbo.conversations SET inquiry_status='APPROVED', updated_at=?
+                    WHERE mentor_id=? AND mentee_id=?;
+                ELSE
                     INSERT INTO dbo.conversations(mentor_id,mentee_id,inquiry_status,created_at,updated_at)
-                    VALUES (?,?,'APPROVED',?,?)
-                """, mentorId, menteeId, mentorId, menteeId, Timestamp.from(now), Timestamp.from(now));
+                    VALUES (?,?,'APPROVED',?,?);
+                """, mentorId, menteeId, sqlUtcTimestamp(now), mentorId, menteeId,
+                mentorId, menteeId, sqlUtcTimestamp(now), sqlUtcTimestamp(now));
 
         insertEvent(db, paymentId, eventKey, payload, "PROCESSED");
 
-        return new SepayWebhookResponse(true, "Payment confirmed and mentorship activated.");
+        return new SepayWebhookResponse(true, oneOff == null
+                ? "Payment confirmed and mentorship activated."
+                : "Payment confirmed and one-off session booking created.");
     }
 
     private void requireConfigured() {
         if (!enabled || apiKey == null || apiKey.isBlank() || accountNumber == null || accountNumber.isBlank()) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "SePay requires private configuration.");
+    }
+
+    /**
+     * SQL Server requires these options when modifying tables that use filtered indexes.
+     * Set them inside each payment transaction as a safeguard for a connection pool that was
+     * created before configuration was reloaded.
+     */
+    private void configureSqlServerSession(JdbcTemplate db) {
+        db.execute("""
+                SET ANSI_NULLS ON;
+                SET QUOTED_IDENTIFIER ON;
+                SET ANSI_PADDING ON;
+                SET ANSI_WARNINGS ON;
+                SET ARITHABORT ON;
+                SET CONCAT_NULL_YIELDS_NULL ON;
+                SET NUMERIC_ROUNDABORT OFF;
+                """);
+    }
+
+    /** Use SQL Server's clock for payment and slot-hold comparisons. */
+    private Instant databaseNow(JdbcTemplate db) {
+        Timestamp timestamp = db.queryForObject("SELECT SYSUTCDATETIME()", Timestamp.class);
+        if (timestamp == null) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Payment timing could not be verified. Please try again.");
+        }
+        return sqlUtcInstant(timestamp);
     }
 
     private void verifyAuth(String authHeader) {
@@ -385,6 +438,19 @@ public class SepayPaymentService {
                 && transferAmount.compareTo(requiredAmount) == 0;
     }
 
+    static Instant transferOccurredAt(SepayWebhookPayload payload, Instant fallback) {
+        if (payload != null && payload.transactionDate() != null && !payload.transactionDate().isBlank()) {
+            try {
+                return LocalDateTime.parse(payload.transactionDate().trim(), SEPAY_TRANSACTION_TIME)
+                        .atZone(SEPAY_TIME_ZONE)
+                        .toInstant();
+            } catch (RuntimeException ignored) {
+                // Preserve fail-closed expiry behavior when a provider timestamp is malformed.
+            }
+        }
+        return fallback;
+    }
+
     private void insertEvent(JdbcTemplate db, Long paymentId, String key, Object payloadObj, String status) {
         String jsonPayload;
         try {
@@ -400,8 +466,8 @@ public class SepayPaymentService {
 
     private Map<String, Object> loadLockedRequest(JdbcTemplate db, Long requestId) {
         var rows = db.query("""
-                SELECT r.id, r.mentee_id, r.mentor_id, r.service_id, r.status, r.funded_at,
-                       r.offer_snapshot, r.submitted_at,
+                SELECT r.id, r.mentee_id, r.mentor_id, r.service_id, r.service_type, r.status, r.funded_at,
+                       r.offer_snapshot, r.learning_goals, r.submitted_at,
                        so.id AS linked_service_id, so.name AS linked_service_name,
                        so.price AS linked_service_price, so.currency AS linked_service_currency,
                        so.session_duration_minutes AS linked_session_duration_minutes,
@@ -417,9 +483,11 @@ public class SepayPaymentService {
             result.put("menteeId", rs.getLong("mentee_id"));
             result.put("mentorId", rs.getLong("mentor_id"));
             result.put("serviceId", rs.getLong("service_id"));
+            result.put("serviceType", rs.getString("service_type"));
             result.put("status", rs.getString("status"));
             result.put("fundedAt", rs.getTimestamp("funded_at"));
             result.put("offerSnapshot", rs.getString("offer_snapshot"));
+            result.put("learningGoals", rs.getString("learning_goals"));
             result.put("submittedAt", rs.getTimestamp("submitted_at"));
             result.put("linkedServiceId", rs.getObject("linked_service_id"));
             result.put("linkedServiceName", rs.getString("linked_service_name"));
@@ -509,11 +577,14 @@ public class SepayPaymentService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "This request has already been paid and activated.");
     }
 
-    private BigDecimal amountFromSnapshot(Object snapshotValue) {
+    BigDecimal amountFromSnapshot(Object snapshotValue) {
         if (!(snapshotValue instanceof String snapshot) || snapshot.isBlank())
             throw new ResponseStatusException(HttpStatus.CONFLICT, "The accepted package price is unavailable.");
         try {
-            BigDecimal amount = new BigDecimal(mapper.readTree(snapshot).path("price").asText());
+            var json = mapper.readTree(snapshot);
+            String amountText = "ONE_OFF".equals(json.path("serviceType").asText())
+                    ? json.path("totalPrice").asText() : json.path("price").asText();
+            BigDecimal amount = new BigDecimal(amountText);
             if (amount.compareTo(BigDecimal.ZERO) <= 0 || amount.scale() > 2)
                 throw new IllegalArgumentException("Invalid amount");
             return amount;
@@ -529,6 +600,148 @@ public class SepayPaymentService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "The accepted package currency is invalid.");
         }
     }
+
+    private Instant paymentExpiryFor(String snapshot, Instant now, JdbcTemplate db) {
+        try {
+            var json = mapper.readTree(snapshot);
+            if (!"ONE_OFF".equals(json.path("serviceType").asText())) return now.plusSeconds(15 * 60L);
+            long holdId = json.path("slotHoldId").asLong(0);
+            List<Timestamp> expiries = db.queryForList("""
+                    SELECT expires_at FROM dbo.slot_holds
+                    WHERE id=? AND status='HELD' AND expires_at>SYSUTCDATETIME()
+                    """, Timestamp.class, holdId);
+            if (expiries.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "The selected time is no longer reserved. Please choose another slot.");
+            }
+            return sqlUtcInstant(expiries.get(0));
+        } catch (ResponseStatusException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The one-off booking details are invalid.");
+        }
+    }
+
+    private OneOffSettlement loadOneOffSettlement(
+            JdbcTemplate db,
+            Map<String, Object> request,
+            String snapshot,
+            Instant transferredAt) {
+        if (!"ONE_OFF".equals(request.get("serviceType"))) return null;
+        try {
+            var json = mapper.readTree(snapshot);
+            long holdId = json.path("slotHoldId").asLong(0);
+            int sessions = json.path("numberOfSessions").asInt(0);
+            int participants = json.path("numberOfParticipants").asInt(0);
+            int durationMinutes = json.path("sessionDurationMinutes").asInt(0);
+            BigDecimal unitPrice = new BigDecimal(json.path("price").asText());
+            if (holdId <= 0 || sessions < 1 || sessions > 10 || participants < 1 || participants > 10
+                    || durationMinutes < 10 || unitPrice.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalArgumentException("Invalid one-off snapshot");
+            }
+            List<Map<String, Object>> holds = db.queryForList("""
+                    SELECT start_at, end_at FROM dbo.slot_holds WITH (UPDLOCK, HOLDLOCK)
+                    WHERE id=? AND mentee_id=? AND mentor_id=? AND service_id=? AND service_type='ONE_OFF'
+                      AND status='HELD' AND expires_at>?
+                    """, holdId, request.get("menteeId"), request.get("mentorId"), request.get("serviceId"), sqlUtcTimestamp(transferredAt));
+            if (holds.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "The selected time expired before payment was verified. Manual reconciliation is required.");
+            }
+            Instant startAt = sqlUtcInstant((Timestamp) holds.get(0).get("start_at"));
+            Instant endAt = sqlUtcInstant((Timestamp) holds.get(0).get("end_at"));
+            if (java.time.Duration.between(startAt, endAt).toMinutes() != (long) sessions * durationMinutes) {
+                throw new IllegalArgumentException("Held duration does not match the order");
+            }
+            return new OneOffSettlement(holdId, sessions, participants, durationMinutes, unitPrice, startAt, endAt);
+        } catch (ResponseStatusException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The one-off booking snapshot is invalid.");
+        }
+    }
+
+    private void confirmOneOffBookings(
+            JdbcTemplate db,
+            long requestId,
+            long menteeId,
+            long mentorId,
+            long serviceId,
+            String agenda,
+            OneOffSettlement order,
+            Instant transferredAt,
+            Instant now) {
+        Integer conflictingBookings = db.queryForObject("""
+                SELECT COUNT(1) FROM dbo.bookings WITH (UPDLOCK, HOLDLOCK)
+                WHERE mentor_id=? AND status NOT IN ('CANCELLED','NO_SHOW')
+                  AND start_at<? AND end_at>?
+                """, Integer.class, mentorId, sqlUtcTimestamp(order.endAt()), sqlUtcTimestamp(order.startAt()));
+        Integer conflictingHolds = db.queryForObject("""
+                SELECT COUNT(1) FROM dbo.slot_holds WITH (UPDLOCK, HOLDLOCK)
+                WHERE mentor_id=? AND id<>? AND status IN ('HELD','CONVERTED')
+                  AND (status='CONVERTED' OR expires_at>?)
+                  AND start_at<? AND end_at>?
+                """, Integer.class, mentorId, order.holdId(), sqlUtcTimestamp(now),
+                sqlUtcTimestamp(order.endAt()), sqlUtcTimestamp(order.startAt()));
+        if ((conflictingBookings != null && conflictingBookings > 0)
+                || (conflictingHolds != null && conflictingHolds > 0)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "The paid time now conflicts with another reservation. Manual reconciliation is required.");
+        }
+        int converted = db.update("""
+                UPDATE dbo.slot_holds SET status='CONVERTED', updated_at=?
+                WHERE id=? AND status='HELD' AND expires_at>?
+                """, sqlUtcTimestamp(now), order.holdId(), sqlUtcTimestamp(transferredAt));
+        if (converted != 1) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "The selected time could not be confirmed. Manual reconciliation is required.");
+        }
+        BigDecimal bookingPrice = order.unitPrice().multiply(BigDecimal.valueOf(order.participants()));
+        for (int index = 0; index < order.sessions(); index++) {
+            Instant startAt = order.startAt().plusSeconds((long) index * order.durationMinutes() * 60L);
+            Instant endAt = startAt.plusSeconds((long) order.durationMinutes() * 60L);
+            var terms = mapper.createObjectNode();
+            terms.put("requestId", requestId);
+            terms.put("numberOfParticipants", order.participants());
+            terms.put("sessionNumber", index + 1);
+            terms.put("sessionCount", order.sessions());
+            db.update("""
+                    INSERT INTO dbo.bookings(
+                        booking_code,service_id,mentor_id,mentee_id,service_type,subscription_id,slot_hold_id,
+                        booking_type,agenda,start_at,end_at,price_snapshot,currency,terms_snapshot,status,
+                        meeting_sync_status,created_at,updated_at)
+                    VALUES (?,?,?,?, 'ONE_OFF',NULL,?,'ONE_OFF',?,?,?,?, 'VND',?,'CONFIRMED','PENDING',?,?)
+                    """,
+                    "ONEOFF-" + requestId + "-" + (index + 1), serviceId, mentorId, menteeId,
+                    index == 0 ? order.holdId() : null,
+                    agenda,
+                    sqlUtcTimestamp(startAt), sqlUtcTimestamp(endAt), bookingPrice,
+                    terms.toString(), sqlUtcTimestamp(now), sqlUtcTimestamp(now));
+        }
+    }
+
+    /**
+     * SQL Server DATETIME2 has no timezone. The schema stores UTC wall-clock values, while
+     * Timestamp.toInstant()/Timestamp.from() apply the JVM timezone and shift them on hosts
+     * running in Asia/Saigon. Keep the conversion explicit at every JDBC boundary.
+     */
+    static Instant sqlUtcInstant(Timestamp timestamp) {
+        return timestamp.toLocalDateTime().toInstant(ZoneOffset.UTC);
+    }
+
+    static Timestamp sqlUtcTimestamp(Instant instant) {
+        return Timestamp.valueOf(LocalDateTime.ofInstant(instant, ZoneOffset.UTC));
+    }
+
+    private record OneOffSettlement(
+            long holdId,
+            int sessions,
+            int participants,
+            int durationMinutes,
+            BigDecimal unitPrice,
+            Instant startAt,
+            Instant endAt) {}
+
 
     private static long currentMenteeId() {
         var auth = SecurityContextHolder.getContext().getAuthentication();

@@ -33,13 +33,16 @@ class SepaySettlementIntegrationTest {
   db.update("INSERT INTO dbo.mentor_profiles(user_id,slug,headline,job_title,company_name,biography,years_experience,is_public) VALUES (?,?,'Test','Engineer','Test','Payment integration test mentor biography covering reliable backend programming and secure transaction processing.',5,0)",mentor,"pay-"+UUID.randomUUID());
   long offering=db.queryForObject("INSERT INTO dbo.service_offerings(mentor_id,name,service_type,description,price,session_duration_minutes,calls_per_period,trial_days,status) OUTPUT INSERTED.id VALUES (?,'Test','MONTHLY','Test package',1000000,60,4,7,'ACTIVE')",Long.class,mentor);
   String snapshot="{\"price\":\"1000000\",\"currency\":\"VND\",\"trialDays\":7}";
-  db.update("INSERT INTO dbo.mentorship_requests(mentee_id,mentor_id,service_id,experience_level,learning_goals,offer_snapshot,status,submitted_at,response_deadline,responded_at,terms_version,terms_accepted_at) VALUES (?,?,?,'BEGINNER',?,?,'PENDING',DATEADD(DAY,-10,SYSUTCDATETIME()),DATEADD(DAY,-8,SYSUTCDATETIME()),NULL,'test',SYSUTCDATETIME())",mentee,mentor,offering,"Learn reliable backend engineering and payment integration with tests.",snapshot);
+  db.update("INSERT INTO dbo.mentorship_requests(mentee_id,mentor_id,service_id,experience_level,learning_goals,offer_snapshot,status,submitted_at,response_deadline,responded_at,terms_version,terms_accepted_at) SELECT ?,?,?,'BEGINNER',?,?,'PENDING',t,DATEADD(HOUR,48,t),NULL,'test',SYSUTCDATETIME() FROM (SELECT DATEADD(DAY,-10,SYSUTCDATETIME()) AS t) AS s",mentee,mentor,offering,"Learn reliable backend engineering and payment integration with tests.",snapshot);
   request=db.queryForObject("SELECT id FROM dbo.mentorship_requests WHERE mentee_id=?",Long.class,mentee);
   db.update("UPDATE dbo.mentorship_requests SET status='ACCEPTED',responded_at=DATEADD(DAY,-9,SYSUTCDATETIME()) WHERE id=?",request);
   login(mentee,"MENTEE");checkout=sepay.initiate(request);
  }
  @AfterEach void clear(){SecurityContextHolder.clearContext();}
- SepayWebhookPayload event(long id,BigDecimal amount){return new SepayWebhookPayload(id,"TestBank","2026-10-12 12:00:00","123456789",checkout.paymentReference(),checkout.paymentReference(),"in",amount,amount,null,"REF"+id,"");}
+ SepayWebhookPayload event(long id,BigDecimal amount){
+  String nowStr = java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+  return new SepayWebhookPayload(id,"TestBank",nowStr,"123456789",checkout.paymentReference(),checkout.paymentReference(),"in",amount,amount,null,"REF"+id,"");
+ }
  void settle(){assertTrue(sepay.processWebhook(event(912341L,new BigDecimal("1000000")),"Apikey integration-only-key").success());}
  long count(String table){return db.queryForObject("SELECT COUNT(*) FROM dbo."+table+" WHERE "+(table.equals("subscriptions")?"request_id":"payment_id")+"=?",Long.class,table.equals("subscriptions")?request:checkout.paymentId());}
  @Test
@@ -85,7 +88,9 @@ class SepaySettlementIntegrationTest {
  @Test void rejectsAmountMismatchAndExpiredAttemptWithoutFinancialWrites(){
   assertFalse(sepay.processWebhook(event(912342L,new BigDecimal("999999")),"Apikey integration-only-key").success());
   db.update("UPDATE dbo.payments SET expires_at=DATEADD(MILLISECOND,1,created_at) WHERE id=?",checkout.paymentId());
-  assertFalse(sepay.processWebhook(event(912342L,new BigDecimal("1000000")),"Apikey integration-only-key").success());
+  String futureDate = java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).plusMinutes(5).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+  SepayWebhookPayload expiredEvent = new SepayWebhookPayload(912342L,"TestBank",futureDate,"123456789",checkout.paymentReference(),checkout.paymentReference(),"in",new BigDecimal("1000000"),new BigDecimal("1000000"),null,"REF912342","");
+  assertFalse(sepay.processWebhook(expiredEvent,"Apikey integration-only-key").success());
   assertEquals(0,count("payment_events"));assertEquals(0,count("escrow_ledger_entries"));assertEquals(0,count("subscriptions"));
  }
  void matureFixture(){

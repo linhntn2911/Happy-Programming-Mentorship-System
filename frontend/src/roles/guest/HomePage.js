@@ -262,7 +262,7 @@ export function HomePage(mentors = [], user = null, navigationMentors = mentors)
           </details>
           <details class="faq-item">
             <summary>Where do I meet and talk with my mentor?</summary>
-            <p>Once your service is activated, use your private workspace to exchange messages, code, and files. Scheduled calls use Google Meet. The join button becomes available 10 minutes before your session.</p>
+            <p>Once your service is activated, use your private workspace to exchange messages, code, files, and call details. Session times come from the mentor's availability in HappyProgramming, and the mentor shares any external meeting link in the workspace.</p>
           </details>
           <details class="faq-item">
             <summary>How are mentors approved?</summary>

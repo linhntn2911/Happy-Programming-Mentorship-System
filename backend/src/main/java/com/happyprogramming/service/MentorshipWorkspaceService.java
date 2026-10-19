@@ -6,8 +6,10 @@ import com.happyprogramming.dto.MentorshipWorkspaceSummary;
 import com.happyprogramming.dto.SendWorkspaceMessageRequest;
 import com.happyprogramming.dto.WorkspaceMessageDto;
 import com.happyprogramming.dto.WorkspaceFileDownload;
+import com.happyprogramming.dto.WorkspaceOneOffBookingDto;
 import com.happyprogramming.repository.MentorshipWorkspaceRepository;
 import com.happyprogramming.repository.MentorshipWorkspaceRepository.MessageRow;
+import com.happyprogramming.repository.MentorshipWorkspaceRepository.OneOffBookingRow;
 import com.happyprogramming.repository.MentorshipWorkspaceRepository.WorkspaceRow;
 import java.util.List;
 import java.util.HexFormat;
@@ -47,19 +49,21 @@ public class MentorshipWorkspaceService {
     }
 
     @Transactional(readOnly = true)
-    public MentorshipWorkspaceDetail get(long subscriptionId) {
+    public MentorshipWorkspaceDetail get(long conversationId) {
         long userId = currentUserId();
-        WorkspaceRow row = requireWorkspace(subscriptionId, userId);
+        WorkspaceRow row = requireWorkspace(conversationId, userId);
         requireConversation(row);
         List<WorkspaceMessageDto> messages = repository.findLatestMessages(row.conversationId(), MESSAGE_LIMIT)
                 .stream().map(message -> toMessage(message, userId)).toList();
-        return toDetail(row, userId, messages);
+        List<WorkspaceOneOffBookingDto> oneOffSessions = repository.findOneOffBookings(row.conversationId())
+                .stream().map(MentorshipWorkspaceService::toOneOffBooking).toList();
+        return toDetail(row, userId, oneOffSessions, messages);
     }
 
     @Transactional
-    public WorkspaceMessageDto send(long subscriptionId, SendWorkspaceMessageRequest request) {
+    public WorkspaceMessageDto send(long conversationId, SendWorkspaceMessageRequest request) {
         long userId = currentUserId();
-        WorkspaceRow row = requireWorkspace(subscriptionId, userId);
+        WorkspaceRow row = requireWorkspace(conversationId, userId);
         requireConversation(row);
 
         String body = request.body().trim();
@@ -85,9 +89,9 @@ public class MentorshipWorkspaceService {
     }
 
     @Transactional
-    public WorkspaceMessageDto upload(long subscriptionId, String clientMessageKey, MultipartFile file) {
+    public WorkspaceMessageDto upload(long conversationId, String clientMessageKey, MultipartFile file) {
         long userId = currentUserId();
-        WorkspaceRow row = requireWorkspace(subscriptionId, userId);
+        WorkspaceRow row = requireWorkspace(conversationId, userId);
         requireConversation(row);
         String clientKey = requiredClientKey(clientMessageKey);
 
@@ -116,9 +120,9 @@ public class MentorshipWorkspaceService {
     }
 
     @Transactional(readOnly = true)
-    public WorkspaceFileDownload download(long subscriptionId, long messageId) {
+    public WorkspaceFileDownload download(long conversationId, long messageId) {
         long userId = currentUserId();
-        WorkspaceRow row = requireWorkspace(subscriptionId, userId);
+        WorkspaceRow row = requireWorkspace(conversationId, userId);
         requireConversation(row);
         if (messageId <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid workspace file.");
@@ -129,18 +133,18 @@ public class MentorshipWorkspaceService {
     }
 
     @Transactional
-    public void markRead(long subscriptionId) {
+    public void markRead(long conversationId) {
         long userId = currentUserId();
-        WorkspaceRow row = requireWorkspace(subscriptionId, userId);
+        WorkspaceRow row = requireWorkspace(conversationId, userId);
         requireConversation(row);
         repository.markRead(row.conversationId(), userId, row.mentorId() == userId);
     }
 
-    private WorkspaceRow requireWorkspace(long subscriptionId, long userId) {
-        if (subscriptionId <= 0) {
+    private WorkspaceRow requireWorkspace(long conversationId, long userId) {
+        if (conversationId <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid mentorship workspace.");
         }
-        WorkspaceRow row = repository.findActiveById(subscriptionId)
+        WorkspaceRow row = repository.findAccessibleByConversationId(conversationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Active mentorship workspace not found."));
         if (row.mentorId() != userId && row.menteeId() != userId) {
@@ -151,7 +155,7 @@ public class MentorshipWorkspaceService {
     }
 
     private void requireConversation(WorkspaceRow row) {
-        if (row.conversationId() == null || !"APPROVED".equals(row.conversationStatus())) {
+        if (!"APPROVED".equals(row.conversationStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "The private conversation has not been provisioned yet.");
         }
@@ -160,21 +164,23 @@ public class MentorshipWorkspaceService {
     private MentorshipWorkspaceSummary toSummary(WorkspaceRow row, long userId) {
         boolean mentor = row.mentorId() == userId;
         return new MentorshipWorkspaceSummary(
-                row.subscriptionId(), row.requestId(), row.conversationId(),
+                row.conversationId(), row.conversationId(), row.subscriptionId(), row.requestId(),
                 mentor ? row.menteeId() : row.mentorId(),
                 mentor ? row.menteeName() : row.mentorName(),
                 mentor ? "MENTOR" : "MENTEE",
                 row.packageName(), row.subscriptionStatus(),
                 row.currentPeriodStart(), row.currentPeriodEnd(),
                 row.callsPerPeriod(), row.sessionDurationMinutes(),
-                row.conversationId() == null ? 0L : repository.countUnread(row.conversationId(), userId));
+                row.hasMonthly(), row.oneOffSessionCount(), row.upcomingSessionCount(), row.nextSessionAt(),
+                repository.countUnread(row.conversationId(), userId));
     }
 
     private static MentorshipWorkspaceDetail toDetail(
-            WorkspaceRow row, long userId, List<WorkspaceMessageDto> messages) {
+            WorkspaceRow row, long userId, List<WorkspaceOneOffBookingDto> oneOffSessions,
+            List<WorkspaceMessageDto> messages) {
         boolean mentor = row.mentorId() == userId;
         return new MentorshipWorkspaceDetail(
-                row.subscriptionId(), row.requestId(), row.conversationId(),
+                row.conversationId(), row.conversationId(), row.subscriptionId(), row.requestId(),
                 row.mentorId(), row.mentorName(), row.menteeId(), row.menteeName(),
                 mentor ? row.menteeId() : row.mentorId(),
                 mentor ? row.menteeName() : row.mentorName(),
@@ -182,7 +188,14 @@ public class MentorshipWorkspaceService {
                 row.packageName(), row.subscriptionStatus(),
                 row.currentPeriodStart(), row.currentPeriodEnd(),
                 row.callsPerPeriod(), row.sessionDurationMinutes(),
-                row.learningGoals(), messages);
+                row.learningGoals(), row.hasMonthly(), oneOffSessions, messages);
+    }
+
+    private static WorkspaceOneOffBookingDto toOneOffBooking(OneOffBookingRow row) {
+        return new WorkspaceOneOffBookingDto(
+                row.id(), row.bookingCode(), row.serviceId(), row.sessionName(), row.agenda(),
+                row.startAt(), row.endAt(), row.price(), row.currency(), row.status(), row.participants(),
+                row.reviewId(), row.reviewRating(), row.reviewComment());
     }
 
     private static WorkspaceMessageDto toMessage(MessageRow row, long userId) {

@@ -102,6 +102,11 @@ public class MentorController {
         return ApiResponse.ok(mentorDashboardService.getMyRequests());
     }
 
+    @GetMapping("/api/mentors/me/bookings")
+    public ApiResponse<List<MentorDashboardRequest>> getMyBookings() {
+        return ApiResponse.ok(mentorDashboardService.getMyBookings());
+    }
+
     @PutMapping("/api/mentors/me/requests/{requestId}/decision")
     public ApiResponse<MentorRequestDecisionResponse> decideOnRequest(
             @PathVariable @Positive long requestId,

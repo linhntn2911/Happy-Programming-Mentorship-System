@@ -37,4 +37,19 @@ export const mentorPlanService = {
     });
     return Array.isArray(saved) ? saved : [];
   },
+
+  async getMyOneOffSessions() {
+    const sessions = await apiClient('/api/mentors/me/one-off-sessions', { cache: 'no-store' });
+    return Array.isArray(sessions) ? sessions : [];
+  },
+
+  async saveOneOffSessions(sessions) {
+    const headers = await withCsrf();
+    const saved = await apiClient('/api/mentors/me/one-off-sessions', {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ sessions }),
+    });
+    return Array.isArray(saved) ? saved : [];
+  },
 };

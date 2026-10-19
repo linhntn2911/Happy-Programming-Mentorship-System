@@ -13,6 +13,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.server.ResponseStatusException;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -72,6 +73,38 @@ class MentorshipRequestCancellationTest {
 
         assertThrows(ResponseStatusException.class, () -> service.cancelMyRequest(99L));
 
+        verify(jdbcTemplate, never()).update(anyString(), any(Object[].class));
+    }
+
+    @Test
+    void refusesCancellationOwnedByAnotherMentee() {
+        Map<String, Object> request = new HashMap<>();
+        request.put("mentee_id", 55L);
+        request.put("mentor_id", 8L);
+        request.put("status", "PENDING");
+        request.put("funded_at", null);
+        when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(request));
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+                () -> service.cancelMyRequest(99L));
+
+        assertEquals(403, error.getStatusCode().value());
+        verify(jdbcTemplate, never()).update(anyString(), any(Object[].class));
+    }
+
+    @Test
+    void refusesCancellationAfterApplicationLeavesCancellableStates() {
+        Map<String, Object> request = new HashMap<>();
+        request.put("mentee_id", 5L);
+        request.put("mentor_id", 8L);
+        request.put("status", "DECLINED");
+        request.put("funded_at", null);
+        when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(request));
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+                () -> service.cancelMyRequest(99L));
+
+        assertEquals(409, error.getStatusCode().value());
         verify(jdbcTemplate, never()).update(anyString(), any(Object[].class));
     }
 }

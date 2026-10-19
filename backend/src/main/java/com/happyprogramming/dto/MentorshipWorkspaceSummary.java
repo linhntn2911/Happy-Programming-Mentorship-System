@@ -3,9 +3,10 @@ package com.happyprogramming.dto;
 import java.time.Instant;
 
 public record MentorshipWorkspaceSummary(
+        Long workspaceId,
+        Long conversationId,
         Long subscriptionId,
         Long requestId,
-        Long conversationId,
         Long partnerId,
         String partnerName,
         String currentUserRole,
@@ -15,5 +16,9 @@ public record MentorshipWorkspaceSummary(
         Instant currentPeriodEnd,
         Integer callsPerPeriod,
         Integer sessionDurationMinutes,
+        boolean hasMonthly,
+        int oneOffSessionCount,
+        int upcomingSessionCount,
+        Instant nextSessionAt,
         long unreadCount
 ) {}

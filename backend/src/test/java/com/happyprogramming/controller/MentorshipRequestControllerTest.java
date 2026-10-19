@@ -136,6 +136,7 @@ class MentorshipRequestControllerTest {
                         "Senior Backend Engineer",
                         null,
                         "Backend Mentorship",
+                        "MONTHLY",
                         new java.math.BigDecimal("2500000.00"),
                         "VND",
                         45,

@@ -181,17 +181,25 @@ class MentorDashboardServiceTest {
                 new RequestProjection(
                         87L, "Mentee Two", "Code review", "ONE_OFF", "Another saved application with a declined decision.",
                         "REJECTED", LocalDateTime.parse("2026-10-07T10:00:00"),
-                        LocalDateTime.parse("2026-10-09T10:00:00"))));
+                        LocalDateTime.parse("2026-10-09T10:00:00")),
+                new RequestProjection(
+                        86L, "Mentee Three", "Introductory Call", "ONE_OFF", "Discuss a focused topic.",
+                        "ACCEPTED", LocalDateTime.parse("2026-10-06T10:00:00"), null,
+                        "UPCOMING", LocalDateTime.parse("2026-10-20T10:00:00"),
+                        LocalDateTime.parse("2026-10-20T10:20:00"), 2, 3)));
 
         var requests = service.getMyRequests();
 
-        assertEquals(2, requests.size());
+        assertEquals(3, requests.size());
         assertEquals(88L, requests.get(0).id());
         assertEquals("ACCEPTED", requests.get(0).status());
         assertEquals("Lite", requests.get(0).packageName());
         assertEquals("MONTHLY", requests.get(0).serviceType());
         assertEquals("REJECTED", requests.get(1).status());
         assertEquals("ONE_OFF", requests.get(1).serviceType());
+        assertEquals("UPCOMING", requests.get(2).lifecycleStatus());
+        assertEquals(2, requests.get(2).numberOfSessions());
+        assertEquals(3, requests.get(2).numberOfParticipants());
         verify(dashboardRepository).findRequestsForMentor(42L);
     }
 
@@ -275,16 +283,33 @@ class MentorDashboardServiceTest {
             String learningGoals,
             String status,
             LocalDateTime submittedAt,
-            LocalDateTime responseDeadline)
+            LocalDateTime responseDeadline,
+            String lifecycleStatus,
+            LocalDateTime startAt,
+            LocalDateTime endAt,
+            Integer numberOfSessions,
+            Integer numberOfParticipants)
             implements MentorDashboardRequestProjection {
+        private RequestProjection(
+                Long id, String menteeName, String packageName, String serviceType,
+                String learningGoals, String status, LocalDateTime submittedAt,
+                LocalDateTime responseDeadline) {
+            this(id, menteeName, packageName, serviceType, learningGoals, status,
+                    submittedAt, responseDeadline, status, null, null, null, null);
+        }
         @Override public Long getId() { return id; }
         @Override public String getMenteeName() { return menteeName; }
         @Override public String getPackageName() { return packageName; }
         @Override public String getServiceType() { return serviceType; }
         @Override public String getLearningGoals() { return learningGoals; }
         @Override public String getStatus() { return status; }
+        @Override public String getLifecycleStatus() { return lifecycleStatus; }
         @Override public LocalDateTime getSubmittedAt() { return submittedAt; }
         @Override public LocalDateTime getResponseDeadline() { return responseDeadline; }
+        @Override public LocalDateTime getStartAt() { return startAt; }
+        @Override public LocalDateTime getEndAt() { return endAt; }
+        @Override public Integer getNumberOfSessions() { return numberOfSessions; }
+        @Override public Integer getNumberOfParticipants() { return numberOfParticipants; }
     }
 
     private record DecisionProjection(Long id, String status, LocalDateTime respondedAt)

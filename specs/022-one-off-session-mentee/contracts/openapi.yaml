@@ -27,6 +27,73 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Offering'
+
+  /api/mentors/{identifier}/availability:
+    get:
+      summary: Generate candidate one-off session slots
+      parameters:
+        - in: path
+          name: identifier
+          required: true
+          schema: { type: string }
+        - in: query
+          name: serviceOfferingId
+          required: true
+          schema: { type: integer, format: int64 }
+        - in: query
+          name: from
+          required: false
+          schema: { type: string, format: date-time }
+        - in: query
+          name: to
+          required: false
+          schema: { type: string, format: date-time }
+      responses:
+        '200': { description: Candidate slots in 10-minute start intervals }
+        '409': { description: Offering is inactive or shorter than 10 minutes }
+
+  /api/slot-holds:
+    post:
+      summary: Temporarily reserve a selected one-off start time
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mentorSlug, serviceOfferingId, startAt, numberOfSessions]
+              properties:
+                mentorSlug: { type: string }
+                serviceOfferingId: { type: integer, format: int64 }
+                startAt: { type: string, format: date-time }
+                numberOfSessions: { type: integer, minimum: 1, maximum: 10 }
+      responses:
+        '201': { description: Ten-minute hold created for the complete consecutive session duration }
+        '409': { description: Time no longer fits or overlaps another active hold }
+
+  /api/one-off-requests:
+    post:
+      summary: Create an immediately payable one-off order from an owned active hold
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mentorSlug, serviceOfferingId, slotHoldId, agenda, experienceLevel, termsVersion, numberOfSessions, numberOfParticipants]
+              properties:
+                mentorSlug: { type: string }
+                serviceOfferingId: { type: integer, format: int64 }
+                slotHoldId: { type: integer, format: int64 }
+                agenda: { type: string, minLength: 50, maxLength: 4000 }
+                experienceLevel: { type: string, enum: [BEGINNER, JUNIOR, MID, SENIOR] }
+                termsVersion: { type: string }
+                numberOfSessions: { type: integer, minimum: 1, maximum: 10 }
+                numberOfParticipants: { type: integer, minimum: 1, maximum: 10 }
+      responses:
+        '201': { description: Accepted payment-required order; client may open checkout immediately }
+        '409': { description: Hold expired, does not belong to the Mentee, or no longer matches the offering and quantities }
+
 components:
   schemas:
     Offering:

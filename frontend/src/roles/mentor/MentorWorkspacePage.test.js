@@ -22,13 +22,23 @@ test('all mentor workspace routes share the operational shell and select their o
   }
 });
 
-test('availability module keeps an honest not-ready state', () => {
+test('availability module renders the open-slot manager', () => {
   const availability = MentorWorkspacePage('availability');
 
   assert.match(availability, /Availability schedule/);
-  assert.match(availability, /Availability scheduling is not available yet/);
+  assert.match(availability, /id="availability-form"/);
+  assert.match(availability, /id="availability-date"/);
+  assert.match(availability, /id="availability-start"/);
+  assert.match(availability, /id="availability-end"/);
+  assert.match(availability, /id="availability-reason"/);
+  assert.match(availability, /id="availability-list"/);
+  assert.match(availability, /id="availability-loading"/);
+  assert.match(availability, /id="availability-empty"/);
+  assert.match(availability, /id="availability-error"/);
+  assert.match(availability, /id="availability-toast"/);
   assert.match(availability, /aria-current="page"/);
   assert.doesNotMatch(availability, /mentor-packages-form/);
+  assert.doesNotMatch(availability, /not available yet/);
 });
 
 test('packages module renders one card per tier with enable toggles', () => {
@@ -44,4 +54,15 @@ test('packages module renders one card per tier with enable toggles', () => {
   assert.match(packages, /id="tier-standard-price"/);
   assert.match(packages, /id="tier-pro-description"/);
   assert.doesNotMatch(packages, /Package management is not available yet/);
+});
+
+test('packages module includes mentor-managed one-off session options', () => {
+  const packages = MentorWorkspacePage('packages');
+
+  assert.match(packages, /ONE-OFF SESSIONS/);
+  assert.match(packages, /id="one-off-add"/);
+  assert.match(packages, /id="one-off-form"/);
+  assert.match(packages, /id="one-off-list"/);
+  assert.match(packages, /Mentees will only see active options/);
+  assert.match(packages, /Save one-off sessions/);
 });

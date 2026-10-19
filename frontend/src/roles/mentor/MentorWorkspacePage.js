@@ -1,6 +1,8 @@
 import { MentorLayout, bindMentorLayout } from './MentorLayout.js';
 import { authService } from '../auth/authService.js';
 import { mentorPlanService } from './mentorPlanService.js';
+import { mentorAvailabilityService } from './mentorAvailabilityService.js';
+import { escapeHtml } from '../../shared/html.js';
 
 const fieldClass = 'w-full rounded-lg border border-line bg-white px-3.5 py-3 text-sm text-ink focus:border-brand focus:outline-none';
 
@@ -12,12 +14,65 @@ const PLAN_TIERS = [
 
 function availabilityPanel() {
   return `
-    <div class="admin-panel-heading"><div><p class="eyebrow mb-2">SCHEDULE MANAGEMENT</p><h2 id="mentor-module-title">Availability schedule</h2><p>Plan when mentees can request sessions with you.</p></div></div>
-    <div class="admin-panel-body"><div class="admin-notice" role="status">
-      <p class="font-semibold">Availability scheduling is not available yet. No schedule has been created or changed.</p>
-      <p class="mt-2">Recurring availability, timezone handling, and date exceptions will be added in a future release.</p>
+    <div class="admin-panel-heading">
+      <div>
+        <p class="eyebrow mb-2">SCHEDULE MANAGEMENT</p>
+        <h2 id="mentor-module-title">Availability schedule</h2>
+        <p>Publish the time windows when mentees can book a one-off session with you. Times are entered and shown in your local timezone.</p>
+      </div>
     </div>
-    <a href="#/mentor/dashboard" class="btn btn-outline mt-6">Back to mentor dashboard</a></div>`;
+    <div class="admin-panel-body">
+      <div id="availability-toast" class="mb-5 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800" role="status" aria-live="polite" hidden></div>
+      <div id="availability-error" class="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert" hidden></div>
+
+      <form id="availability-form" class="rounded-2xl border border-line bg-cream p-5" novalidate>
+        <p class="eyebrow mb-3">ADD AN OPEN SLOT</p>
+        <div class="grid gap-4 sm:grid-cols-3">
+          <div class="space-y-1.5">
+            <label for="availability-date" class="block text-xs font-semibold text-ink">Date <span aria-hidden="true" class="text-red-600">*</span></label>
+            <input id="availability-date" name="date" type="date" class="${fieldClass}" required>
+          </div>
+          <div class="space-y-1.5">
+            <label for="availability-start" class="block text-xs font-semibold text-ink">Start time <span aria-hidden="true" class="text-red-600">*</span></label>
+            <input id="availability-start" name="start" type="time" class="${fieldClass}" required>
+          </div>
+          <div class="space-y-1.5">
+            <label for="availability-end" class="block text-xs font-semibold text-ink">End time <span aria-hidden="true" class="text-red-600">*</span></label>
+            <input id="availability-end" name="end" type="time" class="${fieldClass}" required>
+          </div>
+        </div>
+        <div class="mt-4 space-y-1.5">
+          <label for="availability-reason" class="block text-xs font-semibold text-ink">Note (optional)</label>
+          <input id="availability-reason" name="reason" type="text" maxlength="500" class="${fieldClass}" placeholder="e.g. Open for code review sessions">
+        </div>
+        <div class="mt-5 flex justify-end">
+          <button id="availability-submit" type="submit" class="btn btn-primary">Add open slot</button>
+        </div>
+      </form>
+
+      <div class="mt-8">
+        <p class="eyebrow mb-3">YOUR UPCOMING OPEN SLOTS</p>
+        <div id="availability-loading" class="rounded-xl border border-line bg-cream p-4 text-sm text-muted" role="status">Loading your availability…</div>
+        <div id="availability-empty" class="rounded-xl border border-dashed border-line bg-cream p-6 text-center text-sm text-muted" hidden>No upcoming open slots yet. Add one above so mentees can book a session with you.</div>
+        <ul id="availability-list" class="space-y-3" hidden></ul>
+      </div>
+    </div>`;
+}
+
+function slotCard(slot) {
+  const start = new Date(slot.startAt);
+  const end = new Date(slot.endAt);
+  const dateLabel = start.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+  const timeLabel = `${start.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} – ${end.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`;
+  const note = slot.reason ? ` · ${escapeHtml(slot.reason)}` : '';
+  return `
+    <li class="flex items-center justify-between gap-4 rounded-xl border border-line bg-white p-4" data-slot-id="${escapeHtml(slot.id)}">
+      <div>
+        <p class="text-sm font-semibold text-ink">${escapeHtml(dateLabel)}</p>
+        <p class="mt-0.5 text-xs text-muted">${escapeHtml(timeLabel)}${note}</p>
+      </div>
+      <button type="button" class="btn btn-outline btn-sm" data-delete-slot="${escapeHtml(slot.id)}">Remove</button>
+    </li>`;
 }
 
 function tierCard({ tier, label, blurb }) {
@@ -55,6 +110,45 @@ function tierCard({ tier, label, blurb }) {
     </article>`;
 }
 
+function oneOffSessionCard(session, index) {
+  const key = session.id || `new-${index}`;
+  const active = session.status !== 'INACTIVE';
+  return `
+    <article class="one-off-session-card rounded-2xl border border-line bg-white p-5" data-one-off-index="${index}">
+      <div class="flex items-start justify-between gap-3">
+        <div><p class="eyebrow mb-1">ONE-OFF SESSION</p><p class="text-xs text-muted">Mentee-facing session option</p></div>
+        <label class="flex items-center gap-2 text-xs font-semibold text-ink" for="one-off-${key}-active">
+          <input id="one-off-${key}-active" type="checkbox" data-one-off-field="active" class="h-4 w-4 accent-brand" ${active ? 'checked' : ''}>
+          Active
+        </label>
+      </div>
+      <div class="mt-4 grid gap-4 sm:grid-cols-[minmax(0,1fr)_150px_150px]">
+        <div class="space-y-1.5"><label class="block text-xs font-semibold text-ink" for="one-off-${key}-name">Session name</label><input id="one-off-${key}-name" data-one-off-field="name" class="${fieldClass}" maxlength="200" value="${escapeHtml(session.name || '')}" placeholder="e.g. Work review"></div>
+        <div class="space-y-1.5"><label class="block text-xs font-semibold text-ink" for="one-off-${key}-duration">Minutes</label><input id="one-off-${key}-duration" data-one-off-field="duration" class="${fieldClass}" type="number" min="10" max="1440" value="${session.sessionDurationMinutes || ''}" placeholder="30"></div>
+        <div class="space-y-1.5"><label class="block text-xs font-semibold text-ink" for="one-off-${key}-price">Price (VND)</label><input id="one-off-${key}-price" data-one-off-field="price" class="${fieldClass}" type="number" min="0" step="1000" value="${session.price ?? ''}" placeholder="99000"></div>
+      </div>
+      <div class="mt-4 space-y-1.5"><label class="block text-xs font-semibold text-ink" for="one-off-${key}-description">Description</label><textarea id="one-off-${key}-description" data-one-off-field="description" class="${fieldClass} resize-y" rows="3" maxlength="4000" placeholder="What will this session help the mentee with?">${escapeHtml(session.description || '')}</textarea></div>
+      <input type="hidden" data-one-off-field="id" value="${session.id || ''}">
+    </article>`;
+}
+
+function oneOffSessionsPanel() {
+  return `
+    <div class="mt-8 border-t border-line pt-8">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div><p class="eyebrow mb-2">ONE-OFF SESSIONS</p><h2>Session options</h2><p class="mt-1 max-w-2xl text-sm text-muted">Create focused sessions such as Introductory Call, Work Review, Career Strategy or Mock Interview. Mentees will only see active options.</p></div>
+        <button id="one-off-add" type="button" class="btn btn-outline">Add session</button>
+      </div>
+      <div id="one-off-error" class="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert" hidden></div>
+      <p id="one-off-save-status" class="mt-4 text-sm font-medium text-brand" role="status" aria-live="polite"></p>
+      <form id="one-off-form" class="mt-5 space-y-4" hidden novalidate>
+        <div id="one-off-list" class="space-y-4"></div>
+        <div class="flex justify-end"><button id="one-off-save" type="submit" class="btn btn-primary">Save one-off sessions</button></div>
+      </form>
+      <div id="one-off-loading" class="mt-5 rounded-xl border border-line bg-cream p-4 text-sm text-muted" role="status">Loading one-off sessions…</div>
+    </div>`;
+}
+
 function packagesPanel() {
   const cards = PLAN_TIERS.map(tierCard).join('');
   return `
@@ -78,6 +172,7 @@ function packagesPanel() {
           <button id="packages-save" type="submit" class="btn btn-primary">Save packages</button>
         </div>
       </form>
+      ${oneOffSessionsPanel()}
     </div>`;
 }
 
@@ -225,6 +320,174 @@ function initializeMentorPackages(root) {
   retry.addEventListener('click', () => void load());
   form.addEventListener('submit', handleSubmit);
   void load();
+  initializeOneOffSessions(root);
+}
+
+function initializeOneOffSessions(root) {
+  const form = root.querySelector('#one-off-form');
+  const list = root.querySelector('#one-off-list');
+  const loading = root.querySelector('#one-off-loading');
+  const error = root.querySelector('#one-off-error');
+  const status = root.querySelector('#one-off-save-status');
+  const add = root.querySelector('#one-off-add');
+  const save = root.querySelector('#one-off-save');
+  if (!form || !list) return;
+  let sessions = [];
+
+  const showError = message => { error.textContent = message; error.hidden = false; status.textContent = ''; };
+  const render = () => {
+    list.innerHTML = sessions.length
+      ? sessions.map(oneOffSessionCard).join('')
+      : '<div class="rounded-xl border border-dashed border-line bg-cream p-6 text-center text-sm text-muted">No one-off sessions yet. Add your first session option.</div>';
+  };
+  const load = async () => {
+    loading.hidden = false; form.hidden = true; error.hidden = true; status.textContent = '';
+    try { sessions = await mentorPlanService.getMyOneOffSessions(); render(); form.hidden = false; }
+    catch (loadError) { showError(loadError.message || 'Unable to load one-off sessions.'); }
+    finally { loading.hidden = true; }
+  };
+  add.addEventListener('click', () => {
+    sessions = [...sessions, { id: null, name: '', description: '', price: '', sessionDurationMinutes: '', status: 'ACTIVE' }];
+    render(); form.hidden = false;
+    list.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    list.lastElementChild?.querySelector('[data-one-off-field="name"]')?.focus();
+  });
+  form.addEventListener('submit', async event => {
+    event.preventDefault(); error.hidden = true; status.textContent = '';
+    const payload = [...list.querySelectorAll('[data-one-off-index]')].map(card => {
+      const value = field => card.querySelector(`[data-one-off-field="${field}"]`)?.value.trim() || '';
+      return { id: value('id') ? Number(value('id')) : null, name: value('name'), description: value('description'), price: Number(value('price')), sessionDurationMinutes: Number(value('duration')), status: card.querySelector('[data-one-off-field="active"]')?.checked ? 'ACTIVE' : 'INACTIVE' };
+    });
+    if (payload.some(item => !item.name || !item.description || !Number.isFinite(item.price) || item.price < 0 || !Number.isInteger(item.sessionDurationMinutes) || item.sessionDurationMinutes < 10)) {
+      showError('Complete the name, description, price and duration for every session.'); return;
+    }
+    save.disabled = true; save.textContent = 'Saving…';
+    try { sessions = await mentorPlanService.saveOneOffSessions(payload); render(); status.textContent = 'One-off sessions saved.'; }
+    catch (saveError) { showError(saveError.message || 'Unable to save one-off sessions.'); }
+    finally { save.disabled = false; save.textContent = 'Save one-off sessions'; }
+  });
+  void load();
+}
+
+function initializeMentorAvailability(root) {
+  const form = root.querySelector('#availability-form');
+  if (!form) return;
+  const loading = root.querySelector('#availability-loading');
+  const empty = root.querySelector('#availability-empty');
+  const list = root.querySelector('#availability-list');
+  const error = root.querySelector('#availability-error');
+  const toast = root.querySelector('#availability-toast');
+  const submit = root.querySelector('#availability-submit');
+  const dateInput = root.querySelector('#availability-date');
+  const startInput = root.querySelector('#availability-start');
+  const endInput = root.querySelector('#availability-end');
+  const reasonInput = root.querySelector('#availability-reason');
+
+  let slots = [];
+
+  function showError(message) {
+    toast.hidden = true;
+    error.textContent = message;
+    error.hidden = false;
+  }
+  function showToast(message) {
+    error.hidden = true;
+    toast.textContent = message;
+    toast.hidden = false;
+  }
+  function clearMessages() {
+    error.hidden = true;
+    toast.hidden = true;
+  }
+
+  function render() {
+    if (slots.length === 0) {
+      list.innerHTML = '';
+      list.hidden = true;
+      empty.hidden = false;
+      return;
+    }
+    empty.hidden = true;
+    list.innerHTML = slots.map(slotCard).join('');
+    list.hidden = false;
+  }
+
+  async function load() {
+    loading.hidden = false;
+    empty.hidden = true;
+    list.hidden = true;
+    try {
+      slots = await mentorAvailabilityService.getMyAvailability();
+      render();
+    } catch (loadError) {
+      slots = [];
+      list.innerHTML = '';
+      empty.hidden = true;
+      showError(loadError.message || 'Unable to load your availability. Please try again.');
+    } finally {
+      loading.hidden = true;
+    }
+  }
+
+  function toInstant(date, time) {
+    const parsed = new Date(`${date}T${time}:00`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    clearMessages();
+    const date = dateInput.value;
+    const start = startInput.value;
+    const end = endInput.value;
+    if (!date || !start || !end) {
+      showError('Choose a date, a start time and an end time.');
+      return;
+    }
+    const startAt = toInstant(date, start);
+    const endAt = toInstant(date, end);
+    if (!startAt || !endAt) {
+      showError('Enter a valid date and time.');
+      return;
+    }
+    if (endAt <= startAt) {
+      showError('The slot must end after it starts.');
+      return;
+    }
+
+    submit.disabled = true;
+    submit.textContent = 'Adding…';
+    try {
+      await mentorAvailabilityService.createSlot({ startAt, endAt, reason: reasonInput.value.trim() });
+      form.reset();
+      await load();
+      showToast('Open slot published.');
+    } catch (saveError) {
+      showError(saveError.message || 'Unable to add the slot. Please try again.');
+    } finally {
+      submit.disabled = false;
+      submit.textContent = 'Add open slot';
+    }
+  }
+
+  async function handleDelete(slotId) {
+    clearMessages();
+    try {
+      await mentorAvailabilityService.deleteSlot(slotId);
+      await load();
+      showToast('Open slot removed.');
+    } catch (deleteError) {
+      showError(deleteError.message || 'Unable to remove the slot. Please try again.');
+    }
+  }
+
+  list.addEventListener('click', event => {
+    const button = event.target.closest('[data-delete-slot]');
+    if (!button) return;
+    void handleDelete(button.getAttribute('data-delete-slot'));
+  });
+  form.addEventListener('submit', handleSubmit);
+  void load();
 }
 
 export function mountMentorWorkspacePage(root, section) {
@@ -232,5 +495,6 @@ export function mountMentorWorkspacePage(root, section) {
   root.innerHTML = MentorWorkspacePage(section);
   const unbindLayout = bindMentorLayout(root);
   if (section === 'packages') initializeMentorPackages(root);
+  if (section === 'availability') initializeMentorAvailability(root);
   return unbindLayout;
 }

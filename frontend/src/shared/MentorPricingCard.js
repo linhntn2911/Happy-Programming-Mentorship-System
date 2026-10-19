@@ -140,6 +140,41 @@ export function planToTier(plan) {
   };
 }
 
+function oneOffOfferingData(offerings) {
+  return (Array.isArray(offerings) ? offerings : []).filter(item => item?.serviceType === 'ONE_OFF' && item.status !== 'INACTIVE').map(item => ({
+    id: item.id,
+    name: item.name || 'One-off session',
+    description: item.description || 'A focused conversation with your mentor.',
+    price: formatPrice(item.price),
+    minutes: Number(item.sessionDurationMinutes) || 0,
+  }));
+}
+
+function oneOffSelector(offerings, mentorName = 'your mentor') {
+  if (!offerings.length) {
+    return '<p class="rounded-xl border border-line bg-white p-4 text-sm text-muted">No one-off sessions are available yet.</p>';
+  }
+  return `<div class="space-y-0 rounded-xl border border-brand/40 bg-white" role="radiogroup" aria-label="One-off session type">
+    ${offerings.map((item, index) => `<label class="flex cursor-pointer items-start gap-3 border-b border-brand/30 px-4 py-3 last:border-b-0 hover:bg-cream">
+      <input type="radio" name="one-off-session" value="${escapeHtml(item.id)}" data-oneoff-option class="mt-1 h-4 w-4 accent-brand" ${index === 0 ? 'checked' : ''}>
+      <span class="min-w-0 text-left"><span class="block text-xs font-semibold text-ink">${escapeHtml(item.name)}</span><span class="mt-0.5 block text-[11px] text-muted">${escapeHtml(item.minutes)} minutes, ${escapeHtml(item.price)} ₫ per session</span></span>
+    </label>`).join('')}
+  </div>`;
+}
+
+function oneOffModal(offerings, mentorName, href) {
+  return `<div class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 p-4" data-oneoff-modal role="dialog" aria-modal="true" aria-label="One-off sessions with ${escapeHtml(mentorName)}">
+    <div class="relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-cream p-6 shadow-2xl sm:p-8">
+      <button type="button" data-oneoff-modal-close class="absolute right-4 top-3 text-2xl text-muted hover:text-ink" aria-label="Close one-off sessions">×</button>
+      <h2 class="font-display text-3xl text-ink">One-off sessions with ${escapeHtml(mentorName)}</h2>
+      <p class="mt-2 text-sm text-muted">Choose a focused session for a specific programming question or career goal.</p>
+      <div class="mt-6 grid gap-5 sm:grid-cols-2">
+        ${offerings.map(item => `<article class="rounded-xl border border-brand/25 bg-white p-4 shadow-sm transition hover:border-brand/60 hover:shadow-md"><h3 class="font-display text-xl text-ink">${escapeHtml(item.name)}</h3><p class="mt-3 line-clamp-3 text-xs leading-5 text-ink">${escapeHtml(item.description)}</p><div class="mt-5 flex items-center justify-between gap-3"><strong class="font-display text-lg text-ink">${escapeHtml(item.price)} ₫ / ${escapeHtml(item.minutes)} min</strong><a class="btn btn-primary btn-sm" href="${escapeHtml(href)}?offeringId=${encodeURIComponent(item.id)}">View details →</a></div></article>`).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
 export function MentorPricingCard({
   tiers = [],
   activeTierId = '',
@@ -147,14 +182,18 @@ export function MentorPricingCard({
   showOneOff = false,
   onApplyClick = "window.location.hash = '#/apply'",
   onOneOffClick = "window.location.hash = '#/book'",
+  onOneOffHref = '#/sessions',
+  oneOffOfferings = [],
+  oneOffMentorName = 'your mentor',
 } = {}) {
   const effectiveTiers = Array.isArray(tiers) ? tiers : [];
+  const effectiveOneOffs = oneOffOfferingData(oneOffOfferings);
   if (!effectiveTiers || effectiveTiers.length === 0) {
     return `
 <aside class="mentor-pricing-card w-full max-w-[420px] rounded-3xl border border-line bg-cream p-6 text-center text-ink shadow-sm" data-component="mentor-pricing-card">
   <h3 class="font-display text-xl text-ink">No packages published yet</h3>
   <p class="mt-2 text-sm text-muted">This mentor has not published an active mentorship package. Check back soon or browse other mentors.</p>
-  ${showOneOff ? `<a href="#/book-session" onclick="${onOneOffClick}" class="btn btn-primary mt-5 w-full">Book a one-off session${oneOffPrice ? ` from ${escapeHtml(oneOffPrice)} ₫` : ''}</a>` : ''}
+  ${showOneOff ? `<a href="${escapeHtml(onOneOffHref)}" onclick="${onOneOffClick}" class="btn btn-primary mt-5 w-full">Book a one-off session${oneOffPrice ? ` from ${escapeHtml(oneOffPrice)} ₫` : ''}</a>` : ''}
 </aside>`;
   }
 
@@ -164,7 +203,7 @@ export function MentorPricingCard({
 
   return `
 <aside class="mentor-pricing-card w-full max-w-[420px] rounded-3xl border border-line bg-cream shadow-sm overflow-hidden text-ink transition-all hover:shadow-md" data-component="mentor-pricing-card">
-  <div class="p-6 pb-4">
+  <div class="p-6 pb-4" data-monthly-view>
     <div class="inline-flex w-full items-center justify-between rounded-full bg-white p-1.5 border border-line shadow-2xs" role="tablist" aria-label="Mentorship tiers">
       ${effectiveTiers.map(tier => {
         const isActive = tier.id === currentTier.id;
@@ -219,7 +258,16 @@ export function MentorPricingCard({
     </div>
   </div>
 
-  <div class="mt-2 border-t border-line/80 bg-lilac/40 p-6 text-center">
+  <div class="hidden p-6 pb-4" data-oneoff-view data-oneoff-href="${escapeHtml(onOneOffHref)}">
+    <button type="button" data-oneoff-back class="mb-5 text-xs font-semibold text-muted hover:text-brand">← Back to mentorship plan</button>
+    <p class="eyebrow">ONE-OFF SESSIONS</p>
+    <h3 class="mt-2 font-display text-2xl text-ink">Choose a session</h3>
+    <p class="mt-2 text-xs leading-5 text-muted">Select the type of focused session you want with ${escapeHtml(oneOffMentorName)}.</p>
+    <div class="mt-5">${oneOffSelector(effectiveOneOffs, oneOffMentorName)}</div>
+    ${effectiveOneOffs.length ? '<button type="button" data-oneoff-book class="btn btn-primary mt-5 w-full py-3.5 text-base font-bold">Book now <span aria-hidden="true">→</span></button><button type="button" data-oneoff-view-all class="btn btn-outline mt-3 w-full">View all sessions</button>' : ''}
+  </div>
+
+  <div class="mt-2 border-t border-line/80 bg-lilac/40 p-6 text-center" data-monthly-actions>
     <button
       type="button"
       onclick="${onApplyClick}"
@@ -240,14 +288,15 @@ export function MentorPricingCard({
     ${showOneOff ? `
     <div class="mt-5 border-t border-line/60 pt-4">
       <a
-        href="#/book-session"
-        onclick="${onOneOffClick}"
+        href="#"
+        data-oneoff-open
         class="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-brand hover:text-brand-dark transition-colors group">
         <span>Just need one session? Book a one-off call${oneOffPrice ? ` (${escapeHtml(oneOffPrice)} ₫)` : ''}</span>
         <span class="transition-transform group-hover:translate-x-0.5">→</span>
       </a>
     </div>` : ''}
   </div>
+  ${oneOffModal(effectiveOneOffs, oneOffMentorName, onOneOffHref)}
 </aside>
   `;
 }
@@ -261,6 +310,47 @@ const TAB_INACTIVE_CLASS = 'pricing-tier-tab flex-1 rounded-full px-4 py-2 text-
 export function bindMentorPricingCardEvents(container = document) {
   const cards = container.querySelectorAll('[data-component="mentor-pricing-card"]');
   cards.forEach(card => {
+    const monthlyView = card.querySelector('[data-monthly-view]');
+    const oneOffView = card.querySelector('[data-oneoff-view]');
+    const monthlyActions = card.querySelector('[data-monthly-actions]');
+    const modal = card.querySelector('[data-oneoff-modal]');
+    const showOneOff = () => {
+      if (!oneOffView) return;
+      monthlyView?.classList.add('hidden');
+      monthlyActions?.classList.add('hidden');
+      oneOffView.classList.remove('hidden');
+    };
+    const showMonthly = () => {
+      oneOffView?.classList.add('hidden');
+      monthlyView?.classList.remove('hidden');
+      monthlyActions?.classList.remove('hidden');
+    };
+    card.querySelector('[data-oneoff-open]')?.addEventListener('click', event => {
+      event.preventDefault();
+      showOneOff();
+    });
+    oneOffView?.querySelector('[data-oneoff-back]')?.addEventListener('click', showMonthly);
+    oneOffView?.querySelector('[data-oneoff-view-all]')?.addEventListener('click', () => {
+      if (!modal) return;
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    });
+    modal?.querySelector('[data-oneoff-modal-close]')?.addEventListener('click', () => {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    });
+    modal?.addEventListener('click', event => {
+      if (event.target === modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+    });
+    oneOffView?.querySelector('[data-oneoff-book]')?.addEventListener('click', () => {
+      const selected = oneOffView.querySelector('[data-oneoff-option]:checked')?.value;
+      const href = oneOffView.getAttribute('data-oneoff-href');
+      if (selected && href) window.location.hash = `${href}?offeringId=${encodeURIComponent(selected)}`;
+    });
+
     const tabs = card.querySelectorAll('.pricing-tier-tab');
     tabs.forEach(tab => {
       tab.addEventListener('click', () => {

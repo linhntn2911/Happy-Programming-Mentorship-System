@@ -6,7 +6,8 @@
 - Expose `POST /api/payments/sepay/webhook` in `PaymentController` with `Authorization: Apikey <SEPAY_API_KEY>` verification and CSRF exclusion in `SecurityConfig`.
 - Keep `POST /api/mentorship-requests/{id}/checkout` returning `CheckoutResponse` containing SePay QR URL, bank name, account number, account holder, transfer code, amount, and expiry.
 - Enhance `GET /api/mentorship-requests/{id}/checkout-info` to return payment bank and QR details when an attempt is pending.
-- Use existing `payments` (`gateway = 'SEPAY'`), `payment_events` (`provider = 'SEPAY'`), `escrow_ledger_entries`, `subscriptions`, and `conversations` tables. No schema migration is required.
+- Use existing `payments` (`gateway = 'SEPAY'`), `payment_events` (`provider = 'SEPAY'`), `escrow_ledger_entries`, `subscriptions`, `conversations`, `slot_holds`, and `bookings` tables. Migration `028_20261015_enable_instant_one_off_checkout.sql` changes only request lifecycle constraints and the guard trigger; it adds no table or column.
+- Branch settlement by immutable `serviceType`: monthly activates a subscription; one-off validates and converts its hold, then creates confirmed booking rows.
 - Update `CheckoutPage.js` to render the on-page QR code, account details with copy buttons, countdown timer, and automatic 3-second status polling until payment is detected.
 
 ## Security & Reliability
@@ -15,6 +16,7 @@
 - Deduplication & Idempotency: Dedup via `dbo.payment_events` using `provider='SEPAY'`, `event_key=SEPAY:<provider id> (also recognize provider id in legacy event JSON)`.
 - Concurrency control: Lock payment and mentorship request records with `UPDLOCK, HOLDLOCK`.
 - Safe cancellation & retry: Expired attempts can be replaced by re-initiating checkout with an incremented attempt number.
+- Delayed delivery: validate expiry against SePay's authenticated transaction time. Before converting an expired one-off hold, lock and recheck overlapping active holds and bookings; settle only when the interval remains unclaimed.
 
 ## Validation
 - Unit tests for `SepayPaymentService` (initiation, QR URL generation, webhook verification, idempotent settlement).

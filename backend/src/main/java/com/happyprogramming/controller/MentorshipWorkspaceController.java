@@ -39,34 +39,34 @@ public class MentorshipWorkspaceController {
         return ApiResponse.ok(service.listMine());
     }
 
-    @GetMapping("/{subscriptionId}")
+    @GetMapping("/{conversationId}")
     public ApiResponse<MentorshipWorkspaceDetail> get(
-            @PathVariable long subscriptionId) {
-        return ApiResponse.ok(service.get(subscriptionId));
+            @PathVariable long conversationId) {
+        return ApiResponse.ok(service.get(conversationId));
     }
 
-    @PostMapping("/{subscriptionId}/messages")
+    @PostMapping("/{conversationId}/messages")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<WorkspaceMessageDto> send(
-            @PathVariable long subscriptionId,
+            @PathVariable long conversationId,
             @Valid @RequestBody SendWorkspaceMessageRequest request) {
-        return ApiResponse.ok("Message sent.", service.send(subscriptionId, request));
+        return ApiResponse.ok("Message sent.", service.send(conversationId, request));
     }
 
-    @PostMapping(value = "/{subscriptionId}/files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/{conversationId}/files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<WorkspaceMessageDto> upload(
-            @PathVariable long subscriptionId,
+            @PathVariable long conversationId,
             @RequestParam("clientMessageKey") String clientMessageKey,
             @RequestParam("file") MultipartFile file) {
-        return ApiResponse.ok("File uploaded.", service.upload(subscriptionId, clientMessageKey, file));
+        return ApiResponse.ok("File uploaded.", service.upload(conversationId, clientMessageKey, file));
     }
 
-    @GetMapping("/{subscriptionId}/messages/{messageId}/file")
+    @GetMapping("/{conversationId}/messages/{messageId}/file")
     public ResponseEntity<byte[]> download(
-            @PathVariable long subscriptionId,
+            @PathVariable long conversationId,
             @PathVariable long messageId) {
-        var file = service.download(subscriptionId, messageId);
+        var file = service.download(conversationId, messageId);
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .header("X-Content-Type-Options", "nosniff")
@@ -77,9 +77,9 @@ public class MentorshipWorkspaceController {
                 .body(file.content());
     }
 
-    @PostMapping("/{subscriptionId}/read")
-    public ApiResponse<Void> markRead(@PathVariable long subscriptionId) {
-        service.markRead(subscriptionId);
+    @PostMapping("/{conversationId}/read")
+    public ApiResponse<Void> markRead(@PathVariable long conversationId) {
+        service.markRead(conversationId);
         return ApiResponse.ok("Messages marked as read.", null);
     }
 }

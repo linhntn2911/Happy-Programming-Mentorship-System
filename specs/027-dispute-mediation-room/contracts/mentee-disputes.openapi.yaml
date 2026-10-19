@@ -1,0 +1,58 @@
+openapi: 3.0.3
+info:
+  title: HappyProgramming Mentee Disputes API
+  version: 1.0.0
+paths:
+  /api/disputes/eligible-targets:
+    get:
+      summary: List paid bookings and subscriptions currently eligible for an owned dispute
+      responses:
+        '200': { description: Eligible targets }
+  /api/disputes/mine:
+    get:
+      summary: List disputes filed by the current mentee
+      responses:
+        '200': { description: Owned disputes }
+  /api/disputes:
+    post:
+      summary: File a dispute with mandatory image evidence
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [targetType, targetId, category, description, termsAccepted, evidence]
+              properties:
+                targetType: { type: string, enum: [ONE_OFF, MONTHLY] }
+                targetId: { type: integer, format: int64 }
+                category: { type: string, enum: [NO_SHOW, QUALITY_MISMATCH, UNRESPONSIVE, CONDUCT_VIOLATION, TECHNICAL_FAILURE, OTHER] }
+                description: { type: string, minLength: 30, maxLength: 2000 }
+                termsAccepted: { type: boolean }
+                evidence:
+                  type: array
+                  minItems: 1
+                  maxItems: 5
+                  items: { type: string, format: binary }
+      responses:
+        '201': { description: Dispute submitted }
+        '400': { description: Invalid form or evidence }
+        '403': { description: Target is not owned by the current mentee }
+        '409': { description: Target is ineligible or already has an active dispute }
+  /api/disputes/{id}:
+    get:
+      summary: View an owned dispute
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200': { description: Dispute detail }
+        '403': { description: Dispute is owned by another user }
+  /api/disputes/{id}/evidence/{evidenceId}:
+    get:
+      summary: Download evidence from an owned dispute
+      responses:
+        '200': { description: Private image evidence }
+        '403': { description: Evidence is owned by another user }

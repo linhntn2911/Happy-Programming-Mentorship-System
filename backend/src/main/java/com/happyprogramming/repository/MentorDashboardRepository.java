@@ -65,8 +65,13 @@ public interface MentorDashboardRepository extends JpaRepository<MentorshipReque
                 request_row.service_type AS serviceType,
                 request_row.learning_goals AS learningGoals,
                 request_row.status AS status,
+                request_row.status AS lifecycleStatus,
                 CASE WHEN request_row.submitted_at > SYSUTCDATETIME() THEN DATEADD(HOUR, -7, request_row.submitted_at) ELSE request_row.submitted_at END AS submittedAt,
-                CASE WHEN request_row.submitted_at > SYSUTCDATETIME() THEN DATEADD(HOUR, -7, request_row.response_deadline) ELSE request_row.response_deadline END AS responseDeadline
+                CASE WHEN request_row.submitted_at > SYSUTCDATETIME() THEN DATEADD(HOUR, -7, request_row.response_deadline) ELSE request_row.response_deadline END AS responseDeadline,
+                CAST(NULL AS DATETIME2(3)) AS startAt,
+                CAST(NULL AS DATETIME2(3)) AS endAt,
+                CAST(NULL AS INT) AS numberOfSessions,
+                CAST(NULL AS INT) AS numberOfParticipants
             FROM dbo.mentorship_requests request_row
             JOIN dbo.users mentee ON mentee.id = request_row.mentee_id
             LEFT JOIN dbo.service_offerings offering
@@ -88,14 +93,49 @@ public interface MentorDashboardRepository extends JpaRepository<MentorshipReque
                 request_row.service_type AS serviceType,
                 request_row.learning_goals AS learningGoals,
                 request_row.status AS status,
+                CASE
+                    WHEN request_row.status = 'PENDING' THEN 'WAITING_DECISION'
+                    WHEN request_row.status IN ('REJECTED','EXPIRED','CANCELLED') THEN request_row.status
+                    WHEN request_row.service_type = 'ONE_OFF' AND booking_summary.bookingStatus IS NOT NULL
+                        THEN booking_summary.bookingStatus
+                    WHEN request_row.service_type = 'ONE_OFF' AND request_row.funded_at IS NULL
+                        THEN 'AWAITING_PAYMENT'
+                    WHEN request_row.service_type = 'MONTHLY' AND request_row.status = 'ACCEPTED' AND request_row.funded_at IS NULL
+                        THEN 'AWAITING_PAYMENT'
+                    WHEN request_row.service_type = 'MONTHLY' AND request_row.funded_at IS NOT NULL
+                        THEN 'ACTIVE'
+                    ELSE request_row.status
+                END AS lifecycleStatus,
                 CASE WHEN request_row.submitted_at > SYSUTCDATETIME() THEN DATEADD(HOUR, -7, request_row.submitted_at) ELSE request_row.submitted_at END AS submittedAt,
-                CASE WHEN request_row.submitted_at > SYSUTCDATETIME() THEN DATEADD(HOUR, -7, request_row.response_deadline) ELSE request_row.response_deadline END AS responseDeadline
+                CASE WHEN request_row.submitted_at > SYSUTCDATETIME() THEN DATEADD(HOUR, -7, request_row.response_deadline) ELSE request_row.response_deadline END AS responseDeadline,
+                COALESCE(booking_summary.startAt, TRY_CONVERT(DATETIME2(3), JSON_VALUE(request_row.offer_snapshot, '$.startAt'), 127)) AS startAt,
+                COALESCE(booking_summary.endAt, TRY_CONVERT(DATETIME2(3), JSON_VALUE(request_row.offer_snapshot, '$.endAt'), 127)) AS endAt,
+                COALESCE(booking_summary.bookingCount, TRY_CONVERT(INT, JSON_VALUE(request_row.offer_snapshot, '$.numberOfSessions')), 1) AS numberOfSessions,
+                COALESCE(TRY_CONVERT(INT, JSON_VALUE(request_row.offer_snapshot, '$.numberOfParticipants')), 1) AS numberOfParticipants
             FROM dbo.mentorship_requests request_row
             JOIN dbo.users mentee ON mentee.id = request_row.mentee_id
             LEFT JOIN dbo.service_offerings offering
               ON offering.id = request_row.service_id
              AND offering.mentor_id = request_row.mentor_id
              AND offering.service_type = request_row.service_type
+            OUTER APPLY (
+                SELECT
+                    MIN(booking_row.start_at) AS startAt,
+                    MAX(booking_row.end_at) AS endAt,
+                    NULLIF(COUNT(*), 0) AS bookingCount,
+                    CASE
+                        WHEN SUM(CASE WHEN booking_row.status = 'CONFIRMED' AND booking_row.end_at > SYSUTCDATETIME() THEN 1 ELSE 0 END) > 0 THEN 'UPCOMING'
+                        WHEN SUM(CASE WHEN booking_row.status = 'CONFIRMED' THEN 1 ELSE 0 END) > 0 THEN 'CONFIRMED'
+                        WHEN SUM(CASE WHEN booking_row.status = 'COMPLETED' THEN 1 ELSE 0 END) = COUNT(*) THEN 'COMPLETED'
+                        WHEN SUM(CASE WHEN booking_row.status = 'CANCELLED' THEN 1 ELSE 0 END) = COUNT(*) THEN 'CANCELLED'
+                        WHEN SUM(CASE WHEN booking_row.status IN ('NO_SHOW','NO_SHOW_REVIEW') THEN 1 ELSE 0 END) > 0 THEN 'NO_SHOW'
+                        ELSE MAX(booking_row.status)
+                    END AS bookingStatus
+                FROM dbo.bookings booking_row
+                WHERE booking_row.mentor_id = request_row.mentor_id
+                  AND booking_row.mentee_id = request_row.mentee_id
+                  AND TRY_CONVERT(BIGINT, JSON_VALUE(booking_row.terms_snapshot, '$.requestId')) = request_row.id
+            ) booking_summary
             WHERE request_row.mentor_id = :mentorId
             ORDER BY request_row.submitted_at DESC, request_row.id DESC
             """, nativeQuery = true)

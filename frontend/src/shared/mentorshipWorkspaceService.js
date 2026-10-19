@@ -12,23 +12,23 @@ export const mentorshipWorkspaceService = {
   list() {
     return apiClient('/api/mentorship-workspaces', { cache: 'no-store' });
   },
-  get(subscriptionId) {
-    return apiClient(`/api/mentorship-workspaces/${encodeURIComponent(subscriptionId)}`, { cache: 'no-store' });
+  get(conversationId) {
+    return apiClient(`/api/mentorship-workspaces/${encodeURIComponent(conversationId)}`, { cache: 'no-store' });
   },
-  async send(subscriptionId, payload) {
+  async send(conversationId, payload) {
     const headers = await withCsrf();
-    return apiClient(`/api/mentorship-workspaces/${encodeURIComponent(subscriptionId)}/messages`, {
+    return apiClient(`/api/mentorship-workspaces/${encodeURIComponent(conversationId)}/messages`, {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
     });
   },
-  async upload(subscriptionId, file, clientMessageKey) {
+  async upload(conversationId, file, clientMessageKey) {
     const headers = await withCsrf();
     const form = new FormData();
     form.append('clientMessageKey', clientMessageKey);
     form.append('file', file);
-    const response = await fetch(`/api/mentorship-workspaces/${encodeURIComponent(subscriptionId)}/files`, {
+    const response = await fetch(`/api/mentorship-workspaces/${encodeURIComponent(conversationId)}/files`, {
       method: 'POST', credentials: 'same-origin', headers, body: form,
     });
     let result = {};
@@ -36,12 +36,12 @@ export const mentorshipWorkspaceService = {
     if (!response.ok) throw new Error(result.message || `Upload failed with status ${response.status}.`);
     return result.data !== undefined ? result.data : result;
   },
-  downloadUrl(subscriptionId, messageId) {
-    return `/api/mentorship-workspaces/${encodeURIComponent(subscriptionId)}/messages/${encodeURIComponent(messageId)}/file`;
+  downloadUrl(conversationId, messageId) {
+    return `/api/mentorship-workspaces/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/file`;
   },
-  async markRead(subscriptionId) {
+  async markRead(conversationId) {
     const headers = await withCsrf();
-    return apiClient(`/api/mentorship-workspaces/${encodeURIComponent(subscriptionId)}/read`, {
+    return apiClient(`/api/mentorship-workspaces/${encodeURIComponent(conversationId)}/read`, {
       method: 'POST', headers, body: JSON.stringify({}),
     });
   },
