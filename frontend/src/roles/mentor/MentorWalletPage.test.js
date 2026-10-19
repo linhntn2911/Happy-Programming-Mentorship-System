@@ -4,8 +4,8 @@ import { MentorWalletPage } from './MentorWalletPage.js';
 
 test('mentor wallet page explains the hold, available funds and payout flow', () => {
   const html = MentorWalletPage();
-  assert.match(html, /MENTOR EARNINGS/);
-  assert.match(html, /Wallet and payouts/);
+  assert.match(html, /MENTOR EARNINGS &amp; FEEDBACK/);
+  assert.match(html, /Earnings and feedback/);
   assert.match(html, /Verified payments are held for seven days before becoming available to withdraw\./);
   assert.match(html, /Requests reserve available balance until the admin records payment or rejection\./);
   assert.match(html, /Request a payout/);
@@ -24,5 +24,17 @@ test('mentor wallet page exposes saved bank account management and OTP verificat
   assert.match(html, /name="otp"[^>]*pattern="\[0-9\]\{6\}"/);
   assert.match(html, /Confirm withdrawal/);
   assert.match(html, /Resend code/);
+});
+
+test('mentor wallet page renders the read-only mentee feedback section', () => {
+  const html = MentorWalletPage();
+  assert.match(html, /MENTEE FEEDBACK/);
+  assert.match(html, /id="feedback-summary"/);
+  assert.match(html, /id="feedback-list"/);
+  assert.match(html, /id="feedback-loading"/);
+  assert.match(html, /id="feedback-empty"/);
+  assert.match(html, /id="feedback-error"/);
+  assert.match(html, /id="feedback-pagination"/);
+  assert.match(html, /Reviews cannot be edited or deleted\./);
 });
 

@@ -10,7 +10,7 @@ const sections = [
   ['mentorships', 'Mentorships', '#/workspace', 'users'],
   ['availability', 'Availability', '#/mentor/availability', 'revenue'],
   ['packages', 'Packages', '#/mentor/packages', 'settings'],
-  ['wallet', 'Wallet', '#/mentor/wallet', 'revenue'],
+  ['wallet', 'Earnings & Feedback', '#/mentor/wallet', 'revenue'],
 ];
 
 export function MentorLayout(content, user = null, section = 'dashboard') {
