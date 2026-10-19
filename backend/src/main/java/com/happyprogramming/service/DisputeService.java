@@ -19,6 +19,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -45,6 +46,7 @@ public class DisputeService {
         this(jdbc, null);
     }
 
+    @Autowired
     public DisputeService(JdbcTemplate jdbc, AdminRepository adminRepository) {
         this.jdbc = jdbc;
         this.adminRepository = adminRepository;
