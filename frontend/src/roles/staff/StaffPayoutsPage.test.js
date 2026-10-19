@@ -18,6 +18,8 @@ test('Staff payouts page escapes untrusted fields and provides decision actions'
 
   assert.match(html, /data-payout-paid="42"/);
   assert.match(html, /data-payout-reject="42"/);
+  assert.match(html, /data-copy="999888777"/);
+  assert.match(html, /data-copy="1500000"/);
   assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
   assert.match(html, /&lt;b onmouseover=evil\(\)&gt;Vietcombank&lt;\/b&gt;/);
   assert.doesNotMatch(html, /<script>alert/);
@@ -30,3 +32,26 @@ test('Staff payouts page renders empty state when no pending payout requests', (
   assert.match(html, /No pending payouts/);
   assert.match(html, /New mentor withdrawal requests will appear here/);
 });
+
+test('VietQR helper builds standard Napas247 QR code URL and normalizes bank names', async () => {
+  const { buildVietQrUrl, getVietQrBankCode } = await import('./vietQrHelper.js');
+
+  assert.equal(getVietQrBankCode('TPBank'), 'tpbank');
+  assert.equal(getVietQrBankCode('Vietcombank'), 'vietcombank');
+  assert.equal(getVietQrBankCode('MB Bank'), 'mb');
+  assert.equal(getVietQrBankCode('Techcombank'), 'techcombank');
+
+  const url = buildVietQrUrl({
+    bankName: 'TPBank',
+    accountNumber: '00001234567',
+    amount: 500000,
+    memo: 'HPMS PAYOUT 12',
+    accountName: 'Nguyen Van A'
+  });
+
+  assert.match(url, /^https:\/\/img\.vietqr\.io\/image\/tpbank-00001234567-compact2\.png/);
+  assert.match(url, /amount=500000/);
+  assert.match(url, /addInfo=HPMS\+PAYOUT\+12/);
+  assert.match(url, /accountName=Nguyen\+Van\+A/);
+});
+

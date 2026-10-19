@@ -17,6 +17,7 @@ import { Button } from '../../shared/Button.js';
 import { Dialog } from '../../shared/Dialog.js';
 import { StatusBadge, Notice } from '../admin/AdminPrimitives.js';
 import { money } from '../admin/admin.js';
+import { buildVietQrUrl } from './vietQrHelper.js';
 
 async function checkStaffAccess(root) {
   try {
@@ -709,6 +710,7 @@ export async function mountStaffPayouts(root) {
 
     root.innerHTML = StaffPayoutsPage(filtered, user, notice);
     bindStaffGlobalEvents(root);
+    bindCopyButtons(root);
 
     const searchInput = root.querySelector('#staff-payout-query');
     if (searchInput) {
@@ -727,11 +729,87 @@ export async function mountStaffPayouts(root) {
       btn.addEventListener('click', () => {
         const id = Number(btn.dataset.payoutPaid);
         const item = requests.find(r => r.id === id);
+        if (!item) return;
+
+        const qrUrl = buildVietQrUrl({
+          bankName: item.bankName,
+          accountNumber: item.accountNumber,
+          amount: item.amount,
+          memo: `HPMS PAYOUT ${item.id}`,
+          accountName: item.accountName
+        });
+
         openPayoutDialog({
-          title: 'Record mentor payout',
-          eyebrow: 'RECORD BANK TRANSFER',
-          prompt: `<p>Confirm that the bank transfer of <strong>${money(item?.amount || 0)}</strong> to <strong>${e(item?.mentorName || '')}</strong> (${e(item?.bankName || '')} - ${e(item?.accountNumber || '')}) has already been completed. Enter its transaction reference to post the debit to the wallet ledger.</p>
-                   <label class="admin-field mt-4">Bank transfer reference <span class="text-rose-600">*</span><input name="transferReference" maxlength="150" required placeholder="e.g. FT26101700982312"></label>`,
+          title: 'Manual bank transfer & approval',
+          eyebrow: 'STAFF PAYOUT WORKFLOW',
+          prompt: `
+            <div class="mb-4 rounded-xl border border-line bg-cream p-4">
+              <div class="flex items-center justify-between mb-3 pb-2 border-b border-line">
+                <div>
+                  <span class="text-xs font-semibold uppercase tracking-wider text-brand">Step 1 · Transfer Funds</span>
+                  <p class="text-xs text-muted">Scan the VietQR code or copy beneficiary details to bank online manually.</p>
+                </div>
+                <span class="text-xs font-bold text-ink bg-lilac/70 px-2 py-0.5 rounded">Payout #${e(item.id)}</span>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-[150px_minmax(0,1fr)] gap-4 items-center">
+                <div class="flex flex-col items-center justify-center p-2.5 rounded-xl bg-white border border-line text-center">
+                  <img src="${e(qrUrl)}" alt="VietQR code for ${e(item.mentorName)}" class="w-32 h-32 object-contain rounded-lg shadow-sm" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'p-3 text-xs text-muted\\'>QR unavailable. Use bank details to transfer.</div>'" />
+                  <span class="mt-1.5 text-[11px] font-medium text-muted">VietQR (Napas247)</span>
+                </div>
+
+                <div class="space-y-2 text-xs">
+                  <div class="flex items-center justify-between pb-1.5 border-b border-line/50">
+                    <span class="text-muted">Mentor:</span>
+                    <span class="font-semibold text-ink">${e(item.mentorName)} <span class="text-muted font-normal">(${e(item.mentorEmail)})</span></span>
+                  </div>
+                  <div class="flex items-center justify-between pb-1.5 border-b border-line/50">
+                    <span class="text-muted">Bank name:</span>
+                    <div class="flex items-center gap-1.5">
+                      <strong class="text-ink">${e(item.bankName)}</strong>
+                      <button type="button" class="btn btn-ghost btn-xs copy-btn text-brand" data-copy="${e(item.bankName)}" title="Copy bank name">Copy</button>
+                    </div>
+                  </div>
+                  <div class="flex items-center justify-between pb-1.5 border-b border-line/50">
+                    <span class="text-muted">Account number (STK):</span>
+                    <div class="flex items-center gap-1.5">
+                      <strong class="font-mono text-ink text-sm bg-lilac/50 px-1.5 py-0.5 rounded">${e(item.accountNumber)}</strong>
+                      <button type="button" class="btn btn-outline btn-xs copy-btn" data-copy="${e(item.accountNumber)}" title="Copy account number">Copy STK</button>
+                    </div>
+                  </div>
+                  <div class="flex items-center justify-between pb-1.5 border-b border-line/50">
+                    <span class="text-muted">Account holder:</span>
+                    <div class="flex items-center gap-1.5">
+                      <span class="font-semibold text-ink">${e(item.accountName)}</span>
+                      <button type="button" class="btn btn-ghost btn-xs copy-btn text-brand" data-copy="${e(item.accountName)}" title="Copy holder name">Copy</button>
+                    </div>
+                  </div>
+                  <div class="flex items-center justify-between pb-1.5 border-b border-line/50">
+                    <span class="text-muted">Transfer amount:</span>
+                    <div class="flex items-center gap-1.5">
+                      <strong class="text-brand font-bold text-sm">${money(item.amount)}</strong>
+                      <button type="button" class="btn btn-ghost btn-xs copy-btn text-brand" data-copy="${e(item.amount)}" title="Copy amount">Copy</button>
+                    </div>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-muted">Transfer memo:</span>
+                    <div class="flex items-center gap-1.5">
+                      <span class="font-mono text-muted">HPMS PAYOUT #${e(item.id)}</span>
+                      <button type="button" class="btn btn-ghost btn-xs copy-btn text-brand" data-copy="HPMS PAYOUT #${e(item.id)}" title="Copy memo">Copy</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-4">
+              <span class="text-xs font-semibold uppercase tracking-wider text-brand">Step 2 · Enter Transaction Reference</span>
+              <p class="text-xs text-muted mb-2">Once the transfer is completed in your banking app, enter its external reference code (mã tham chiếu / mã GD) to record payment and debit the wallet ledger.</p>
+              <label class="admin-field font-semibold text-ink">
+                Bank transfer reference <span class="text-rose-600">*</span>
+                <input name="transferReference" class="w-full font-mono mt-1" maxlength="150" required placeholder="e.g. FT26101900982312 or 892314" autocomplete="off">
+              </label>
+            </div>`,
           action: async (form) => {
             const transferReference = form.elements.transferReference.value.trim();
             if (!transferReference) throw new Error('Enter the bank transfer reference.');
@@ -747,11 +825,19 @@ export async function mountStaffPayouts(root) {
       btn.addEventListener('click', () => {
         const id = Number(btn.dataset.payoutReject);
         const item = requests.find(r => r.id === id);
+        if (!item) return;
         openPayoutDialog({
           title: 'Reject payout request',
           eyebrow: 'REJECT WITHDRAWAL',
-          prompt: `<p>The reserved amount (<strong>${money(item?.amount || 0)}</strong>) will return to the mentor’s available balance.</p>
-                   <label class="admin-field mt-4">Reason for rejection <span class="text-rose-600">*</span><textarea name="reason" rows="3" maxlength="500" required placeholder="Explain why this withdrawal cannot be processed (e.g. invalid account details)..."></textarea></label>`,
+          prompt: `
+            <div class="mb-4 rounded-xl border border-rose-200 bg-rose-50/50 p-4">
+              <p class="text-sm text-ink mb-1">You are rejecting payout request <strong>#${e(item.id)}</strong> for <strong>${e(item.mentorName)}</strong>.</p>
+              <p class="text-xs text-muted">The reserved amount (<strong>${money(item.amount || 0)}</strong>) will be restored to the mentor’s available balance immediately.</p>
+            </div>
+            <label class="admin-field mt-3 font-semibold text-ink">
+              Reason for rejection <span class="text-rose-600">*</span>
+              <textarea name="reason" rows="3" maxlength="500" required class="w-full mt-1" placeholder="Explain why this withdrawal cannot be processed (e.g. bank account mismatch, invalid details)..."></textarea>
+            </label>`,
           action: async (form) => {
             const rejectionReason = form.elements.reason.value.trim();
             if (!rejectionReason) throw new Error('Provide a reason for rejecting this payout.');
@@ -760,6 +846,41 @@ export async function mountStaffPayouts(root) {
             await loadData();
           }
         });
+      });
+    });
+  }
+
+  function bindCopyButtons(container) {
+    if (!container) return;
+    container.querySelectorAll('.copy-btn').forEach(btn => {
+      btn.addEventListener('click', async event => {
+        event.preventDefault();
+        event.stopPropagation();
+        const text = btn.dataset.copy;
+        if (!text) return;
+        try {
+          if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(text);
+          } else {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            ta.remove();
+          }
+          const originalContent = btn.innerHTML;
+          btn.innerHTML = '✓ Copied';
+          btn.classList.add('text-emerald-700', 'font-semibold');
+          setTimeout(() => {
+            btn.innerHTML = originalContent;
+            btn.classList.remove('text-emerald-700', 'font-semibold');
+          }, 1800);
+        } catch (err) {
+          console.error('Failed to copy text', err);
+        }
       });
     });
   }
@@ -782,6 +903,7 @@ export async function mountStaffPayouts(root) {
     root.append(host);
     const dialog = host.querySelector('dialog');
     dialog.showModal();
+    bindCopyButtons(host);
 
     host.querySelectorAll('[data-close], #staff-payout-cancel').forEach(b => b.addEventListener('click', () => dialog.close()));
     dialog.addEventListener('close', () => host.remove());

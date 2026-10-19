@@ -10,8 +10,21 @@ export function StaffPayoutsPage(requests = [], user = null, notice = null) {
 
   const rows = requests.map(item => [
     `${e(item.mentorName)}<small class="block text-muted mt-1">${e(item.mentorEmail)} · ID ${e(item.mentorId)}</small>`,
-    `<span class="font-semibold text-ink">${money(item.amount)}</span>`,
-    `${e(item.bankName)} · ${e(item.accountName)}<small class="block text-muted mt-1 font-mono">${e(item.accountNumber)}</small>`,
+    `<div class="flex items-center gap-1.5">
+      <span class="font-semibold text-ink">${money(item.amount)}</span>
+      <button type="button" class="btn btn-ghost btn-xs copy-btn text-brand" data-copy="${e(item.amount)}" title="Copy amount" aria-label="Copy amount for ${e(item.mentorName)}">
+        <svg class="icon w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      </button>
+    </div>`,
+    `<div>
+      <span class="font-medium text-ink">${e(item.bankName)}</span> · <span class="text-ink">${e(item.accountName)}</span>
+      <div class="flex items-center gap-2 mt-1">
+        <span class="font-mono text-muted text-xs bg-lilac/50 px-1.5 py-0.5 rounded">${e(item.accountNumber)}</span>
+        <button type="button" class="btn btn-outline btn-xs copy-btn" data-copy="${e(item.accountNumber)}" title="Copy account number" aria-label="Copy account number for ${e(item.mentorName)}">
+          Copy STK
+        </button>
+      </div>
+    </div>`,
     e(dateTime(item.requestedAt)),
     `<div class="flex flex-wrap gap-2">
       <button class="btn btn-primary btn-sm" data-payout-paid="${e(item.id)}" aria-label="Record transfer for ${e(item.mentorName)}">Record transfer</button>
