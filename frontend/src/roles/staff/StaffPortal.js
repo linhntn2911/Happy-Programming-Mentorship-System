@@ -9,6 +9,7 @@ import { StaffMentorsPage } from './StaffMentorsPage.js';
 import { StaffMenteesPage } from './StaffMenteesPage.js';
 import { StaffSkillsPage } from './StaffSkillsPage.js';
 import { StaffPayoutsPage } from './StaffPayoutsPage.js';
+import { StaffReportsPage } from './StaffReportsPage.js';
 import { StaffAccessDeniedPage } from './StaffAccessDeniedPage.js';
 import { staffService } from './staffService.js';
 import { authService } from '../auth/authService.js';
@@ -16,7 +17,7 @@ import { escapeHtml as e } from '../../shared/html.js';
 import { Button } from '../../shared/Button.js';
 import { Dialog } from '../../shared/Dialog.js';
 import { StatusBadge, Notice } from '../admin/AdminPrimitives.js';
-import { money } from '../admin/admin.js';
+import { money, dateTime } from '../admin/admin.js';
 import { buildVietQrUrl } from './vietQrHelper.js';
 
 async function checkStaffAccess(root) {
@@ -925,6 +926,335 @@ export async function mountStaffPayouts(root) {
         if (errorEl) errorEl.innerHTML = Notice({ message: err.message || 'Operation failed.', type: 'error' });
       }
     });
+  }
+
+  await loadData();
+}
+
+export async function mountStaffReports(root) {
+  document.title = 'Manage Reports & Disputes | HappyProgramming';
+  root.innerHTML = '<div class="min-h-screen bg-[#fbf9ff] flex items-center justify-center p-8 text-muted text-xs font-medium">Loading reports and dispute queue…</div>';
+
+  const user = await checkStaffAccess(root);
+  if (!user || !root.isConnected) return;
+
+  let reports = [];
+  let filters = { query: '', status: 'ALL', category: 'ALL' };
+  let notice = null;
+
+  async function loadData() {
+    try {
+      reports = await staffService.getReports();
+      render();
+    } catch (err) {
+      if (!root.isConnected) return;
+      staffError(root, err);
+    }
+  }
+
+  function render() {
+    if (!root.isConnected) return;
+    root.innerHTML = StaffReportsPage(reports, filters, user, notice);
+    bindStaffGlobalEvents(root);
+
+    const searchInput = root.querySelector('#staff-report-query');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        filters.query = e.target.value;
+        render();
+        const nextInput = root.querySelector('#staff-report-query');
+        if (nextInput) {
+          nextInput.focus();
+          nextInput.setSelectionRange(nextInput.value.length, nextInput.value.length);
+        }
+      });
+    }
+
+    const statusSelect = root.querySelector('#staff-report-status');
+    if (statusSelect) {
+      statusSelect.addEventListener('change', (e) => {
+        filters.status = e.target.value;
+        render();
+      });
+    }
+
+    const categorySelect = root.querySelector('#staff-report-category');
+    if (categorySelect) {
+      categorySelect.addEventListener('change', (e) => {
+        filters.category = e.target.value;
+        render();
+      });
+    }
+
+    const resetBtn = root.querySelector('#staff-report-reset');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        filters = { query: '', status: 'ALL', category: 'ALL' };
+        render();
+      });
+    }
+
+    const dialog = root.querySelector('#report-detail-dialog');
+    const dialogContent = root.querySelector('#report-detail-dialog-content');
+
+    root.querySelectorAll('[data-review-report]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.reviewReport;
+        if (!dialog || !dialogContent) return;
+
+        dialogContent.innerHTML = '<div class="p-8 text-center text-muted text-xs">Loading dispute details…</div>';
+        if (typeof dialog.showModal === 'function') {
+          dialog.showModal();
+        } else {
+          dialog.setAttribute('open', '');
+        }
+
+        try {
+          const detail = await staffService.getReportDetail(id);
+          renderModalContent(detail);
+        } catch (err) {
+          dialogContent.innerHTML = `
+            <button class="modal-close" type="button" aria-label="Close" id="close-report-error">✕</button>
+            <div class="p-6">
+              <h2 class="font-display text-xl text-ink mb-2">Error loading report</h2>
+              <p class="text-xs text-rose-700">${e(err.message || 'Unable to load report details.')}</p>
+            </div>
+          `;
+          dialogContent.querySelector('#close-report-error')?.addEventListener('click', () => dialog.close());
+        }
+      });
+    });
+
+    function renderModalContent(detail) {
+      const isResolved = detail.status === 'RESOLVED' || detail.status === 'REJECTED';
+      const isSubmitted = detail.status === 'SUBMITTED';
+
+      const evidencesHtml = detail.evidences && detail.evidences.length > 0
+        ? `
+          <div class="mt-4">
+            <h3 class="text-xs font-semibold text-ink uppercase tracking-wider mb-2">Attached Evidence (${detail.evidences.length})</h3>
+            <div class="space-y-2">
+              ${detail.evidences.map(ev => `
+                <div class="flex items-center justify-between p-3 rounded-lg bg-cream border border-line text-xs">
+                  <div>
+                    <span class="font-medium text-ink">${e(ev.fileName)}</span>
+                    <span class="text-muted ml-2">(${e(ev.fileSize || 'Evidence')})</span>
+                    <div class="text-[11px] text-muted">Uploaded by <strong>${e(ev.uploaderName || 'User')}</strong> · ${e(dateTime(ev.uploadedAt))}</div>
+                  </div>
+                  <a href="/api/staff/reports/${e(detail.id)}/evidence/${e(ev.id)}" target="_blank" download class="btn btn-outline btn-sm">
+                    Download
+                  </a>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `
+        : '<p class="mt-4 text-xs text-muted italic">No attached evidence files submitted.</p>';
+
+      const actionsHtml = isResolved
+        ? `
+          <div class="mt-5 p-4 rounded-xl bg-lilac/30 border border-line">
+            <span class="text-xs font-semibold uppercase tracking-wider text-brand">Case Resolution</span>
+            <p class="mt-1 text-xs text-ink font-medium">Outcome: <span class="badge !text-[10px] ml-1">${e(detail.outcome || detail.status)}</span></p>
+            ${detail.resolutionNotes ? `<p class="mt-1 text-xs text-muted">Notes: ${e(detail.resolutionNotes)}</p>` : ''}
+            <div class="mt-2 text-xs flex gap-4 text-ink">
+              <span>Mentee Refund: <strong>${money(detail.menteeRefundAmount)}</strong></span>
+              <span>Mentor Release: <strong>${money(detail.mentorReleaseAmount)}</strong></span>
+            </div>
+            ${detail.resolvedBy ? `<p class="mt-1 text-[11px] text-muted">Resolved by: ${e(detail.resolvedBy)} at ${e(dateTime(detail.resolvedAt))}</p>` : ''}
+          </div>
+        `
+        : `
+          <div class="mt-5 space-y-4 border-t border-line pt-4">
+            ${isSubmitted ? `
+              <div class="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                <div>
+                  <h4 class="text-xs font-bold text-amber-900">Step 1: Intake & Triage</h4>
+                  <p class="text-[11px] text-amber-800">Move ticket into mediation room to notify parties and freeze hold.</p>
+                </div>
+                <button type="button" class="btn btn-primary btn-sm" id="btn-intake-dispute">Intake Case</button>
+              </div>
+            ` : ''}
+
+            <div>
+              <h4 class="text-xs font-bold text-ink uppercase tracking-wider mb-2">Step 2: Adjudicate & Finalize Resolution</h4>
+              <form id="dispute-resolve-form" class="space-y-3">
+                <div id="dispute-resolve-error" class="hidden"></div>
+                <label class="admin-field" for="resolve-outcome">
+                  Settlement Outcome
+                  <select id="resolve-outcome" name="outcome" required>
+                    <option value="FULL_REFUND_MENTEE">Full refund to mentee (100% mentee, 0% mentor)</option>
+                    <option value="RELEASE_TO_MENTOR">Release to mentor (Mentee claim denied, 100% mentor)</option>
+                    <option value="NO_FAULT_SPLIT">Split equally (50% mentee, 50% mentor)</option>
+                    <option value="PARTIAL_REFUND">Custom split / partial settlement</option>
+                  </select>
+                </label>
+
+                <div class="grid grid-cols-2 gap-3" id="split-amounts-row">
+                  <label class="admin-field" for="resolve-mentee-refund">
+                    Mentee Refund (VND)
+                    <input type="number" id="resolve-mentee-refund" name="menteeRefundAmount" value="${detail.disputedAmount || 0}" min="0" max="${detail.disputedAmount || 0}" step="1000" />
+                  </label>
+                  <label class="admin-field" for="resolve-mentor-release">
+                    Mentor Release (VND)
+                    <input type="number" id="resolve-mentor-release" name="mentorReleaseAmount" value="0" min="0" max="${detail.disputedAmount || 0}" step="1000" />
+                  </label>
+                </div>
+
+                <label class="admin-field" for="resolve-notes">
+                  Resolution Explanation / Findings (Required for audit)
+                  <textarea id="resolve-notes" name="resolutionNotes" rows="3" placeholder="Document investigation findings, policy basis, and instructions..." required minlength="10" maxlength="2000"></textarea>
+                </label>
+
+                <div class="admin-actions mt-3">
+                  <button type="button" class="btn btn-outline btn-sm" id="btn-cancel-resolve">Cancel</button>
+                  <button type="submit" class="btn btn-primary btn-sm" id="btn-submit-resolve">Confirm Resolution & Settle</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        `;
+
+      dialogContent.innerHTML = `
+        <button class="modal-close" type="button" aria-label="Close" id="close-report-modal">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 6 12 12M6 18 18 6"/></svg>
+        </button>
+
+        <p class="eyebrow !pr-8">DISPUTE MEDIATION · TICKET #${e(detail.ticketCode)}</p>
+        <h2 id="report-dialog-title" class="mt-2 font-display text-2xl text-ink">${e(detail.title || 'Mentorship Complaint')}</h2>
+        
+        <div class="flex items-center gap-2 mt-1">
+          <span class="badge !text-[10px]">${e(detail.targetType)}</span>
+          <span class="badge !text-[10px]">${e(detail.category ? detail.category.replaceAll('_', ' ') : 'GENERAL')}</span>
+          <span class="text-xs text-muted">Amount: <strong class="text-ink">${money(detail.disputedAmount)}</strong></span>
+        </div>
+
+        <div class="mt-4 grid grid-cols-2 gap-4 p-3 rounded-xl bg-cream border border-line text-xs">
+          <div>
+            <span class="text-muted block text-[11px]">Complainant (Mentee)</span>
+            <strong class="text-ink text-sm">${e(detail.complainantName)}</strong>
+            <span class="text-muted block">${e(detail.complainantEmail)}</span>
+          </div>
+          <div>
+            <span class="text-muted block text-[11px]">Respondent (Mentor)</span>
+            <strong class="text-ink text-sm">${e(detail.respondentName)}</strong>
+            <span class="text-muted block">${e(detail.respondentEmail)}</span>
+          </div>
+        </div>
+
+        <div class="mt-4 text-xs text-ink/90">
+          <h3 class="font-semibold uppercase tracking-wider text-[11px] text-muted mb-1">Mentee Statement & Reason</h3>
+          <div class="p-3 rounded-lg bg-white border border-line whitespace-pre-wrap leading-relaxed">${e(detail.reason || 'No description provided.')}</div>
+        </div>
+
+        ${detail.mentorStatement ? `
+          <div class="mt-4 text-xs text-ink/90">
+            <h3 class="font-semibold uppercase tracking-wider text-[11px] text-muted mb-1">Mentor Rebuttal Statement</h3>
+            <div class="p-3 rounded-lg bg-white border border-line whitespace-pre-wrap leading-relaxed">${e(detail.mentorStatement)}</div>
+          </div>
+        ` : ''}
+
+        ${evidencesHtml}
+        ${actionsHtml}
+      `;
+
+      dialogContent.querySelector('#close-report-modal')?.addEventListener('click', () => dialog.close());
+      dialogContent.querySelector('#btn-cancel-resolve')?.addEventListener('click', () => dialog.close());
+
+      const intakeBtn = dialogContent.querySelector('#btn-intake-dispute');
+      if (intakeBtn) {
+        intakeBtn.addEventListener('click', async () => {
+          intakeBtn.disabled = true;
+          intakeBtn.textContent = 'Processing intake…';
+          try {
+            await staffService.intakeReport(detail.id);
+            dialog.close();
+            notice = { type: 'success', message: `Dispute #${detail.ticketCode} intake completed. Mediation room is now active.` };
+            await loadData();
+          } catch (err) {
+            intakeBtn.disabled = false;
+            intakeBtn.textContent = 'Intake Case';
+            alert(err.message || 'Intake failed.');
+          }
+        });
+      }
+
+      const resolveForm = dialogContent.querySelector('#dispute-resolve-form');
+      if (resolveForm) {
+        const outcomeSelect = resolveForm.querySelector('#resolve-outcome');
+        const menteeInput = resolveForm.querySelector('#resolve-mentee-refund');
+        const mentorInput = resolveForm.querySelector('#resolve-mentor-release');
+        const errorEl = resolveForm.querySelector('#dispute-resolve-error');
+        const total = Number(detail.disputedAmount || 0);
+
+        const updateAmounts = () => {
+          const outcome = outcomeSelect.value;
+          if (outcome === 'FULL_REFUND_MENTEE') {
+            menteeInput.value = total;
+            mentorInput.value = 0;
+            menteeInput.disabled = true;
+            mentorInput.disabled = true;
+          } else if (outcome === 'RELEASE_TO_MENTOR') {
+            menteeInput.value = 0;
+            mentorInput.value = total;
+            menteeInput.disabled = true;
+            mentorInput.disabled = true;
+          } else if (outcome === 'NO_FAULT_SPLIT') {
+            const half = Math.floor(total / 2);
+            menteeInput.value = half;
+            mentorInput.value = total - half;
+            menteeInput.disabled = true;
+            mentorInput.disabled = true;
+          } else {
+            menteeInput.disabled = false;
+            mentorInput.disabled = false;
+          }
+        };
+
+        outcomeSelect.addEventListener('change', updateAmounts);
+        updateAmounts();
+
+        menteeInput.addEventListener('input', () => {
+          if (outcomeSelect.value === 'PARTIAL_REFUND') {
+            const val = Math.min(Math.max(Number(menteeInput.value) || 0, 0), total);
+            mentorInput.value = total - val;
+          }
+        });
+
+        resolveForm.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const submitBtn = resolveForm.querySelector('#btn-submit-resolve');
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Finalizing resolution…';
+          if (errorEl) errorEl.classList.add('hidden');
+
+          try {
+            const outcome = outcomeSelect.value;
+            const menteeRefund = Number(menteeInput.value);
+            const mentorRelease = Number(mentorInput.value);
+            const notes = resolveForm.querySelector('#resolve-notes').value.trim();
+
+            await staffService.resolveReport(detail.id, {
+              outcome,
+              resolutionNotes: notes,
+              menteeRefundAmount: menteeRefund,
+              mentorReleaseAmount: mentorRelease
+            });
+
+            dialog.close();
+            notice = { type: 'success', message: `Dispute #${detail.ticketCode} has been resolved successfully.` };
+            await loadData();
+          } catch (err) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Confirm Resolution & Settle';
+            if (errorEl) {
+              errorEl.innerHTML = Notice({ message: err.message || 'Failed to resolve dispute.', type: 'error' });
+              errorEl.classList.remove('hidden');
+            }
+          }
+        });
+      }
+    }
   }
 
   await loadData();

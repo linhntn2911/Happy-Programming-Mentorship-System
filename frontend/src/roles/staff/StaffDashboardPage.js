@@ -107,7 +107,7 @@ export function StaffDashboardPage(data = {}, user = null) {
         </div>
       </div>
       <div class="admin-panel-body">
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <a href="#/staff/mentor-applications" class="p-4 rounded-xl border border-line hover:border-brand/40 hover:bg-[#fbf9ff] transition-all block group">
             <div class="w-8 h-8 rounded-lg bg-lilac text-brand grid place-items-center mb-3">
               ${staffIcon('applications')}
@@ -119,15 +119,22 @@ export function StaffDashboardPage(data = {}, user = null) {
             <div class="w-8 h-8 rounded-lg bg-lilac text-brand grid place-items-center mb-3">
               ${staffIcon('mentors')}
             </div>
-            <p class="font-semibold text-xs text-ink group-hover:text-brand">Manager Mentors</p>
+            <p class="font-semibold text-xs text-ink group-hover:text-brand">Manage Mentors</p>
             <p class="text-muted text-[11px] mt-1">Inspect verified mentors, technical skills, hourly/monthly pricing, and profile state.</p>
           </a>
           <a href="#/staff/mentees" class="p-4 rounded-xl border border-line hover:border-brand/40 hover:bg-[#fbf9ff] transition-all block group">
             <div class="w-8 h-8 rounded-lg bg-lilac text-brand grid place-items-center mb-3">
               ${staffIcon('mentees')}
             </div>
-            <p class="font-semibold text-xs text-ink group-hover:text-brand">Manager Mentees</p>
+            <p class="font-semibold text-xs text-ink group-hover:text-brand">Manage Mentees</p>
             <p class="text-muted text-[11px] mt-1">View registered mentee accounts, active requests, and account verification status.</p>
+          </a>
+          <a href="#/staff/reports" class="p-4 rounded-xl border border-line hover:border-brand/40 hover:bg-[#fbf9ff] transition-all block group">
+            <div class="w-8 h-8 rounded-lg bg-lilac text-brand grid place-items-center mb-3">
+              ${staffIcon('reports')}
+            </div>
+            <p class="font-semibold text-xs text-ink group-hover:text-brand">Manage Reports</p>
+            <p class="text-muted text-[11px] mt-1">Review filed mentee disputes, inspect image evidence, open mediation rooms, and execute resolutions.</p>
           </a>
         </div>
       </div>

@@ -2,7 +2,9 @@ package com.happyprogramming.controller;
 
 import com.happyprogramming.dto.AdminPayoutRequest;
 import com.happyprogramming.dto.AuthenticatedUser;
+import com.happyprogramming.dto.DisputeFileDownload;
 import com.happyprogramming.dto.PayoutDecisionRequest;
+import com.happyprogramming.service.DisputeService;
 import com.happyprogramming.service.MentorWalletService;
 import com.happyprogramming.service.StaffAccessService;
 import com.happyprogramming.service.StaffService;
@@ -26,6 +28,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -44,6 +47,9 @@ class StaffControllerTest {
 
     @MockitoBean
     private MentorWalletService wallet;
+
+    @MockitoBean
+    private DisputeService disputeService;
 
     private UsernamePasswordAuthenticationToken staffPrincipal() {
         AuthenticatedUser user = new AuthenticatedUser(99L, "Operational Staff", "staff@example.com", "STAFF");
@@ -110,5 +116,133 @@ class StaffControllerTest {
                 .andExpect(jsonPath("$.data").value(true));
 
         verify(wallet).decidePayout(eq(1L), any(PayoutDecisionRequest.class), any());
+    }
+
+    @Test
+    void shouldReturnReportsForStaff() throws Exception {
+        var summary = new com.happyprogramming.dto.StaffDisputeDtos.StaffSummary(
+                1L, "HP-DSP-202610-0001", "ONE_OFF", 5L, "Java Mentoring",
+                "Mentee John", "mentee@test.com", "Mentor Jane", "mentor@test.com",
+                Instant.now(), new BigDecimal("500000"), "VND", "NO_SHOW", "SUBMITTED",
+                Instant.now(), null, null
+        );
+        when(disputeService.staffListDisputes()).thenReturn(List.of(summary));
+
+        mockMvc.perform(get("/api/staff/reports")
+                        .with(authentication(staffPrincipal()))
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].id").value(1))
+                .andExpect(jsonPath("$.data[0].ticketCode").value("HP-DSP-202610-0001"))
+                .andExpect(jsonPath("$.data[0].complainantName").value("Mentee John"))
+                .andExpect(jsonPath("$.data[0].disputedAmount").value(500000));
+    }
+
+    @Test
+    void shouldReturnReportDetailForStaff() throws Exception {
+        var detail = new com.happyprogramming.dto.StaffDisputeDtos.StaffDetail(
+                1L, "HP-DSP-202610-0001", "ONE_OFF", 5L, "Java Mentoring",
+                10L, "Mentee John", "mentee@test.com", 20L, "Mentor Jane", "mentor@test.com",
+                Instant.now(), new BigDecimal("500000"), "VND", "NO_SHOW",
+                "Mentor failed to show up for the session after waiting 20 minutes.",
+                "SUBMITTED", Instant.now(), Instant.now(), null, null, null,
+                null, null, null, null, List.of()
+        );
+        when(disputeService.staffDisputeDetail(1L)).thenReturn(detail);
+
+        mockMvc.perform(get("/api/staff/reports/1")
+                        .with(authentication(staffPrincipal()))
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.ticketCode").value("HP-DSP-202610-0001"))
+                .andExpect(jsonPath("$.data.description").value("Mentor failed to show up for the session after waiting 20 minutes."));
+    }
+
+    @Test
+    void shouldIntakeReportForStaff() throws Exception {
+        var detail = new com.happyprogramming.dto.StaffDisputeDtos.StaffDetail(
+                1L, "HP-DSP-202610-0001", "ONE_OFF", 5L, "Java Mentoring",
+                10L, "Mentee John", "mentee@test.com", 20L, "Mentor Jane", "mentor@test.com",
+                Instant.now(), new BigDecimal("500000"), "VND", "NO_SHOW",
+                "Mentor failed to show up for the session after waiting 20 minutes.",
+                "IN_MEDIATION", Instant.now(), Instant.now(), 99L, "Operational Staff",
+                Instant.now().plusSeconds(86400), null, null, null, null, List.of()
+        );
+        when(disputeService.staffIntake(eq(1L), any())).thenReturn(detail);
+
+        mockMvc.perform(post("/api/staff/reports/1/intake")
+                        .with(authentication(staffPrincipal()))
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("IN_MEDIATION"))
+                .andExpect(jsonPath("$.data.assignedStaffName").value("Operational Staff"));
+    }
+
+    @Test
+    void shouldResolveReportForStaff() throws Exception {
+        var detail = new com.happyprogramming.dto.StaffDisputeDtos.StaffDetail(
+                1L, "HP-DSP-202610-0001", "ONE_OFF", 5L, "Java Mentoring",
+                10L, "Mentee John", "mentee@test.com", 20L, "Mentor Jane", "mentor@test.com",
+                Instant.now(), new BigDecimal("500000"), "VND", "NO_SHOW",
+                "Mentor failed to show up for the session after waiting 20 minutes.",
+                "RESOLVED", Instant.now(), Instant.now(), 99L, "Operational Staff",
+                null, "FULL_REFUND", "Mentor no-show verified from timestamps and chat proof.",
+                new BigDecimal("500000"), Instant.now(), List.of()
+        );
+        when(disputeService.staffResolve(eq(1L), any(), any(), any())).thenReturn(detail);
+
+        mockMvc.perform(post("/api/staff/reports/1/resolve")
+                        .with(authentication(staffPrincipal()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "resolutionType": "FULL_REFUND",
+                                  "resolutionNote": "Mentor no-show verified from timestamps and chat proof."
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("RESOLVED"))
+                .andExpect(jsonPath("$.data.resolutionType").value("FULL_REFUND"));
+    }
+
+    @Test
+    void shouldDownloadEvidenceFileForStaff() throws Exception {
+        var file = new DisputeFileDownload("chat-proof.png", "image/png", 4L, new byte[]{1, 2, 3, 4});
+        when(disputeService.staffDownloadEvidence(1L, 10L)).thenReturn(file);
+
+        mockMvc.perform(get("/api/staff/reports/1/evidence/10")
+                        .with(authentication(staffPrincipal())))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Content-Type", "image/png"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().bytes(new byte[]{1, 2, 3, 4}));
+    }
+
+    @Test
+    void shouldSupportDisputesPathAlias() throws Exception {
+        when(disputeService.staffListDisputes()).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/staff/disputes")
+                        .with(authentication(staffPrincipal()))
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    void shouldRejectResolutionWhenResolutionTypeMissing() throws Exception {
+        mockMvc.perform(post("/api/staff/reports/1/resolve")
+                        .with(authentication(staffPrincipal()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "resolutionType": "",
+                                  "resolutionNote": "Short"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
     }
 }

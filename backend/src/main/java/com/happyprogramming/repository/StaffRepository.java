@@ -1,5 +1,6 @@
 package com.happyprogramming.repository;
 
+import com.happyprogramming.dto.StaffActivityDto;
 import com.happyprogramming.dto.StaffMenteeDto;
 import com.happyprogramming.dto.StaffMentorDto;
 import com.happyprogramming.dto.StaffReadDtos;
@@ -7,6 +8,9 @@ import com.happyprogramming.entity.Skill;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
+import java.sql.Timestamp;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 
 @Repository
@@ -37,4 +41,72 @@ public class StaffRepository {
     }
     public long pendingApplications() { return db.queryForObject("SELECT COUNT(*) FROM dbo.mentor_applications WHERE status='PENDING'",Long.class); }
     public long pendingRequests() { return db.queryForObject("SELECT COUNT(*) FROM dbo.mentorship_requests WHERE status='PENDING'",Long.class); }
+
+    public List<StaffActivityDto> recentActivities() {
+        return db.query("""
+            SELECT TOP 10 a.id, a.action, a.entity_type, a.entity_id, a.reason, a.created_at,
+                   COALESCE(u.full_name, 'Staff') actor_name
+            FROM dbo.audit_logs a
+            LEFT JOIN dbo.users u ON u.id = a.actor_id
+            ORDER BY a.created_at DESC, a.id DESC
+            """, (r, n) -> {
+                long id = r.getLong("id");
+                String action = r.getString("action");
+                String entityType = r.getString("entity_type");
+                String entityId = r.getString("entity_id");
+                String reason = r.getString("reason");
+                Timestamp createdAt = r.getTimestamp("created_at");
+
+                String type = entityType != null ? entityType.toLowerCase(Locale.ROOT) : "general";
+                String title;
+                String status = "ACTIVE";
+                String description = reason != null && !reason.isBlank() ? reason : "Operational action performed";
+
+                if ("CREATE_SKILL".equals(action)) {
+                    title = "Created technical skill #" + entityId;
+                    status = "SUCCESS";
+                } else if ("UPDATE_SKILL".equals(action)) {
+                    title = "Updated technical skill #" + entityId;
+                    status = "ACTIVE";
+                } else if ("TOGGLE_SKILL_STATUS".equals(action)) {
+                    title = "Toggled skill status #" + entityId;
+                    status = "ACTIVE";
+                } else if ("PAYOUT_PAID".equals(action)) {
+                    title = "Withdrawal request #" + entityId + " paid";
+                    status = "SUCCESS";
+                } else if ("PAYOUT_REJECTED".equals(action)) {
+                    title = "Withdrawal request #" + entityId + " rejected";
+                    status = "DANGER";
+                } else if ("DISPUTE_INTAKE".equals(action)) {
+                    title = "Dispute #" + entityId + " in mediation";
+                    status = "WARNING";
+                } else if ("DISPUTE_RESOLVED".equals(action)) {
+                    title = "Dispute #" + entityId + " resolved";
+                    status = "SUCCESS";
+                } else if ("ACCOUNT_STATUS_CHANGED".equals(action)) {
+                    title = "Account #" + entityId + " status updated";
+                    status = "NEUTRAL";
+                } else if (action != null) {
+                    title = action.replace('_', ' ').toLowerCase(Locale.ROOT);
+                    title = Character.toUpperCase(title.charAt(0)) + title.substring(1);
+                } else {
+                    title = "Operational update";
+                }
+
+                String timeAgo = formatTimeAgo(createdAt != null ? createdAt.toInstant() : null);
+                return new StaffActivityDto(String.valueOf(id), type, title, description, status, timeAgo);
+            });
+    }
+
+    private static String formatTimeAgo(Instant time) {
+        if (time == null) return "Recently";
+        long seconds = Duration.between(time, Instant.now()).getSeconds();
+        if (seconds < 0 || seconds < 60) return "Just now";
+        long minutes = seconds / 60;
+        if (minutes < 60) return minutes + "m ago";
+        long hours = minutes / 60;
+        if (hours < 24) return hours + "h ago";
+        long days = hours / 24;
+        return days + "d ago";
+    }
 }

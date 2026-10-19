@@ -16,7 +16,8 @@ import {
   mountStaffMentors,
   mountStaffMentees,
   mountStaffList,
-  mountStaffPayouts
+  mountStaffPayouts,
+  mountStaffReports
 } from './roles/staff/StaffPortal.js';
 import { mountMonthlyMentorshipApplication } from './roles/mentee/MonthlyMentorshipApplicationPage.js';
 import { mountWishlist } from './roles/mentee/WishlistPage.js';
@@ -484,6 +485,9 @@ function router() {
     mountStaffList(appEl, hash.split('/')[2]);
   } else if (hash === '#/staff/payouts' || hash === '#/staff/payout-requests') {
     mountStaffPayouts(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/staff/reports' || hash === '#/staff/disputes') {
+    mountStaffReports(appEl);
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash.startsWith('#/staff/')) {
     mountStaffDashboard(appEl);

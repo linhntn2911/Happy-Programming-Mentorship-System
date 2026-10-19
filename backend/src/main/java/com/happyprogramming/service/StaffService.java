@@ -42,7 +42,7 @@ public class StaffService {
         result.put("activeMentorsCount", p.contains("MENTOR_APPLICATION_MANAGE") ? getMentors().stream().filter(m -> "ACTIVE".equals(m.getStatus())).count() : null);
         result.put("activeMenteesCount", p.contains("MENTEE_MANAGE") ? getMentees().stream().filter(m -> "ACTIVE".equals(m.getStatus())).count() : null);
         result.put("pendingRequestsCount", p.contains("MENTORSHIP_REQUEST_MANAGE") ? repository.pendingRequests() : null);
-        result.put("recentActivities", List.of());
+        result.put("recentActivities", repository.recentActivities());
         return result;
     }
 

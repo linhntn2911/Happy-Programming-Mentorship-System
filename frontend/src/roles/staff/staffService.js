@@ -119,5 +119,23 @@ export const staffService = {
       headers: await withCsrf(),
       body: JSON.stringify({ decision: 'REJECTED', reason })
     });
+  },
+
+  getReports: () => apiClient('/api/staff/reports'),
+  getReportDetail: (id) => apiClient(`/api/staff/reports/${id}`),
+
+  async intakeReport(id) {
+    return apiClient(`/api/staff/reports/${id}/intake`, {
+      method: 'POST',
+      headers: await withCsrf()
+    });
+  },
+
+  async resolveReport(id, data) {
+    return apiClient(`/api/staff/reports/${id}/resolve`, {
+      method: 'POST',
+      headers: await withCsrf({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(data)
+    });
   }
 };
