@@ -7,6 +7,7 @@ import com.happyprogramming.dto.ReviewResponseDto;
 import com.happyprogramming.repository.ReviewRepository;
 import com.happyprogramming.repository.ReviewRepository.BookingReviewContext;
 import com.happyprogramming.repository.ReviewRepository.ReviewEntity;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -24,10 +25,12 @@ public class ReviewService {
     private final NotificationService notificationService;
     private final Clock clock;
 
-    public ReviewService(ReviewRepository reviewRepository, NotificationService notificationService, Clock clock) {
+    @Autowired
+    public ReviewService(ReviewRepository reviewRepository, NotificationService notificationService,
+                         @Autowired(required = false) Clock clock) {
         this.reviewRepository = reviewRepository;
         this.notificationService = notificationService;
-        this.clock = clock;
+        this.clock = clock != null ? clock : Clock.systemUTC();
     }
 
     public ReviewService(ReviewRepository reviewRepository, NotificationService notificationService) {
