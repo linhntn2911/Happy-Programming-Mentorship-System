@@ -64,6 +64,7 @@ class ReviewServiceTest {
         SecurityContextHolder.clearContext();
     }
 
+    // 34. submitReview_01
     @Test
     void submitReview_successful_whenSessionCompleted() {
         BookingReviewContext booking = new BookingReviewContext(
@@ -95,6 +96,7 @@ class ReviewServiceTest {
         );
     }
 
+    // 35. submitReview_02
     @Test
     void submitReview_successful_whenSessionConfirmedAndEnded() {
         BookingReviewContext booking = new BookingReviewContext(
@@ -115,6 +117,7 @@ class ReviewServiceTest {
         verify(reviewRepository).markBookingCompleted(51L, now.minusSeconds(600));
     }
 
+    // 36. submitReview_03
     @Test
     void submitReview_fails_whenDuplicateReviewSubmitted() {
         BookingReviewContext booking = new BookingReviewContext(
@@ -133,6 +136,7 @@ class ReviewServiceTest {
         verify(reviewRepository, never()).insertBookingReview(anyLong(), anyInt(), anyString());
     }
 
+    // 37. submitReview_04
     @Test
     void submitReview_fails_whenSessionNotCompletedYet() {
         BookingReviewContext booking = new BookingReviewContext(
@@ -149,6 +153,7 @@ class ReviewServiceTest {
         assertEquals("You can only review a completed session.", ex.getReason());
     }
 
+    // 38. submitReview_05
     @Test
     void submitReview_fails_whenNotBookingOwner() {
         BookingReviewContext booking = new BookingReviewContext(
@@ -165,6 +170,7 @@ class ReviewServiceTest {
         assertEquals("You can only review your own bookings.", ex.getReason());
     }
 
+    // 39. submitReview_06
     @Test
     void submitReview_fails_whenRatingInvalid() {
         CreateReviewRequest request = new CreateReviewRequest(50L, 6, "Invalid rating of 6 stars.");
@@ -173,6 +179,7 @@ class ReviewServiceTest {
         assertEquals("Rating must be between 1 and 5.", ex.getReason());
     }
 
+    // 40. submitReview_07
     @Test
     void submitReview_fails_whenCommentTooShort() {
         CreateReviewRequest request = new CreateReviewRequest(50L, 5, "Short");
@@ -181,6 +188,7 @@ class ReviewServiceTest {
         assertEquals("Review comment must be between 10 and 500 characters.", ex.getReason());
     }
 
+    // 41. getPublishedReviews_01
     @Test
     void getPublicReviewsForMentor_returnsPublishedReviews() {
         when(reviewRepository.resolveMentorId("jane-mentor")).thenReturn(200L);

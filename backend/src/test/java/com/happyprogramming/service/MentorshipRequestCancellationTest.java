@@ -43,6 +43,7 @@ class MentorshipRequestCancellationTest {
         SecurityContextHolder.clearContext();
     }
 
+    // 15. cancelRequest_01
     @Test
     void cancelsOwnedAcceptedApplicationWithoutSucceededPaymentAndNotifiesMentor() {
         Map<String, Object> request = new HashMap<>();
@@ -61,6 +62,7 @@ class MentorshipRequestCancellationTest {
                 eq("#/mentor/dashboard"));
     }
 
+    // 16. cancelRequest_02
     @Test
     void refusesCancellationWhenPaymentIsSucceeded() {
         Map<String, Object> request = new HashMap<>();

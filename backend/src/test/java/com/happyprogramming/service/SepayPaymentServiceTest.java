@@ -20,6 +20,7 @@ class SepayPaymentServiceTest {
     private final ObjectMapper mapper = new ObjectMapper();
     private SepayPaymentService service;
 
+    // 17. preparePaymentQr_01
     @Test
     void rejectsMissingConfigurationAndMissingIdentityBeforeDatabaseAccess() {
         var disabled = new SepayPaymentService(null, mapper, true, "Test", "123", "Test", "", "compact");
@@ -42,6 +43,7 @@ class SepayPaymentServiceTest {
         );
     }
 
+    // 18. preparePaymentQr_02
     @Test
     void buildsSePayQrUrlWithCorrectParameters() {
         String qrUrl = service.buildQrUrl(new BigDecimal("1500000"), "HP42A1");
@@ -53,6 +55,7 @@ class SepayPaymentServiceTest {
         assertTrue(qrUrl.contains("des=HP42A1"));
     }
 
+    // 19. handleSepayWebhook_01
     @Test
     void rejectsWebhookWithInvalidApiKey() {
         SepayWebhookPayload payload = new SepayWebhookPayload(
@@ -66,6 +69,7 @@ class SepayPaymentServiceTest {
         assertEquals(401, exception.getStatusCode().value());
     }
 
+    // 20. handleSepayWebhook_02
     @Test
     void ignoresNonInboundTransferGracefully() {
         SepayWebhookPayload payload = new SepayWebhookPayload(
@@ -79,6 +83,7 @@ class SepayPaymentServiceTest {
         assertTrue(response.message().contains("Ignored non-inbound"));
     }
 
+    // 21. handleSepayWebhook_03
     @Test
     void ignoresAccountNumberMismatchGracefully() {
         SepayWebhookPayload payload = new SepayWebhookPayload(
@@ -92,6 +97,7 @@ class SepayPaymentServiceTest {
         assertTrue(response.message().contains("account number mismatch"));
     }
 
+    // 22. handleSepayWebhook_04
     @Test
     void ignoresPayloadWhenNoOrderCodeInContent() {
         SepayWebhookPayload payload = new SepayWebhookPayload(
@@ -105,6 +111,7 @@ class SepayPaymentServiceTest {
         assertTrue(response.message().contains("no order reference found"));
     }
 
+    // 23. validateAmountAndTime_01
     @Test
     void acceptsOnlyTheExactRequiredAmount() {
         BigDecimal requiredAmount = new BigDecimal("1200000");
@@ -118,6 +125,7 @@ class SepayPaymentServiceTest {
         assertFalse(SepayPaymentService.matchesExpectedAmount(null, requiredAmount));
     }
 
+    // 24. validateAmountAndTime_02
     @Test
     void usesCalculatedTotalForOneOffCheckout() {
         String snapshot = """
@@ -128,6 +136,7 @@ class SepayPaymentServiceTest {
         assertEquals(new BigDecimal("396000"), service.amountFromSnapshot(snapshot));
     }
 
+    // 25. validateAmountAndTime_03
     @Test
     void interpretsSePayTransactionTimeInVietnamForDelayedWebhookValidation() {
         SepayWebhookPayload payload = new SepayWebhookPayload(
@@ -138,6 +147,7 @@ class SepayPaymentServiceTest {
                 SepayPaymentService.transferOccurredAt(payload, Instant.EPOCH));
     }
 
+    // 26. validateAmountAndTime_04
     @Test
     void treatsSqlServerDatetime2FieldsAsUtcWallClockValues() {
         Timestamp databaseValue = Timestamp.valueOf("2026-10-15 14:33:26.782");

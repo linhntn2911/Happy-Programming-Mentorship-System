@@ -46,6 +46,7 @@ class MentorshipWorkspaceServiceTest {
         SecurityContextHolder.clearContext();
     }
 
+    // 27. getWorkspace_01
     @Test
     void listsOnlyRowsReturnedForCurrentMember() {
         when(repository.findForUser(10L)).thenReturn(List.of(workspace()));
@@ -60,6 +61,7 @@ class MentorshipWorkspaceServiceTest {
         assertEquals(2L, rows.get(0).unreadCount());
     }
 
+    // 28. getWorkspace_02
     @Test
     void rejectsAnAuthenticatedNonMember() {
         when(repository.findAccessibleByConversationId(40L)).thenReturn(Optional.of(workspace()));
@@ -101,6 +103,7 @@ class MentorshipWorkspaceServiceTest {
         verify(repository, never()).findLatestMessages(40L, 100);
     }
 
+    // 29. workspaceMessages_01
     @Test
     void repeatedClientKeyReturnsExistingMessageWithoutAnotherInsert() {
         MessageRow existing = new MessageRow(7L, 10L, "Mentee", "TEXT", "Hello", null,
@@ -115,6 +118,7 @@ class MentorshipWorkspaceServiceTest {
         verify(repository, never()).insertMessage(40L, 10L, "client-1", "TEXT", "Hello", null);
     }
 
+    // 30. workspaceMessages_02
     @Test
     void uploadsSupportedFileIntoTheMemberConversation() {
         var upload = new MockMultipartFile("file", "lesson.pdf", "application/pdf", "pdf".getBytes());
@@ -133,6 +137,7 @@ class MentorshipWorkspaceServiceTest {
         assertEquals(50L, result.fileId());
     }
 
+    // 31. workspaceMessages_03
     @Test
     void rejectsExecutableWorkspaceFile() {
         var upload = new MockMultipartFile("file", "run.exe", "application/x-msdownload", new byte[] {1});
@@ -147,6 +152,7 @@ class MentorshipWorkspaceServiceTest {
                 anyString(), org.mockito.ArgumentMatchers.any(), anyString());
     }
 
+    // 32. workspaceMessages_04
     @Test
     void marksOnlyTheCurrentMembersConversationAsRead() {
         when(repository.findAccessibleByConversationId(40L)).thenReturn(Optional.of(workspace()));
@@ -156,6 +162,7 @@ class MentorshipWorkspaceServiceTest {
         verify(repository).markRead(40L, 10L, false);
     }
 
+    // 33. getEngagements_01
     @Test
     void returnsMonthlyAndOneOffEngagementsInsideOneConversationWorkspace() {
         when(repository.findAccessibleByConversationId(40L)).thenReturn(Optional.of(workspace()));

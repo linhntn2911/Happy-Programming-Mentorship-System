@@ -48,6 +48,7 @@ class MentorshipRequestControllerTest {
         return "I want to become a confident backend engineer and land my first full-time role within six months.";
     }
 
+    // 1. createMonthlyRequest_01
     @Test
     void createsRequestPendingMentorDecision() throws Exception {
         when(mentorshipRequestService.create(ArgumentMatchers.any(CreateMentorshipRequest.class)))
@@ -68,6 +69,7 @@ class MentorshipRequestControllerTest {
         org.junit.jupiter.api.Assertions.assertEquals(42L, requestCaptor.getValue().serviceOfferingId());
     }
 
+    // 2. createMonthlyRequest_02
     @Test
     void rejectsShortLearningGoals() throws Exception {
         mockMvc.perform(post("/api/mentorship-requests")
@@ -77,6 +79,7 @@ class MentorshipRequestControllerTest {
                 .andExpect(jsonPath("$.success").value(false));
     }
 
+    // 3. createMonthlyRequest_03
     @Test
     void rejectsUnknownExperienceLevel() throws Exception {
         mockMvc.perform(post("/api/mentorship-requests")
@@ -89,6 +92,7 @@ class MentorshipRequestControllerTest {
                 .andExpect(jsonPath("$.success").value(false));
     }
 
+    // 4. createMonthlyRequest_04
     @Test
     void unpublishedPackageConflictIsPropagated() throws Exception {
         when(mentorshipRequestService.create(ArgumentMatchers.any(CreateMentorshipRequest.class)))
@@ -104,6 +108,7 @@ class MentorshipRequestControllerTest {
                         .value("This mentor has not published a monthly mentorship package yet."));
     }
 
+    // 5. createMonthlyRequest_05
     @Test
     void anonymousRequestIsRejected() throws Exception {
         when(mentorshipRequestService.create(ArgumentMatchers.any(CreateMentorshipRequest.class)))
@@ -126,6 +131,7 @@ class MentorshipRequestControllerTest {
         org.mockito.Mockito.verify(mentorshipRequestService).cancelMyRequest(99L);
     }
 
+    // 8. getCheckoutInformation_01
     @Test
     void loadsCheckoutInfoForAcceptedRequest() throws Exception {
         when(mentorshipRequestService.getCheckoutInfo(99L))
@@ -160,6 +166,7 @@ class MentorshipRequestControllerTest {
                 .andExpect(jsonPath("$.data.isPaid").value(false));
     }
 
+    // 9. getCheckoutInformation_02
     @Test
     void startsPendingSepayCheckout() throws Exception {
         when(sepayPaymentService.isEnabled()).thenReturn(true);
@@ -184,6 +191,7 @@ class MentorshipRequestControllerTest {
                 .andExpect(jsonPath("$.data.qrCodeUrl").value(org.hamcrest.Matchers.startsWith("https://qr.sepay.vn/")));
     }
 
+    // 6. getMyBookings_01
     @Test
     void listsMyApplicationsWithStatusFilterAndPagination() throws Exception {
         when(mentorshipRequestService.getMyApplications(0, 10, "ACCEPTED"))

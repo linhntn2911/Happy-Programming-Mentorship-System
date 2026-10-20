@@ -111,6 +111,7 @@ class MentorshipRequestServiceTest {
     }
 
     @SuppressWarnings("unchecked")
+    // 7. getMyBookings_02
     @Test
     void myBookingsFilterUsesCurrentMenteeAndRequestedStatus() {
         when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(0L);

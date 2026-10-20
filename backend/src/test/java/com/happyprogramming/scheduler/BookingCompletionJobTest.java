@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 class BookingCompletionJobTest {
+    // 45. completeEndedBookings_01
     @Test
     void delegatesEachRunToTheIdempotentLifecycleUpdate() {
         RecordingRepository repository = new RecordingRepository();

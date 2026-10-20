@@ -56,12 +56,14 @@ class NotificationControllerTest {
         );
     }
 
+    // 42. menteeNotifications_01
     @Test
     void unauthenticatedAccessReturnsUnauthorized() throws Exception {
         mvc.perform(get("/api/notifications"))
             .andExpect(status().isUnauthorized());
     }
 
+    // 43. menteeNotifications_02
     @Test
     void listsNotificationsAndMarksRead() throws Exception {
         var n1 = notificationService.create(userId, "First Notice", "Content 1", "TEST", "#/link1");
@@ -91,6 +93,7 @@ class NotificationControllerTest {
             .andExpect(jsonPath("$.data.unreadCount").value(0));
     }
 
+    // 44. menteeNotifications_03
     @Test
     void historyPaginatesBeyondBellLimitAndFiltersUnreadForCurrentUser() throws Exception {
         for (int i = 0; i < 55; i++) notificationService.create(userId, "Notice " + i, "Message", "TEST", "#/account");
