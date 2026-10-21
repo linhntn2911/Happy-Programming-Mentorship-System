@@ -70,24 +70,19 @@ class NotificationControllerTest {
         var n2 = notificationService.create(userId, "Second Notice", "Content 2", "TEST", "#/link2");
         em.flush();
         em.clear();
-
         mvc.perform(get("/api/notifications").with(authentication(principal())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.unreadCount").value(2))
             .andExpect(jsonPath("$.data.notifications", hasSize(2)));
-
         mvc.perform(post("/api/notifications/" + n1.id() + "/read").with(authentication(principal())).with(csrf()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data").value(true));
-
         mvc.perform(get("/api/notifications").with(authentication(principal())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.unreadCount").value(1));
-
         mvc.perform(post("/api/notifications/read-all").with(authentication(principal())).with(csrf()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data").value(1));
-
         mvc.perform(get("/api/notifications").with(authentication(principal())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.unreadCount").value(0));
@@ -103,7 +98,6 @@ class NotificationControllerTest {
         notificationService.create(otherId, "Private notice", "Private", "TEST", null);
         em.flush();
         em.clear();
-
         mvc.perform(get("/api/notifications/history?page=5&size=10").with(authentication(principal())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.totalElements").value(55))

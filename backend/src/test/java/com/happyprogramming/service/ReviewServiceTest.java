@@ -76,17 +76,14 @@ class ReviewServiceTest {
         when(reviewRepository.existsByBookingId(50L)).thenReturn(false);
         when(reviewRepository.insertBookingReview(50L, 5, "Excellent mentorship session! Learned so much."))
                 .thenReturn(10L);
-
         CreateReviewRequest request = new CreateReviewRequest(50L, 5, "Excellent mentorship session! Learned so much.");
         ReviewResponseDto result = reviewService.submitReview(request);
-
         assertNotNull(result);
         assertEquals(10L, result.id());
         assertEquals(50L, result.bookingId());
         assertEquals(5, result.rating());
         assertEquals("Excellent mentorship session! Learned so much.", result.comment());
         assertEquals("PUBLISHED", result.visibilityStatus());
-
         verify(notificationService).create(
                 eq(200L),
                 eq("New review received"),
@@ -193,7 +190,8 @@ class ReviewServiceTest {
     void getPublicReviewsForMentor_returnsPublishedReviews() {
         when(reviewRepository.resolveMentorId("jane-mentor")).thenReturn(200L);
         when(reviewRepository.findPublishedReviewsByMentorId(200L, 10)).thenReturn(List.of(
-                new PublicReviewRecord(1L, 5, "Super insightful feedback!", "John Mentee", "Code Review", now.minusSeconds(1000))
+                new PublicReviewRecord(1L, 5, "Super insightful feedback!",
+                        "John Mentee", "Code Review", now.minusSeconds(1000))
         ));
 
         List<PublicReviewDto> list = reviewService.getPublicReviewsForMentor("jane-mentor", 10);

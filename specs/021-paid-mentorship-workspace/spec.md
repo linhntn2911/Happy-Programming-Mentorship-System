@@ -18,6 +18,8 @@ Acceptance criteria:
 - Mentor acceptance without a verified payment never grants workspace access.
 - The workspace shows one optional active monthly plan plus the pair's paid one-off sessions, including their independent schedule, status, price, and participant count.
 - A confirmed one-off session remains in the upcoming section only until its `end_at`. After that instant it is completed automatically, removed from upcoming sessions, and retained under a collapsed past-session history.
+- Monthly lifecycle is time driven: `TRIALING` becomes `ACTIVE` at `trial_ends_at`, and an unrenewed subscription becomes `ENDED` at `current_period_end` without a mentor action.
+- An ended monthly subscription no longer grants workspace access by itself. The relationship workspace remains available when an eligible one-off booking or another qualifying monthly subscription exists, and historical subscription data is retained.
 - Buying another service from the same mentor reuses the existing workspace and conversation.
 - A user with no active workspace sees an honest empty state.
 - Opening Mentorships first shows the user's active mentor/mentee list; conversation detail opens only after a selection or a direct checkout/application link.

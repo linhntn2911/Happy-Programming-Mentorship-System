@@ -26,3 +26,5 @@ The earlier verification above is upstream evidence, not current local verificat
 - [x] Bound payment expiry by the selected slot-hold expiry.
 - [x] Convert the hold and create confirmed one-off bookings only from verified webhook settlement.
 - [x] Preserve the monthly approval-first subscription path.
+- [x] Direct expired one-off checkout attempts to reserve another time while allowing monthly QR regeneration.
+- [x] Allow cancellation from unpaid checkout and release a cancelled one-off slot hold immediately.

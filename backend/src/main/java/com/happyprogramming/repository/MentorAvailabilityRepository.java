@@ -61,7 +61,7 @@ public class MentorAvailabilityRepository {
             """;
 
     private static final String SELECT_PUBLIC_SLOTS = """
-            SELECT ae.id, ae.start_at, ae.end_at,
+            SELECT ae.id, ae.start_at, ae.end_at, ae.reason,
                    CASE WHEN EXISTS (
                         SELECT 1 FROM dbo.slot_holds sh
                         WHERE sh.mentor_id = ae.mentor_id
@@ -78,7 +78,7 @@ public class MentorAvailabilityRepository {
             """;
 
     private static final String SELECT_PUBLIC_AVAILABILITY_WINDOWS = """
-            SELECT ae.id, ae.start_at, ae.end_at,
+            SELECT ae.id, ae.start_at, ae.end_at, ae.reason,
                    CAST(1 AS bit) AS available
             FROM dbo.availability_exceptions ae
             JOIN dbo.mentor_profiles mp ON mp.user_id = ae.mentor_id
@@ -282,7 +282,8 @@ public class MentorAvailabilityRepository {
                 rs.getLong("id"),
                 fromUtc(rs.getObject("start_at", LocalDateTime.class)),
                 fromUtc(rs.getObject("end_at", LocalDateTime.class)),
-                rs.getBoolean("available"));
+                rs.getBoolean("available"),
+                rs.getString("reason"));
     }
 
     private static RowMapper<SlotHoldResponse> holdMapper() {

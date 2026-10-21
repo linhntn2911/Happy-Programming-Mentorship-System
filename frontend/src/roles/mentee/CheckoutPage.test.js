@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { checkoutFacts, countdownRemainingSeconds } from './CheckoutPage.js';
+import { checkoutFacts, checkoutPaymentState, countdownRemainingSeconds } from './CheckoutPage.js';
 
 test('one-off checkout facts never render monthly billing fields', () => {
   const markup = checkoutFacts({
@@ -31,4 +31,15 @@ test('QR countdown uses the database clock instead of the browser clock', () => 
     countdownRemainingSeconds('2026-10-15T03:15:00Z', null, 61_000, 900),
     839,
   );
+});
+
+test('expired monthly payment can generate a new QR while an expired one-off requires a new slot', () => {
+  const monthly = checkoutPaymentState({
+    paymentStatus: 'PENDING', paymentRemainingSeconds: 0, qrCodeUrl: 'https://qr.example', paymentReference: 'HP1A1',
+  });
+  const oneOff = checkoutPaymentState({ paymentStatus: 'EXPIRED', paymentRemainingSeconds: 0 });
+
+  assert.equal(monthly.expired, true);
+  assert.equal(monthly.hasActiveAttempt, false);
+  assert.equal(oneOff.expired, true);
 });

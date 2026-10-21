@@ -178,6 +178,7 @@ Mentees may submit a 1–5 star rating and comment only after an eligible mentor
 - Workspace access requires an active subscription or confirmed eligible booking backed by a verified payment.
 - Workspace access is limited to the assigned Mentor and Mentee and is provisioned only by verified SePay settlement of a monthly plan or one-off booking.
 - The workspace is identified by the pair's approved conversation. It presents an optional active monthly context, independent paid one-off bookings, learning goals, and shared private conversation history.
+- A monthly subscription changes from `TRIALING` to `ACTIVE` when its trial ends. If its paid period is not extended by a renewal, the system changes it to `ENDED` at `current_period_end`; no mentor action is required.
 - When a confirmed one-off session reaches its scheduled end, the system completes it automatically, removes it from upcoming engagements, and retains it in collapsed session history for reviews, disputes, refunds, and audit.
 - Mentorships first presents each active mentor/mentee pair once; purchasing another service from the same partner reuses that workspace.
 - Members can exchange text messages and authorized learning-file attachments up to 10 MB.
@@ -242,6 +243,7 @@ Mentees may submit a 1–5 star rating and comment only after an eligible mentor
 | `PendingPaymentExpiryJob` | Configurable; current default scan is 60 seconds | Expires overdue `PENDING` payment attempts and releases eligible temporary slot holds. |
 | Request expiry processing | Configured schedule | Expires unanswered mentorship applications after the persisted 48-hour deadline. |
 | `MentorWalletReleaseJob` | Configurable; current default scan is 60 seconds | Finds successful payments older than seven days and appends mentor-release and platform-fee entries idempotently. |
+| `SubscriptionLifecycleJob` | Configurable; current default scan is 60 seconds | Activates completed monthly trials and ends paid periods that were not extended by renewal, without changing disputed or cancelled subscriptions. |
 
 ---
 

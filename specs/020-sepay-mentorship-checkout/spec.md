@@ -16,6 +16,8 @@ An accepted, unpaid mentorship application opens a checkout with the accepted me
 - For a one-off order, settlement converts the active slot hold and creates `CONFIRMED` booking records instead of creating a subscription. An expired or conflicting hold is routed to reconciliation and creates no booking.
 - The checkout page automatically polls for payment confirmation every 3 seconds while pending. Once settled, it renders the confirmed active mentorship view without requiring a manual page refresh.
 - Failed or expired attempts can be retried with a new reference and updated QR code while the application remains accepted and unfunded.
+- For one-off sessions, an expired slot hold cannot be renewed from checkout; the Mentee returns to availability to reserve another time before a new QR can be generated.
+- A Mentee may cancel an accepted but unpaid checkout. The cancellation marks every pending payment attempt cancelled; for a one-off checkout it also releases the held session time immediately.
 - If SePay retries a delayed webhook, a transfer made within the payment window may settle after delivery recovers. For one-off sessions, settlement must also confirm that the reserved interval has not since been claimed by another hold or booking; conflicts remain in manual reconciliation.
 
 ## Acceptance scenarios

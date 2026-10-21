@@ -1,5 +1,6 @@
 import { authService } from '../auth/authService.js';
 import { mentorshipRequestService } from './mentorshipRequestService.js';
+import { menteeApplicationsService } from './menteeApplicationsService.js';
 import { BrandLogo } from '../../shared/BrandLogo.js';
 import { BrowseAllMentorsLink } from '../../shared/BrowseAllMentorsLink.js';
 import {
@@ -79,6 +80,22 @@ export function checkoutFacts(info, isOneOff) {
   </dl>`;
 }
 
+export function checkoutPaymentState(info) {
+  const paymentStatus = info?.paymentStatus || '';
+  const remainingSeconds = Number(info?.paymentRemainingSeconds);
+  const pendingAttemptExpired = paymentStatus === 'PENDING'
+    && Number.isFinite(remainingSeconds) && remainingSeconds <= 0;
+  const expired = ['FAILED', 'EXPIRED', 'CANCELLED'].includes(paymentStatus) || pendingAttemptExpired;
+
+  return {
+    paymentStatus,
+    isPending: paymentStatus === 'PENDING',
+    expired,
+    hasActiveAttempt: paymentStatus === 'PENDING' && !pendingAttemptExpired
+      && Boolean(info?.qrCodeUrl && info?.paymentReference),
+  };
+}
+
 export async function mountCheckout(root, requestId, paymentReturn = false) {
   clearTimers();
   document.title = 'Mentorship Checkout | HappyProgramming';
@@ -144,9 +161,9 @@ function renderCheckoutDetails(root, container, user, info, paymentReturn) {
   const priceAvailable = info.priceAvailable !== false;
   const amountFormatted = priceAvailable ? formatVnd(info.amount) : 'Price unavailable';
   const currency = info.currency || 'VND';
-  const paymentStatus = info.paymentStatus || '';
-  const isPending = paymentStatus === 'PENDING';
-  const hasActiveAttempt = isPending && Boolean(info.qrCodeUrl && info.paymentReference);
+  const payment = checkoutPaymentState(info);
+  const paymentStatus = payment.paymentStatus;
+  const hasActiveAttempt = payment.hasActiveAttempt;
 
   if (isPaid) {
     clearTimers();
@@ -179,7 +196,20 @@ function renderCheckoutDetails(root, container, user, info, paymentReturn) {
     return;
   }
 
-  const failed = paymentStatus === 'FAILED' || paymentStatus === 'EXPIRED' || paymentStatus === 'CANCELLED';
+  const failed = payment.expired;
+  // A failed transfer may still be retried while its one-off hold remains valid.
+  // Only an actually expired payment/hold sends the Mentee back to availability.
+  const oneOffReservationExpired = isOneOff && (
+    paymentStatus === 'EXPIRED'
+    || (paymentStatus === 'PENDING' && payment.expired)
+  );
+  const selectAnotherTimeUrl = `#/mentors/${encodeURIComponent(info.mentorId)}/sessions`;
+  const checkoutAction = !priceAvailable
+    ? '<button type="button" id="checkout-submit-btn" class="btn btn-primary mt-6 w-full py-3.5 text-sm font-semibold" disabled>Payment unavailable</button>'
+    : oneOffReservationExpired
+      ? `<a href="${selectAnotherTimeUrl}" class="btn btn-primary mt-6 w-full py-3.5 text-sm font-semibold">Choose another session time</a>`
+      : `<button type="button" id="checkout-submit-btn" class="btn btn-primary mt-6 w-full py-3.5 text-sm font-semibold">${payment.expired ? 'Generate new SePay QR' : hasActiveAttempt ? 'Refresh Payment QR' : 'Prepare SePay QR payment'}</button>`;
+  const cancelLabel = isOneOff ? 'Cancel booking' : 'Cancel application';
   const mentorInitials = getInitials(info.mentorName || 'Mentor');
   const avatarHtml = info.mentorAvatarUrl
     ? `<img src="${esc(info.mentorAvatarUrl)}" alt="${esc(info.mentorName)}" class="h-14 w-14 rounded-full border border-line object-cover">`
@@ -201,7 +231,9 @@ function renderCheckoutDetails(root, container, user, info, paymentReturn) {
     </div>
 
     ${failed ? `<div class="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" role="status">
-      Your previous payment attempt ${paymentStatus === 'FAILED' ? 'was not completed' : 'expired'}. The application is still accepted; you can generate a new payment QR code.
+      ${oneOffReservationExpired
+        ? 'The payment QR expired and this session time is no longer reserved. Please choose another available time before paying.'
+        : `Your previous payment attempt ${paymentStatus === 'FAILED' ? 'was not completed' : 'expired'}. The application is still accepted; you can generate a new payment QR code.`}
     </div>` : ''}
 
     <div class="grid grid-cols-1 items-start gap-8 lg:grid-cols-3">
@@ -311,9 +343,8 @@ function renderCheckoutDetails(root, container, user, info, paymentReturn) {
 
           ${priceAvailable ? '' : '<p class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900" role="alert">We could not verify the price accepted for this application because the mentor’s package changed after you applied. Please ask the mentor to confirm the package before paying.</p>'}
 
-          <button type="button" id="checkout-submit-btn" class="btn btn-primary mt-6 w-full py-3.5 text-sm font-semibold" ${!priceAvailable ? 'disabled' : ''}>
-            ${!priceAvailable ? 'Payment unavailable' : hasActiveAttempt ? 'Refresh Payment QR' : 'Prepare SePay QR payment'}
-          </button>
+          ${checkoutAction}
+          <button type="button" id="checkout-cancel-btn" class="btn btn-outline mt-3 w-full py-3 text-sm font-semibold">${cancelLabel}</button>
           
           <p class="mt-3 text-center text-[11px] text-muted">Upon transfer, SePay automatically notifies HappyProgramming to ${isOneOff ? 'confirm your booking' : 'activate your mentorship'}.</p>
         </section>
@@ -324,11 +355,12 @@ function renderCheckoutDetails(root, container, user, info, paymentReturn) {
   bindCopyButtons(container);
 
   if (hasActiveAttempt) {
-    startCountdown(container, info.paymentExpiresAt, info.serverNow, info.paymentRemainingSeconds);
+    startCountdown(container, info.paymentExpiresAt, info.serverNow, info.paymentRemainingSeconds, info);
     startPolling(root, info.requestId);
   }
 
   container.querySelector('#checkout-submit-btn')?.addEventListener('click', () => startSepay(root, container, info));
+  container.querySelector('#checkout-cancel-btn')?.addEventListener('click', () => cancelCheckout(container, info, cancelLabel));
 }
 
 function bindCopyButtons(container) {
@@ -367,7 +399,7 @@ export function countdownRemainingSeconds(expiresAt, serverNow, elapsedMs = 0, i
   return Math.max(0, Math.floor((expiryTime - referenceTime) / 1000));
 }
 
-function startCountdown(container, expiresAt, serverNow, initialRemainingSeconds) {
+function startCountdown(container, expiresAt, serverNow, initialRemainingSeconds, info) {
   if (countdownTimer) clearInterval(countdownTimer);
   const countdownEl = container.querySelector('#countdown-text');
   if (!countdownEl) return;
@@ -383,6 +415,21 @@ function startCountdown(container, expiresAt, serverNow, initialRemainingSeconds
     if (diff <= 0) {
       clearInterval(countdownTimer);
       countdownEl.textContent = 'Expired';
+      const action = container.querySelector('#checkout-submit-btn');
+      if (action && info?.serviceType === 'ONE_OFF') {
+        const replacement = document.createElement('a');
+        replacement.href = `#/mentors/${encodeURIComponent(info.mentorId)}/sessions`;
+        replacement.className = action.className;
+        replacement.textContent = 'Choose another session time';
+        action.replaceWith(replacement);
+        const errorBox = container.querySelector('#checkout-error');
+        if (errorBox) {
+          errorBox.textContent = 'This session time is no longer reserved. Please choose another available time.';
+          errorBox.classList.remove('hidden');
+        }
+      } else if (action) {
+        action.textContent = 'Generate new SePay QR';
+      }
     }
   }
 
@@ -422,10 +469,46 @@ async function startSepay(root, container, info) {
     // Re-mount checkout to show the active QR panel
     mountCheckout(root, info.requestId, false);
   } catch (err) {
+    const message = err.message || 'Could not start payment. Please try again.';
+    if (info.serviceType === 'ONE_OFF' && /selected time is no longer reserved/i.test(message)) {
+      const replacement = document.createElement('a');
+      replacement.href = `#/mentors/${encodeURIComponent(info.mentorId)}/sessions`;
+      replacement.className = button.className;
+      replacement.textContent = 'Choose another session time';
+      button.replaceWith(replacement);
+      if (errorBox) {
+        errorBox.textContent = message;
+        errorBox.classList.remove('hidden');
+      }
+      return;
+    }
     button.disabled = false;
-    button.textContent = 'Prepare SePay QR payment';
+    button.textContent = checkoutPaymentState(info).expired ? 'Generate new SePay QR' : 'Prepare SePay QR payment';
     if (errorBox) {
-      errorBox.textContent = err.message || 'Could not start payment. Please try again.';
+      errorBox.textContent = message;
+      errorBox.classList.remove('hidden');
+    }
+  }
+}
+
+async function cancelCheckout(container, info, cancelLabel) {
+  if (!window.confirm(`Are you sure you want to ${cancelLabel.toLowerCase()}?`)) return;
+  const button = container.querySelector('#checkout-cancel-btn');
+  const errorBox = container.querySelector('#checkout-error');
+  if (!button) return;
+  button.disabled = true;
+  button.textContent = 'Cancelling…';
+  errorBox?.classList.add('hidden');
+
+  try {
+    await menteeApplicationsService.cancel(info.requestId);
+    clearTimers();
+    window.location.hash = '#/applications';
+  } catch (err) {
+    button.disabled = false;
+    button.textContent = cancelLabel;
+    if (errorBox) {
+      errorBox.textContent = err.message || `Could not ${cancelLabel.toLowerCase()}. Please try again.`;
       errorBox.classList.remove('hidden');
     }
   }

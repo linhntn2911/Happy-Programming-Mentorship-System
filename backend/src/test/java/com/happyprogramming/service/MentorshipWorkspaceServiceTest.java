@@ -115,7 +115,8 @@ class MentorshipWorkspaceServiceTest {
                 new SendWorkspaceMessageRequest("client-1", "TEXT", "Hello", null));
 
         assertEquals(7L, result.id());
-        verify(repository, never()).insertMessage(40L, 10L, "client-1", "TEXT", "Hello", null);
+        verify(repository, never()).insertMessage(40L, 10L, "client-1", "TEXT",
+                "Hello", null);
     }
 
     // 30. workspaceMessages_02

@@ -129,7 +129,8 @@ public class MentorAvailabilityService {
             while (!start.plus(duration).isAfter(window.endAt())) {
                 Instant end = start.plus(duration);
                 boolean available = !repository.existsOverlappingHold(mentorId, start, end);
-                generated.add(new PublicAvailabilitySlotResponse(window.id(), start, end, available));
+                generated.add(new PublicAvailabilitySlotResponse(
+                        window.id(), start, end, available, window.reason()));
                 start = start.plus(interval);
             }
         }

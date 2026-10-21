@@ -17,7 +17,9 @@ test('one-off list renders only provided real offerings and links to their detai
 });
 
 test('detail offers direct checkout without mentor approval copy', () => {
-  const html = oneOffSessionDetail(mentor, offering);
+  const html = oneOffSessionDetail(mentor, offering, [
+    { id: 1, startAt: '2026-10-16T10:00:00Z', endAt: '2026-10-16T10:45:00Z', available: true },
+  ]);
   assert.match(html, /id="session-request-form"/);
   assert.match(html, /Discussion agenda/);
   assert.match(html, /id="session-experience"/);
@@ -28,14 +30,25 @@ test('detail offers direct checkout without mentor approval copy', () => {
   assert.doesNotMatch(html, /Choose a time/);
 });
 
+test('detail clearly reports no slots and prevents checkout when availability is empty', () => {
+  const html = oneOffSessionDetail(mentor, offering, []);
+  assert.match(html, /data-no-availability/);
+  assert.match(html, /No available session times/);
+  assert.match(html, /no bookable slots for this session/i);
+  assert.match(html, /id="session-submit"[^>]*disabled[^>]*>No times available<\/button>/);
+  assert.match(html, /Booking will be available after the mentor publishes a matching time slot/);
+  assert.doesNotMatch(html, /id="session-submit"[^>]*>Continue to payment<\/button>/);
+});
+
 test('detail groups real availability into selectable dates and a compact scrolling time list', () => {
   const html = oneOffSessionDetail(mentor, offering, [
-    { id: 1, startAt: '2026-10-16T10:00:00Z', endAt: '2026-10-16T10:45:00Z', available: true },
+    { id: 1, startAt: '2026-10-16T10:00:00Z', endAt: '2026-10-16T10:45:00Z', available: true, reason: 'Open for code review sessions' },
     { id: 1, startAt: '2026-10-16T10:10:00Z', endAt: '2026-10-16T10:55:00Z', available: true },
   ]);
   assert.match(html, /data-slot-date=/);
   assert.match(html, /data-session-slot/);
   assert.match(html, /data-start-at="2026-10-16T10:00:00Z"/);
+  assert.match(html, /data-slot-note>Open for code review sessions/);
   assert.match(html, /max-h-56 overflow-y-auto/);
   assert.doesNotMatch(html, /�/);
 });

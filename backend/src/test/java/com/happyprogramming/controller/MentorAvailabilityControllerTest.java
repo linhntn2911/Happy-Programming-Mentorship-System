@@ -82,12 +82,14 @@ class MentorAvailabilityControllerTest {
     void getMentorAvailabilityReturnsPublicSlots() throws Exception {
         when(availability.listPublicSlots(ArgumentMatchers.eq("jane"), ArgumentMatchers.any(), ArgumentMatchers.any()))
                 .thenReturn(List.of(new PublicAvailabilitySlotResponse(9L,
-                        Instant.parse("2026-10-20T10:00:00Z"), Instant.parse("2026-10-20T12:00:00Z"), true)));
+                        Instant.parse("2026-10-20T10:00:00Z"), Instant.parse("2026-10-20T12:00:00Z"),
+                        true, "Open for code review sessions")));
 
         mockMvc.perform(get("/api/mentors/jane/availability").accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].id").value(9))
-                .andExpect(jsonPath("$.data[0].available").value(true));
+                .andExpect(jsonPath("$.data[0].available").value(true))
+                .andExpect(jsonPath("$.data[0].reason").value("Open for code review sessions"));
     }
 
     @Test

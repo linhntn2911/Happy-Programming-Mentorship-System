@@ -53,10 +53,14 @@ export function oneOffSessionList(mentor, offerings) {
     </div>`);
 }
 
+function bookableSlots(slots) {
+  return (Array.isArray(slots) ? slots : []).filter(slot => slot.available !== false);
+}
+
 function availabilityPreview(slots) {
-  const available = (Array.isArray(slots) ? slots : []).filter(slot => slot.available !== false);
+  const available = bookableSlots(slots);
   if (!available.length) {
-    return '<section class="mt-6 rounded-2xl border border-line bg-white p-6 sm:p-8"><h2 class="font-display text-2xl text-ink">Availability</h2><p class="mt-3 text-sm leading-6 text-muted">No matching times are available yet. Please check back after the mentor publishes more availability.</p></section>';
+    return '<section class="mt-6 rounded-2xl border border-line bg-white p-6 sm:p-8" data-no-availability role="status"><h2 class="font-display text-2xl text-ink">Availability</h2><div class="mt-4 rounded-xl border border-brand/25 bg-lilac p-4"><p class="text-sm font-semibold text-ink">No available session times</p><p class="mt-1 text-sm leading-6 text-muted">This mentor currently has no bookable slots for this session. Please check back later or choose another session.</p></div></section>';
   }
   const grouped = new Map();
   available.forEach(slot => {
@@ -73,7 +77,10 @@ function availabilityPreview(slots) {
   const timeGroups = dates.map(([dateKey, dateSlots], index) => `<div data-slot-times="${esc(dateKey)}" ${index === 0 ? '' : 'hidden'}>${dateSlots.map(slot => {
     const start = new Date(slot.startAt);
     const end = new Date(slot.endAt);
-    return `<button type="button" data-session-slot data-start-at="${esc(slot.startAt)}" aria-pressed="false" class="flex w-full items-center justify-center border-b border-line px-4 py-3 text-sm font-medium text-ink transition last:border-b-0 hover:bg-lilac focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand"><span>${esc(start.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }))} – ${esc(end.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }))}</span></button>`;
+    const note = slot.reason
+      ? `<span class="mt-1 block text-xs font-normal text-muted" data-slot-note>${esc(slot.reason)}</span>`
+      : '';
+    return `<button type="button" data-session-slot data-start-at="${esc(slot.startAt)}" aria-pressed="false" class="flex w-full items-center justify-center border-b border-line px-4 py-3 text-center text-sm font-medium text-ink transition last:border-b-0 hover:bg-lilac focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand"><span><span class="block">${esc(start.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }))} – ${esc(end.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }))}</span>${note}</span></button>`;
   }).join('')}</div>`).join('');
   return `<section class="mt-6 rounded-2xl border border-line bg-white p-6 sm:p-8"><h2 class="font-display text-2xl text-ink">Availability</h2><p class="mt-3 text-sm leading-6 text-muted">Choose a date and an available start time. Times are shown in your local timezone.</p><div class="mt-5 flex gap-3 overflow-x-auto pb-2" aria-label="Available dates">${dateButtons}</div><div class="mt-5"><p class="mb-2 text-xs font-semibold text-ink">Available times</p><div class="max-h-56 overflow-y-auto rounded-xl border border-line bg-white" data-slot-scroll>${timeGroups}</div></div><input id="session-start-at" type="hidden" value=""><p id="selected-session-time" class="mt-3 text-xs font-semibold text-brand" role="status" aria-live="polite">Select a time to continue.</p></section>`;
 }
@@ -171,6 +178,7 @@ function bindSessionSummary(root) {
 }
 
 export function oneOffSessionDetail(mentor, offering, slots = [], offerings = [offering]) {
+  const hasAvailableSlots = bookableSlots(slots).length > 0;
   return shell(`
     <nav class="mb-7 text-xs text-muted" aria-label="Breadcrumb"><a href="?#/mentors">Mentors</a> / <a href="#/mentors/${encodeURIComponent(mentor.id)}">${esc(mentor.name)}</a> / <a href="#/mentors/${encodeURIComponent(mentor.id)}/sessions">One-off sessions</a> / <span aria-current="page">${esc(offering.name)}</span></nav>
     <div class="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -186,7 +194,7 @@ export function oneOffSessionDetail(mentor, offering, slots = [], offerings = [o
         <p class="text-xs font-semibold uppercase tracking-wider text-brand">SESSION SUMMARY</p><h2 class="mt-2 text-xl font-semibold text-ink">${esc(offering.name)}</h2>
         <dl class="mt-5 space-y-3 border-y border-line py-4 text-sm"><div class="flex justify-between gap-4"><dt class="text-muted">Price per session</dt><dd class="font-semibold text-ink">${money(offering.price, offering.currency)}</dd></div><div class="flex justify-between gap-4"><dt class="text-muted">Duration</dt><dd class="font-semibold text-ink">${esc(offering.sessionDurationMinutes)} minutes</dd></div>${quantityControl('sessions', 'Number of sessions')}${quantityControl('participants', 'Number of participants')}</dl>
         <div class="flex items-center justify-between border-b border-line py-4 text-sm"><span class="text-muted">Total</span><strong class="text-ink" data-session-total data-unit-price="${esc(offering.price)}" data-currency="${esc(offering.currency || 'VND')}">${money(offering.price, offering.currency)}</strong></div>
-        <form id="session-request-form" class="mt-5" novalidate>
+        <form id="session-request-form" class="mt-5" data-has-available-slots="${hasAvailableSlots}" novalidate>
           <label class="block text-xs font-semibold text-ink" for="session-agenda">Discussion agenda</label>
           <textarea id="session-agenda" name="agenda" class="mt-2 w-full resize-y rounded-xl border border-line px-3 py-3 text-sm focus:border-brand focus:outline-none" rows="4" maxlength="4000" required placeholder="What would you like help with?"></textarea>
           <p id="session-agenda-count" class="mt-1 text-xs text-muted">0/4000 characters · minimum ${MIN_AGENDA_LENGTH}</p>
@@ -200,7 +208,8 @@ export function oneOffSessionDetail(mentor, offering, slots = [], offerings = [o
           </select>
           <label class="mt-4 flex items-start gap-3 text-sm text-ink" for="session-terms"><input id="session-terms" name="terms" type="checkbox" class="mt-0.5 h-4 w-4 accent-brand"><span>I agree to the session terms and understand that the booking is confirmed only after payment is verified.</span></label>
           <div id="session-error" class="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert" hidden></div>
-          <button id="session-submit" class="btn btn-primary mt-5 w-full" type="submit">Continue to payment</button>
+          <button id="session-submit" class="btn btn-primary mt-5 w-full disabled:cursor-not-allowed disabled:opacity-60" type="submit" ${hasAvailableSlots ? '' : 'disabled aria-disabled="true"'}>${hasAvailableSlots ? 'Continue to payment' : 'No times available'}</button>
+          ${hasAvailableSlots ? '' : '<p class="mt-2 text-center text-xs leading-5 text-muted" data-no-availability-note>Booking will be available after the mentor publishes a matching time slot.</p>'}
         </form>
         <button class="btn btn-outline mt-3 w-full" type="button" data-all-sessions-open>View all sessions</button>
       </aside>
@@ -217,6 +226,9 @@ function bindSessionRequestForm(root, mentor, offering, mentorSlug) {
   const submit = root.querySelector('#session-submit');
   const errorBox = root.querySelector('#session-error');
   const selectedStartAt = root.querySelector('#session-start-at');
+  const hasAvailableSlots = form.dataset.hasAvailableSlots === 'true';
+
+  if (!hasAvailableSlots && submit) submit.disabled = true;
 
   const showError = message => {
     errorBox.textContent = message;
@@ -232,7 +244,11 @@ function bindSessionRequestForm(root, mentor, offering, mentorSlug) {
     event.preventDefault();
     errorBox.hidden = true;
     const trimmed = agenda.value.trim();
-    if (selectedStartAt && !selectedStartAt.value) {
+    if (!hasAvailableSlots || !selectedStartAt) {
+      showError('No session times are currently available. Please check back later or choose another session.');
+      return;
+    }
+    if (!selectedStartAt.value) {
       showError('Select an available session time to continue.');
       return;
     }

@@ -407,7 +407,7 @@ public class MentorshipRequestService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only mentees can cancel their applications.");
         }
         List<Map<String, Object>> rows = template.queryForList("""
-                SELECT id, mentee_id, mentor_id, status, funded_at
+                SELECT id, mentee_id, mentor_id, service_type, status, funded_at
                 FROM dbo.mentorship_requests WITH (UPDLOCK, HOLDLOCK)
                 WHERE id = ?
                 """, requestId);
@@ -437,6 +437,19 @@ public class MentorshipRequestService {
                     updated_at = SYSUTCDATETIME()
                 WHERE request_id = ? AND status = 'PENDING'
                 """, requestId);
+        // A cancelled one-off checkout must release its temporary interval immediately.
+        // Otherwise the Mentee has cancelled payment but the slot remains unavailable
+        // until the expiry job eventually clears it.
+        if ("ONE_OFF".equals(String.valueOf(row.get("service_type")))) {
+            template.update("""
+                    UPDATE hold
+                    SET status = 'RELEASED', updated_at = SYSUTCDATETIME()
+                    FROM dbo.slot_holds hold
+                    JOIN dbo.mentorship_requests request_row ON request_row.id = ?
+                    WHERE hold.id = TRY_CONVERT(BIGINT, JSON_VALUE(request_row.offer_snapshot, '$.slotHoldId'))
+                      AND hold.mentee_id = ? AND hold.status = 'HELD'
+                    """, requestId, user.id());
+        }
         template.update("""
                 UPDATE dbo.mentorship_requests
                 SET status = 'CANCELLED', cancelled_at = SYSUTCDATETIME(), updated_at = SYSUTCDATETIME()

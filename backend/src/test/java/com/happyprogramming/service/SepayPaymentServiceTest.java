@@ -23,11 +23,16 @@ class SepayPaymentServiceTest {
     // 17. preparePaymentQr_01
     @Test
     void rejectsMissingConfigurationAndMissingIdentityBeforeDatabaseAccess() {
-        var disabled = new SepayPaymentService(null, mapper, true, "Test", "123", "Test", "", "compact");
-        assertEquals(503, assertThrows(ResponseStatusException.class, () -> disabled.processWebhook(null, null)).getStatusCode().value());
-        var incomplete = new SepayWebhookPayload(null, "Test", null, null, "HP42A1", "HP42A1", null, BigDecimal.ONE, null, null, null, null);
-        assertEquals(400, assertThrows(ResponseStatusException.class, () -> service.processWebhook(incomplete, "Apikey hpms_sepay_secret_2026")).getStatusCode().value());
-        assertEquals(401, assertThrows(ResponseStatusException.class, () -> service.processWebhook(incomplete, "Bearer hpms_sepay_secret_2026")).getStatusCode().value());
+        var disabled = new SepayPaymentService(null, mapper, true, "Test", "123",
+                "Test", "", "compact");
+        assertEquals(503, assertThrows(ResponseStatusException.class, () -> disabled.processWebhook(null,
+                null)).getStatusCode().value());
+        var incomplete = new SepayWebhookPayload(null, "Test", null, null, "HP42A1",
+                "HP42A1",null, BigDecimal.ONE, null, null, null, null);
+        assertEquals(400, assertThrows(ResponseStatusException.class, () -> service.processWebhook(incomplete,
+                "Apikey hpms_sepay_secret_2026")).getStatusCode().value());
+        assertEquals(401, assertThrows(ResponseStatusException.class, () -> service.processWebhook(incomplete,
+                "Bearer hpms_sepay_secret_2026")).getStatusCode().value());
     }
     @BeforeEach
     void setUp() {
@@ -141,7 +146,8 @@ class SepayPaymentServiceTest {
     void interpretsSePayTransactionTimeInVietnamForDelayedWebhookValidation() {
         SepayWebhookPayload payload = new SepayWebhookPayload(
                 1L, "TPBank", "2026-10-15 21:03:00", "00000806194", "HP123A1",
-                "HP123A1", "in", new BigDecimal("5000"), null, null, "REF", "");
+                "HP123A1", "in", new BigDecimal("5000"), null,
+                null, "REF", "");
 
         assertEquals(Instant.parse("2026-10-15T14:03:00Z"),
                 SepayPaymentService.transferOccurredAt(payload, Instant.EPOCH));

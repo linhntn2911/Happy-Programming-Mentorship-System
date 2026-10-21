@@ -6,4 +6,5 @@ public record PublicAvailabilitySlotResponse(
         long id,
         Instant startAt,
         Instant endAt,
-        boolean available) {}
+        boolean available,
+        String reason) {}

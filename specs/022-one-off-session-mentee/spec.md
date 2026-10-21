@@ -13,7 +13,9 @@ A Mentee can choose a mentor's published one-off session, select a real availabl
 - The checkout summary lets the Mentee choose 1–10 sessions and 1–10 participants.
 - The displayed total equals the price per session multiplied by both the number of sessions and the number of participants.
 - Public availability windows can be queried for a selected one-off offering; the backend generates candidate starts every 10 minutes and removes candidates that overlap active holds.
+- Each generated public slot includes the Mentor's optional availability note, which is shown beneath the time in the Mentee picker.
 - A generated slot must fit fully inside a published availability window and the offering duration must be at least 10 minutes.
+- When no matching slot exists, the detail page shows a prominent honest empty state and disables checkout until a bookable slot is available.
 - Submitting the booking must atomically validate ownership, the active offering, the selected time, quantity limits, and an unexpired slot hold.
 - A valid one-off order is immediately payment-eligible. It does not enter mentor review and does not have a 48-hour response deadline.
 - The client redirects directly to SePay checkout after the slot hold and order are created.
@@ -28,6 +30,7 @@ A Mentee can choose a mentor's published one-off session, select a real availabl
 2. A mentor without active one-off offerings keeps the one-off CTA available and shows an honest empty state on the sessions route without a fabricated price.
 3. A stale offering ID shows an unavailable state and links back to active offerings.
 4. A selected offering returns only real generated slots that fit the mentor availability and do not overlap active holds.
+4a. An offering with no matching slot explains that booking is unavailable and does not allow the Mentee to continue to payment.
 5. Changing either session quantity or participant quantity updates the checkout total using `unit price × sessions × participants`.
 6. Selecting "View all sessions" on the detail page opens the offerings dialog without navigating to a standalone list page.
 7. Submitting a valid selected slot creates a payment-eligible one-off order and opens checkout immediately without mentor acceptance.

@@ -22,6 +22,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import org.mockito.ArgumentCaptor;
 
 class MentorshipRequestCancellationTest {
     private JdbcTemplate jdbcTemplate;
@@ -76,6 +77,25 @@ class MentorshipRequestCancellationTest {
         assertThrows(ResponseStatusException.class, () -> service.cancelMyRequest(99L));
 
         verify(jdbcTemplate, never()).update(anyString(), any(Object[].class));
+    }
+
+    @Test
+    void cancellingAnUnpaidOneOffRequestReleasesItsHeldSlot() {
+        Map<String, Object> request = new HashMap<>();
+        request.put("mentee_id", 5L);
+        request.put("mentor_id", 8L);
+        request.put("service_type", "ONE_OFF");
+        request.put("status", "ACCEPTED");
+        request.put("funded_at", null);
+        when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(request));
+        when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), any(Object[].class))).thenReturn(0);
+
+        service.cancelMyRequest(99L);
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate, atLeastOnce()).update(sql.capture(), any(Object[].class));
+        org.junit.jupiter.api.Assertions.assertTrue(sql.getAllValues().stream()
+                .anyMatch(statement -> statement.contains("UPDATE hold") && statement.contains("slot_holds")));
     }
 
     @Test

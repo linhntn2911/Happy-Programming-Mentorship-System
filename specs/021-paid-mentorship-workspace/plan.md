@@ -31,6 +31,8 @@ Monthly subscriptions and one-off bookings are read as independent engagement co
 
 One-off completion is time driven. An idempotent scheduled job changes ended `CONFIRMED` one-off bookings to `COMPLETED`, sets `completed_at` from the authoritative booking end time, and leaves `completed_by` empty to identify automatic completion. The workspace UI also classifies an ended confirmed booking as past immediately, so a scheduler interval cannot leave an expired card in the upcoming section. Past sessions are collapsed by default and remain available as immutable history.
 
+Monthly lifecycle is also time driven. A separate idempotent scheduled job first ends `TRIALING`, `ACTIVE`, or `PAST_DUE` subscriptions whose paid period has elapsed, then activates the remaining `TRIALING` subscriptions whose trial has elapsed. Ordering the updates this way prevents an overdue trial from briefly becoming active. `DISPUTED` and terminal subscriptions are excluded so mediation and cancellation decisions remain authoritative.
+
 ## Verification
 
 - Backend controller/service tests cover one-row-per-conversation aggregation, one-off-only access, mixed monthly/one-off detail, membership rejection, message validation, and idempotent writes.

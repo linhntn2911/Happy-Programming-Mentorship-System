@@ -75,6 +75,14 @@ function slotCard(slot) {
     </li>`;
 }
 
+export function upcomingOpenSlots(slots, now = Date.now()) {
+  if (!Array.isArray(slots)) return [];
+  return slots.filter(slot => {
+    const startAt = Date.parse(slot?.startAt);
+    return Number.isFinite(startAt) && startAt > now;
+  });
+}
+
 function tierCard({ tier, label, blurb }) {
   const key = tier.toLowerCase();
   return `
@@ -140,7 +148,7 @@ function oneOffSessionsPanel() {
         <button id="one-off-add" type="button" class="btn btn-outline">Add session</button>
       </div>
       <div id="one-off-error" class="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert" hidden></div>
-      <p id="one-off-save-status" class="mt-4 text-sm font-medium text-brand" role="status" aria-live="polite"></p>
+      <div id="one-off-save-status" class="mt-5 rounded-xl border border-green-200 bg-green-50 p-4 text-sm font-medium text-green-800" role="status" aria-live="polite" hidden></div>
       <form id="one-off-form" class="mt-5 space-y-4" hidden novalidate>
         <div id="one-off-list" class="space-y-4"></div>
         <div class="flex justify-end"><button id="one-off-save" type="submit" class="btn btn-primary">Save one-off sessions</button></div>
@@ -163,7 +171,7 @@ function packagesPanel() {
       <div id="packages-loading" class="mt-6 rounded-xl border border-line bg-cream p-4 text-sm text-muted" role="status">Loading your packages…</div>
       <div id="packages-error" class="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert" hidden></div>
       <button id="packages-retry" class="btn btn-outline mt-4" type="button" hidden>Try again</button>
-      <p id="packages-save-status" class="mt-4 text-sm font-medium text-brand" role="status" aria-live="polite"></p>
+      <div id="packages-save-status" class="mt-5 rounded-xl border border-green-200 bg-green-50 p-4 text-sm font-medium text-green-800" role="status" aria-live="polite" hidden></div>
 
       <form id="mentor-packages-form" class="mt-6 space-y-5" hidden novalidate>
         <div class="grid gap-5 lg:grid-cols-3">${cards}</div>
@@ -227,6 +235,7 @@ function initializeMentorPackages(root) {
   });
 
   function showError(message) {
+    status.hidden = true;
     error.textContent = message;
     error.hidden = false;
     retry.hidden = false;
@@ -253,6 +262,7 @@ function initializeMentorPackages(root) {
     retry.hidden = true;
     form.hidden = true;
     status.textContent = '';
+    status.hidden = true;
     try {
       fill(await mentorPlanService.getMyPlans());
       form.hidden = false;
@@ -292,14 +302,20 @@ function initializeMentorPackages(root) {
   async function handleSubmit(event) {
     event.preventDefault();
     status.textContent = '';
+    status.hidden = true;
     error.hidden = true;
-    if (!form.reportValidity()) return;
+    if (!form.reportValidity()) {
+      showError('Please complete the required package fields.');
+      error.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
 
     let payload;
     try {
       payload = collectPayload();
     } catch (validationError) {
       showError(validationError.message);
+      error.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
 
@@ -309,8 +325,12 @@ function initializeMentorPackages(root) {
       const saved = await mentorPlanService.savePlans(payload);
       fill(saved);
       status.textContent = 'Your mentorship packages have been saved.';
+      status.hidden = false;
+      status.scrollIntoView({ behavior: 'smooth', block: 'center' });
     } catch (saveError) {
-      showError(saveError.message || 'Unable to save your packages. Please try again.');
+      const message = saveError.message || 'Unable to save your packages. Please try again.';
+      showError(message);
+      error.scrollIntoView({ behavior: 'smooth', block: 'center' });
     } finally {
       saveButton.textContent = 'Save packages';
       saveButton.disabled = false;
@@ -334,14 +354,18 @@ function initializeOneOffSessions(root) {
   if (!form || !list) return;
   let sessions = [];
 
-  const showError = message => { error.textContent = message; error.hidden = false; status.textContent = ''; };
+  const showError = message => {
+    error.textContent = message; error.hidden = false;
+    status.textContent = ''; status.hidden = true;
+    error.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
   const render = () => {
     list.innerHTML = sessions.length
       ? sessions.map(oneOffSessionCard).join('')
       : '<div class="rounded-xl border border-dashed border-line bg-cream p-6 text-center text-sm text-muted">No one-off sessions yet. Add your first session option.</div>';
   };
   const load = async () => {
-    loading.hidden = false; form.hidden = true; error.hidden = true; status.textContent = '';
+    loading.hidden = false; form.hidden = true; error.hidden = true; status.textContent = ''; status.hidden = true;
     try { sessions = await mentorPlanService.getMyOneOffSessions(); render(); form.hidden = false; }
     catch (loadError) { showError(loadError.message || 'Unable to load one-off sessions.'); }
     finally { loading.hidden = true; }
@@ -353,17 +377,25 @@ function initializeOneOffSessions(root) {
     list.lastElementChild?.querySelector('[data-one-off-field="name"]')?.focus();
   });
   form.addEventListener('submit', async event => {
-    event.preventDefault(); error.hidden = true; status.textContent = '';
+    event.preventDefault(); error.hidden = true; status.textContent = ''; status.hidden = true;
     const payload = [...list.querySelectorAll('[data-one-off-index]')].map(card => {
       const value = field => card.querySelector(`[data-one-off-field="${field}"]`)?.value.trim() || '';
       return { id: value('id') ? Number(value('id')) : null, name: value('name'), description: value('description'), price: Number(value('price')), sessionDurationMinutes: Number(value('duration')), status: card.querySelector('[data-one-off-field="active"]')?.checked ? 'ACTIVE' : 'INACTIVE' };
     });
     if (payload.some(item => !item.name || !item.description || !Number.isFinite(item.price) || item.price < 0 || !Number.isInteger(item.sessionDurationMinutes) || item.sessionDurationMinutes < 10)) {
-      showError('Complete the name, description, price and duration for every session.'); return;
+      const message = 'Complete the name, description, price and duration for every session.';
+      showError(message); return;
     }
     save.disabled = true; save.textContent = 'Saving…';
-    try { sessions = await mentorPlanService.saveOneOffSessions(payload); render(); status.textContent = 'One-off sessions saved.'; }
-    catch (saveError) { showError(saveError.message || 'Unable to save one-off sessions.'); }
+    try {
+      sessions = await mentorPlanService.saveOneOffSessions(payload);
+      render(); status.textContent = 'One-off sessions saved.';
+      status.hidden = false;
+      status.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } catch (saveError) {
+      const message = saveError.message || 'Unable to save one-off sessions.';
+      showError(message);
+    }
     finally { save.disabled = false; save.textContent = 'Save one-off sessions'; }
   });
   void load();
@@ -384,6 +416,7 @@ function initializeMentorAvailability(root) {
   const reasonInput = root.querySelector('#availability-reason');
 
   let slots = [];
+  let expiryTimer = null;
 
   function showError(message) {
     toast.hidden = true;
@@ -401,15 +434,24 @@ function initializeMentorAvailability(root) {
   }
 
   function render() {
-    if (slots.length === 0) {
+    if (expiryTimer !== null) {
+      window.clearTimeout(expiryTimer);
+      expiryTimer = null;
+    }
+    const upcomingSlots = upcomingOpenSlots(slots);
+    if (upcomingSlots.length === 0) {
       list.innerHTML = '';
       list.hidden = true;
       empty.hidden = false;
       return;
     }
     empty.hidden = true;
-    list.innerHTML = slots.map(slotCard).join('');
+    list.innerHTML = upcomingSlots.map(slotCard).join('');
     list.hidden = false;
+
+    const nextStartAt = Math.min(...upcomingSlots.map(slot => Date.parse(slot.startAt)));
+    const maximumDelay = 2_147_483_647;
+    expiryTimer = window.setTimeout(render, Math.min(Math.max(nextStartAt - Date.now() + 25, 0), maximumDelay));
   }
 
   async function load() {
@@ -488,13 +530,20 @@ function initializeMentorAvailability(root) {
   });
   form.addEventListener('submit', handleSubmit);
   void load();
+  return () => {
+    if (expiryTimer !== null) window.clearTimeout(expiryTimer);
+  };
 }
 
 export function mountMentorWorkspacePage(root, section) {
   document.title = `${section === 'packages' ? 'Mentorship packages' : 'Availability schedule'} | HappyProgramming`;
   root.innerHTML = MentorWorkspacePage(section);
   const unbindLayout = bindMentorLayout(root);
+  let cleanupModule = () => {};
   if (section === 'packages') initializeMentorPackages(root);
-  if (section === 'availability') initializeMentorAvailability(root);
-  return unbindLayout;
+  if (section === 'availability') cleanupModule = initializeMentorAvailability(root) || cleanupModule;
+  return () => {
+    cleanupModule();
+    unbindLayout();
+  };
 }

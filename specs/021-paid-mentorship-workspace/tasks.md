@@ -23,6 +23,8 @@
 - [x] T21 Separate upcoming one-off sessions from collapsed past-session history in the shared workspace.
 - [x] T22 Add focused backend and frontend regression tests for the end-time boundary.
 - [x] T23 Reconcile workspace contract, baseline specification, implementation, and verification evidence.
+- [x] T24 Add an idempotent monthly lifecycle job for trial activation and unrenewed period ending.
+- [x] T25 Add focused repository, service, and scheduler tests for monthly lifecycle ordering and status scope.
 
 ## Verification
 

@@ -146,16 +146,9 @@ class MentorshipRequestControllerTest {
                         new java.math.BigDecimal("2500000.00"),
                         "VND",
                         45,
-                        4,
-                        goals(),
-                        "ACCEPTED",
-                        false,
-                        null,
-                        null,
-                        null,
+                        4, goals(), "ACCEPTED", false, null, null, null,
                         true
                 ));
-
         mockMvc.perform(get("/api/mentorship-requests/99/checkout-info"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -165,7 +158,6 @@ class MentorshipRequestControllerTest {
                 .andExpect(jsonPath("$.data.amount").value(2500000.00))
                 .andExpect(jsonPath("$.data.isPaid").value(false));
     }
-
     // 9. getCheckoutInformation_02
     @Test
     void startsPendingSepayCheckout() throws Exception {
@@ -173,7 +165,8 @@ class MentorshipRequestControllerTest {
         when(sepayPaymentService.initiate(99L))
                 .thenReturn(new com.happyprogramming.dto.CheckoutResponse(
                         813L, 99L, "PENDING", new java.math.BigDecimal("2500000.00"), "VND",
-                        "HP99A1", "https://qr.sepay.vn/img?bank=TPBank&acc=00000806194&template=compact&amount=2500000&des=HP99A1",
+                        "HP99A1",
+                        "https://qr.sepay.vn/img?bank=TPBank&acc=00000806194&template=compact&amount=2500000&des=HP99A1",
                         Instant.parse("2026-10-12T07:00:00Z"), "SePay QR payment is ready.",
                         "https://qr.sepay.vn/img?bank=TPBank&acc=00000806194&template=compact&amount=2500000&des=HP99A1",
                         "TPBank", "00000806194", "NGUYEN THI NGOC LINH"

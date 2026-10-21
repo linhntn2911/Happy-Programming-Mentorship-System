@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MentorWorkspacePage } from './MentorWorkspacePage.js';
+import { MentorWorkspacePage, upcomingOpenSlots } from './MentorWorkspacePage.js';
 import { MentorDashboardPage } from './MentorDashboardPage.js';
 import { MentorProfilePage } from './MentorProfilePage.js';
 
@@ -41,6 +41,17 @@ test('availability module renders the open-slot manager', () => {
   assert.doesNotMatch(availability, /not available yet/);
 });
 
+test('upcoming availability excludes slots whose start time has passed', () => {
+  const now = Date.parse('2026-10-21T04:00:00Z');
+  const slots = [
+    { id: 1, startAt: '2026-10-21T03:00:00Z', endAt: '2026-10-21T04:00:00Z' },
+    { id: 2, startAt: '2026-10-21T04:00:00Z', endAt: '2026-10-21T05:00:00Z' },
+    { id: 3, startAt: '2026-10-21T05:00:00Z', endAt: '2026-10-21T06:00:00Z' },
+  ];
+
+  assert.deepEqual(upcomingOpenSlots(slots, now).map(slot => slot.id), [3]);
+});
+
 test('packages module renders one card per tier with enable toggles', () => {
   const packages = MentorWorkspacePage('packages');
 
@@ -63,6 +74,8 @@ test('packages module includes mentor-managed one-off session options', () => {
   assert.match(packages, /id="one-off-add"/);
   assert.match(packages, /id="one-off-form"/);
   assert.match(packages, /id="one-off-list"/);
+  assert.match(packages, /id="packages-save-status"[^>]*bg-green-50/);
+  assert.match(packages, /id="one-off-save-status"[^>]*bg-green-50/);
   assert.match(packages, /Mentees will only see active options/);
   assert.match(packages, /Save one-off sessions/);
 });

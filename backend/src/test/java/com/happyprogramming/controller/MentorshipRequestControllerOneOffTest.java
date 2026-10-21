@@ -56,7 +56,8 @@ class MentorshipRequestControllerOneOffTest {
     @Test
     void createOneOffReturnsCreatedAndDelegatesToTheService() throws Exception {
         when(mentorshipRequestService.createOneOff(any()))
-                .thenReturn(new MentorshipRequestResponse(55L, "ACCEPTED", true, Instant.parse("2026-10-14T02:00:00Z")));
+                .thenReturn(new MentorshipRequestResponse(55L, "ACCEPTED",
+                        true, Instant.parse("2026-10-14T02:00:00Z")));
 
         mockMvc.perform(post("/api/one-off-requests")
                         .contentType(MediaType.APPLICATION_JSON)
