@@ -5,11 +5,23 @@ import { authService } from '../auth/authService.js';
 import { menteeApplicationsService } from './menteeApplicationsService.js';
 import { menteeDisputesService } from './menteeDisputesService.js';
 import { applicationDisplayStatus, canPayApplication } from './applicationPayment.js';
+import { renderPagination } from '../../shared/pagination.js';
 
 const esc = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 const PAGE_SIZE = 10;
-const STATUS_LABELS = { PENDING: 'Pending', ACCEPTED: 'Accepted', REJECTED: 'Declined', EXPIRED: 'Expired', CANCELLED: 'Cancelled', PAID: 'Confirmed', DISPUTED: 'Disputed' };
+const STATUS_LABELS = {
+  PENDING: 'Pending',
+  ACCEPTED: 'Accepted',
+  CONFIRMED: 'Confirmed',
+  PAID: 'Confirmed',
+  COMPLETED: 'Completed',
+  REJECTED: 'Declined',
+  EXPIRED: 'Expired',
+  CANCELLED: 'Cancelled',
+  DISPUTED: 'Disputed'
+};
 const dateLabel = value => value ? new Date(value).toLocaleDateString('en-US', { dateStyle: 'medium' }) : '—';
+const normalize = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLowerCase().trim();
 
 function openReportModal(booking, onSubmitted) {
   const dialog = document.createElement('dialog');
@@ -191,16 +203,37 @@ function openReportModal(booking, onSubmitted) {
 
 function applicationCard(application) {
   const status = applicationDisplayStatus(application);
-  const paid = status === 'PAID';
+  const isConfirmed = status === 'CONFIRMED' || status === 'PAID';
+  const isCompleted = status === 'COMPLETED';
   const goals = application.learningGoals || 'No learning goals provided.';
+  const badgeClass = isCompleted
+    ? 'status-neutral font-semibold'
+    : isConfirmed
+      ? 'status-success'
+      : status === 'PENDING' || status === 'ACCEPTED'
+        ? 'status-warning'
+        : status === 'REJECTED'
+          ? 'status-danger'
+          : 'status-neutral';
+  const scheduleNote = status === 'PENDING' && application.responseDeadline
+    ? `Response by ${esc(dateLabel(application.responseDeadline))}`
+    : isCompleted
+      ? 'Completed'
+      : isConfirmed
+        ? `Payment: ${esc(application.latestPaymentStatus || 'SUCCEEDED')}`
+        : application.latestPaymentStatus
+          ? `Payment: ${esc(application.latestPaymentStatus)}`
+          : 'Payment not started';
+
   return `<tr>
-      <td><strong class="text-ink">${esc(application.mentorName || 'Mentor')}</strong><span class="mt-1 block text-[11px] text-muted">Submitted ${esc(dateLabel(application.submittedAt))}</span></td><td><span class="font-semibold text-ink">${esc(application.packageName || 'Monthly mentorship')}</span><span class="mt-1 block max-w-xs truncate text-[11px] text-muted" title="${esc(goals)}">${esc(goals)}</span></td><td><span class="status-badge ${status === 'PAID' ? 'status-success' : status === 'PENDING' || status === 'ACCEPTED' ? 'status-warning' : status === 'REJECTED' ? 'status-danger' : 'status-neutral'}">${esc(STATUS_LABELS[status] || status)}</span></td><td><span class="text-xs text-muted">${status === 'PENDING' && application.responseDeadline ? `Response by ${esc(dateLabel(application.responseDeadline))}` : paid ? `Payment: ${esc(application.latestPaymentStatus || 'SUCCEEDED')}` : application.latestPaymentStatus ? `Payment: ${esc(application.latestPaymentStatus)}` : 'Payment not started'}</span></td><td><button type="button" class="btn btn-outline btn-sm" data-booking-detail="${esc(application.requestId)}">Details</button></td>
+      <td><strong class="text-ink">${esc(application.mentorName || 'Mentor')}</strong><span class="mt-1 block text-[11px] text-muted">Submitted ${esc(dateLabel(application.submittedAt))}</span></td><td><span class="font-semibold text-ink">${esc(application.packageName || 'Monthly mentorship')}</span><span class="mt-1 block max-w-xs truncate text-[11px] text-muted" title="${esc(goals)}">${esc(goals)}</span></td><td><span class="status-badge ${badgeClass}">${esc(STATUS_LABELS[status] || status)}</span></td><td><span class="text-xs text-muted">${scheduleNote}</span></td><td><button type="button" class="btn btn-outline btn-sm" data-booking-detail="${esc(application.requestId)}">Details</button></td>
   </tr>`;
 }
 
 function bookingsTable(applications, total) {
   return `<section class="admin-panel overflow-hidden"><div class="admin-panel-heading"><div><p class="eyebrow mb-2">BOOKING HISTORY</p><h2>All bookings</h2><p>Manage your monthly mentorships and one-off sessions in one place.</p></div><p class="text-xs text-muted">${total} booking${total === 1 ? '' : 's'}</p></div><div class="data-table-scroll"><table class="data-table"><thead><tr><th>Mentor</th><th>Package / session</th><th>Status</th><th>Schedule / deadline</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${applications.map(applicationCard).join('')}</tbody></table></div></section>`;
 }
+
 
 export async function mountMenteeApplications(root) {
   const user = authService.getCurrentUser();
@@ -211,14 +244,57 @@ export async function mountMenteeApplications(root) {
   const name = user.name || user.email || 'Account';
   root.innerHTML = `<header class="directory-header"><div class="container flex h-[76px] items-center justify-between gap-4">${BrandLogo()}<nav class="flex items-center gap-3" aria-label="Main navigation">${BrowseAllMentorsLink()}${renderNotificationBell()}${renderUserDropdown({ currentUser: user, displayName: name, initials: getInitials(name) })}</nav></div></header>
     <main class="min-h-screen bg-cream"><section class="container max-w-6xl py-12 sm:py-16"><p class="eyebrow">YOUR BOOKINGS</p><h1 class="mt-3 font-display text-4xl sm:text-5xl text-ink">My bookings</h1><p class="mt-4 text-sm text-muted">Manage your monthly mentorships, one-off sessions, payments, and booking status.</p>
-    <div class="mt-8 flex flex-wrap items-end justify-between gap-4"><label class="block text-xs font-semibold text-ink" for="application-status">Booking status<select id="application-status" class="mt-2 min-w-52 rounded-lg border border-line bg-white px-3.5 py-2.5 text-sm focus:border-brand focus:outline-none"><option value="">All bookings</option><option value="PENDING">Pending</option><option value="ACCEPTED">Accepted</option><option value="REJECTED">Declined</option><option value="EXPIRED">Expired</option><option value="CANCELLED">Cancelled</option></select></label><a href="#/notifications" class="text-xs font-semibold text-brand hover:underline">Notification history →</a></div>
+    <div class="mt-8 flex flex-wrap items-end justify-between gap-4">
+      <div class="flex flex-wrap items-end gap-3 flex-1 min-w-[280px]">
+        <label class="block text-xs font-semibold text-ink flex-1 min-w-[240px]" for="application-search">Search bookings<div class="relative mt-2"><input id="application-search" type="search" placeholder="Search mentor, package, or keywords…" class="w-full rounded-lg border border-line bg-white pl-9 pr-3.5 py-2.5 text-sm text-ink placeholder:text-muted focus:border-brand focus:outline-none"><svg class="absolute left-3 top-3 h-4 w-4 text-muted pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div></label>
+        <label class="block text-xs font-semibold text-ink min-w-[180px]" for="application-status">Booking status<select id="application-status" class="mt-2 w-full rounded-lg border border-line bg-white px-3.5 py-2.5 text-sm text-ink focus:border-brand focus:outline-none"><option value="">All bookings</option><option value="PENDING">Pending</option><option value="ACCEPTED">Accepted</option><option value="CONFIRMED">Confirmed</option><option value="COMPLETED">Completed</option><option value="REJECTED">Declined</option><option value="EXPIRED">Expired</option><option value="CANCELLED">Cancelled</option></select></label>
+      </div>
+      <a href="#/notifications" class="text-xs font-semibold text-brand hover:underline self-end pb-2.5">Notification history →</a>
+    </div>
     <div id="mentee-applications-results" class="mt-6" role="status" aria-live="polite">Loading your bookings…</div></section></main>`;
   bindUserDropdown(root, () => { location.hash = '#/'; location.reload(); });
   const results = root.querySelector('#mentee-applications-results');
   const statusFilter = root.querySelector('#application-status');
+  const searchInput = root.querySelector('#application-search');
   let page = 0;
   let currentRequest = 0;
+  let rawApplications = [];
   let loadedBookings = [];
+  let totalServerElements = 0;
+  let totalServerPages = 1;
+
+  function renderView() {
+    const rawQuery = (searchInput?.value || '').trim();
+    const query = normalize(rawQuery);
+    let filtered = rawApplications;
+    if (query) {
+      filtered = filtered.filter(item => {
+        const text = normalize([
+          item.mentorName,
+          item.packageName,
+          item.learningGoals,
+          `#${item.requestId}`,
+          STATUS_LABELS[applicationDisplayStatus(item)],
+          item.latestPaymentStatus
+        ].join(' '));
+        return text.includes(query);
+      });
+    }
+    loadedBookings = filtered;
+
+    if (!rawApplications.length) {
+      results.innerHTML = `<div class="rounded-2xl border border-line bg-white p-10 text-center shadow-sm"><h2 class="font-display text-2xl text-ink">No bookings yet</h2><p class="mt-3 text-sm text-muted">Your monthly mentorships and one-off sessions will appear here.</p><a href="#/mentors" class="btn btn-primary mt-6">Browse mentors</a></div>`;
+      return;
+    }
+
+    if (!filtered.length) {
+      results.innerHTML = `<div class="rounded-2xl border border-line bg-white p-10 text-center shadow-sm"><h2 class="font-display text-2xl text-ink">No matching bookings</h2><p class="mt-3 text-sm text-muted">No bookings match “${esc(rawQuery)}”. Try another keyword or clear your search.</p><button type="button" class="btn btn-outline btn-sm mt-5" data-clear-search>Clear search</button></div>`;
+      return;
+    }
+
+    const count = query ? filtered.length : (statusFilter.value && rawApplications.length < totalServerElements ? rawApplications.length : totalServerElements);
+    results.innerHTML = `${bookingsTable(filtered, count)}${totalServerPages > 1 && !query ? renderPagination(page, totalServerPages) : ''}`;
+  }
 
   async function load() {
     const request = ++currentRequest;
@@ -226,11 +302,23 @@ export async function mountMenteeApplications(root) {
     try {
       const data = await menteeApplicationsService.list({ page, size: PAGE_SIZE, status: statusFilter.value });
       if (request !== currentRequest || !results.isConnected) return;
-      const applications = data.applications || [];
-      loadedBookings = applications;
-      results.innerHTML = applications.length
-        ? `${bookingsTable(applications, data.totalElements)}${data.totalPages > 1 ? `<nav class="mt-7 flex items-center justify-between" aria-label="Booking pages"><button type="button" data-page="previous" class="btn btn-outline btn-sm" ${page === 0 ? 'disabled' : ''}>← Previous</button><span class="text-xs text-muted">Page ${page + 1} of ${data.totalPages}</span><button type="button" data-page="next" class="btn btn-outline btn-sm" ${page + 1 >= data.totalPages ? 'disabled' : ''}>Next →</button></nav>` : ''}`
-        : `<div class="rounded-2xl border border-line bg-white p-10 text-center shadow-sm"><h2 class="font-display text-2xl text-ink">No bookings yet</h2><p class="mt-3 text-sm text-muted">Your monthly mentorships and one-off sessions will appear here.</p><a href="#/mentors" class="btn btn-primary mt-6">Browse mentors</a></div>`;
+      let applications = data.applications || [];
+      if (statusFilter.value === 'ACCEPTED') {
+        applications = applications.filter(item => applicationDisplayStatus(item) === 'ACCEPTED');
+      } else if (statusFilter.value === 'CONFIRMED') {
+        applications = applications.filter(item => {
+          const s = applicationDisplayStatus(item);
+          return s === 'CONFIRMED' || s === 'PAID';
+        });
+      } else if (statusFilter.value === 'COMPLETED') {
+        applications = applications.filter(item => applicationDisplayStatus(item) === 'COMPLETED');
+      } else if (statusFilter.value === 'EXPIRED') {
+        applications = applications.filter(item => applicationDisplayStatus(item) === 'EXPIRED');
+      }
+      rawApplications = applications;
+      totalServerElements = data.totalElements || applications.length;
+      totalServerPages = data.totalPages || 1;
+      renderView();
     } catch (error) {
       if (request !== currentRequest || !results.isConnected) return;
       results.innerHTML = `<div class="rounded-2xl border border-line bg-white p-8 text-center"><h2 class="font-display text-2xl text-ink">Could not load applications</h2><p class="mt-3 text-sm text-muted">${esc(error.message || 'Please try again.')}</p><button type="button" data-retry class="btn btn-outline btn-sm mt-5">Try again</button></div>`;
@@ -238,26 +326,44 @@ export async function mountMenteeApplications(root) {
   }
 
   statusFilter.addEventListener('change', () => { page = 0; load(); });
+  searchInput?.addEventListener('input', () => { renderView(); });
   results.addEventListener('click', event => {
     if (event.target.closest('[data-retry]')) { load(); return; }
+    if (event.target.closest('[data-clear-search]')) {
+      if (searchInput) searchInput.value = '';
+      renderView();
+      return;
+    }
     const detailButton = event.target.closest('[data-booking-detail]');
     if (detailButton) {
       const booking = loadedBookings.find(item => String(item.requestId) === detailButton.dataset.bookingDetail);
       if (!booking) return;
       const status = applicationDisplayStatus(booking);
-      const paid = status === 'PAID';
+      const isConfirmed = status === 'CONFIRMED' || status === 'PAID';
+      const isCompleted = status === 'COMPLETED';
+      const badgeClass = isCompleted
+        ? 'status-neutral font-semibold'
+        : isConfirmed
+          ? 'status-success'
+          : status === 'PENDING' || status === 'ACCEPTED'
+            ? 'status-warning'
+            : status === 'REJECTED'
+              ? 'status-danger'
+              : 'status-neutral';
       const dialog = document.createElement('dialog');
       dialog.className = 'modal';
       const action = canPayApplication(booking)
         ? `<a class="btn btn-primary" href="#/checkout?requestId=${encodeURIComponent(booking.requestId)}">${booking.latestPaymentStatus === 'PENDING' ? 'Continue payment' : 'Pay now'} →</a>`
-        : paid
-          ? `<button type="button" class="btn btn-outline" data-open-report="${esc(booking.requestId)}">Report an issue</button><a class="btn btn-primary" href="#/workspace?requestId=${encodeURIComponent(booking.requestId)}">Open workspace →</a>`
-          : status === 'CANCELLED'
-            ? '<a class="btn btn-outline" href="#/mentors">Browse mentors to apply again →</a>'
-            : '';
+        : isCompleted
+          ? `<button type="button" class="btn btn-outline" data-open-report="${esc(booking.requestId)}">Report an issue</button><a class="btn btn-primary" href="#/workspace?requestId=${encodeURIComponent(booking.requestId)}">Review & workspace →</a>`
+          : isConfirmed
+            ? `<button type="button" class="btn btn-outline" data-open-report="${esc(booking.requestId)}">Report an issue</button><a class="btn btn-primary" href="#/workspace?requestId=${encodeURIComponent(booking.requestId)}">Open workspace →</a>`
+            : status === 'CANCELLED'
+              ? '<a class="btn btn-outline" href="#/mentors">Browse mentors to apply again →</a>'
+              : '';
       const cancel = ['PENDING', 'ACCEPTED'].includes(status) && !booking.fundedAt
         ? `<button type="button" class="btn btn-outline" data-cancel-application="${encodeURIComponent(booking.requestId)}">Cancel booking</button>` : '';
-      dialog.innerHTML = `<button class="modal-close" type="button" aria-label="Close"><span aria-hidden="true">×</span></button><p class="eyebrow mt-4">BOOKING DETAILS</p><h2 class="mt-2 font-display text-3xl text-ink">${esc(booking.packageName || 'Mentorship')}</h2><p class="mt-2 text-sm text-muted">with ${esc(booking.mentorName || 'Mentor')}</p><div class="mt-6 divide-y divide-line rounded-xl border border-line bg-cream"><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Status</span><span class="status-badge ${status === 'PAID' ? 'status-success' : status === 'PENDING' || status === 'ACCEPTED' ? 'status-warning' : 'status-neutral'}">${esc(STATUS_LABELS[status] || status)}</span></div><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Submitted</span><strong>${esc(dateLabel(booking.submittedAt))}</strong></div><div class="p-4 text-sm"><span class="text-muted">Learning goals</span><p class="mt-2 whitespace-pre-wrap text-ink">${esc(booking.learningGoals || 'No learning goals provided.')}</p></div><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Payment</span><strong>${esc(booking.latestPaymentStatus || 'Not started')}</strong></div></div><div class="mt-6 flex flex-wrap justify-end gap-3">${cancel}${action}</div>`;
+      dialog.innerHTML = `<button class="modal-close" type="button" aria-label="Close"><span aria-hidden="true">×</span></button><p class="eyebrow mt-4">BOOKING DETAILS</p><h2 class="mt-2 font-display text-3xl text-ink">${esc(booking.packageName || 'Mentorship')}</h2><p class="mt-2 text-sm text-muted">with ${esc(booking.mentorName || 'Mentor')}</p><div class="mt-6 divide-y divide-line rounded-xl border border-line bg-cream"><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Status</span><span class="status-badge ${badgeClass}">${esc(STATUS_LABELS[status] || status)}</span></div><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Submitted</span><strong>${esc(dateLabel(booking.submittedAt))}</strong></div><div class="p-4 text-sm"><span class="text-muted">Learning goals</span><p class="mt-2 whitespace-pre-wrap text-ink">${esc(booking.learningGoals || 'No learning goals provided.')}</p></div><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Payment</span><strong>${esc(booking.latestPaymentStatus || 'Not started')}</strong></div></div><div class="mt-6 flex flex-wrap justify-end gap-3">${cancel}${action}</div>`;
       results.append(dialog);
       const close = () => { if (dialog.open) dialog.close(); dialog.remove(); };
       dialog.querySelector('.modal-close').addEventListener('click', close);
@@ -293,7 +399,31 @@ export async function mountMenteeApplications(root) {
       return;
     }
     const button = event.target.closest('[data-page]');
-    if (button) { page += button.dataset.page === 'next' ? 1 : -1; load(); }
+    if (button && !button.disabled) {
+      page += button.dataset.page === 'next' ? 1 : -1;
+      load();
+      return;
+    }
+    const jumpBtn = event.target.closest('[data-page-jump]');
+    if (jumpBtn) {
+      const targetPage = Number(jumpBtn.dataset.pageJump);
+      if (!Number.isNaN(targetPage) && targetPage !== page) {
+        page = targetPage;
+        load();
+      }
+      return;
+    }
+  });
+
+  results.addEventListener('change', event => {
+    const pageSelect = event.target.closest('[data-page-select]');
+    if (pageSelect) {
+      const targetPage = Number(pageSelect.value);
+      if (!Number.isNaN(targetPage) && targetPage !== page) {
+        page = targetPage;
+        load();
+      }
+    }
   });
   load();
 }

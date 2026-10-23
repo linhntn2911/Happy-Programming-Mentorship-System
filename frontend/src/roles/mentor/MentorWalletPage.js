@@ -3,6 +3,7 @@ import { authService } from '../auth/authService.js';
 import { mentorWalletService } from './mentorWalletService.js';
 import { mentorReviewService } from './mentorReviewService.js';
 import { escapeHtml as e } from '../../shared/html.js';
+import { getPageNumbers } from '../../shared/pagination.js';
 
 const money = value => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Number(value || 0)) + ' VND';
 const dateTime = value => value ? new Date(value).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }) + ' UTC' : '—';
@@ -66,10 +67,17 @@ function walletContent() {
         <button id="feedback-retry" class="btn btn-outline mb-4" type="button" hidden>Try again</button>
         <div id="feedback-empty" class="text-sm text-muted" hidden>No mentee reviews yet.</div>
         <div id="feedback-list" class="space-y-4"></div>
-        <div id="feedback-pagination" class="mt-5 flex items-center justify-between gap-3" hidden>
-          <button id="feedback-prev" class="btn btn-outline btn-sm" type="button">Newer</button>
-          <span id="feedback-page-info" class="text-xs text-muted"></span>
-          <button id="feedback-next" class="btn btn-outline btn-sm" type="button">Older</button>
+        <div id="feedback-pagination" class="mt-7 flex flex-wrap items-center justify-between gap-4 border-t border-line/60 pt-5" hidden>
+          <div class="flex flex-wrap items-center gap-2">
+            <button id="feedback-prev" class="btn btn-outline btn-sm" type="button">← Previous</button>
+            <div id="feedback-pages" class="flex items-center gap-1.5" role="group" aria-label="Feedback page numbers"></div>
+            <button id="feedback-next" class="btn btn-outline btn-sm" type="button">Next →</button>
+          </div>
+          <div class="flex items-center gap-2 text-xs text-muted">
+            <label for="feedback-page-select" class="font-medium text-ink">Go to:</label>
+            <select id="feedback-page-select" class="rounded-lg border border-line bg-white px-2.5 py-1 text-xs text-ink focus:border-brand focus:outline-none"></select>
+            <span id="feedback-page-info"></span>
+          </div>
         </div>
       </div>
     </section>
@@ -172,6 +180,8 @@ export function initializeMentorWalletPage(root) {
   const feedbackPrev = shell.querySelector('#feedback-prev');
   const feedbackNext = shell.querySelector('#feedback-next');
   const feedbackPageInfo = shell.querySelector('#feedback-page-info');
+  const feedbackPages = shell.querySelector('#feedback-pages');
+  const feedbackPageSelect = shell.querySelector('#feedback-page-select');
 
   let currentWallet = null;
   let savedBank = null;
@@ -343,7 +353,20 @@ export function initializeMentorWalletPage(root) {
     if (!hasMultiple) return;
     feedbackPrev.disabled = reviewPage <= 0;
     feedbackNext.disabled = reviewPage >= totalPages - 1;
-    feedbackPageInfo.textContent = `Page ${reviewPage + 1} of ${totalPages}`;
+    feedbackPageInfo.textContent = `of ${totalPages} pages`;
+
+    if (feedbackPages && feedbackPageSelect) {
+      const pageNumbers = getPageNumbers(reviewPage, totalPages);
+      feedbackPages.innerHTML = pageNumbers.map(item => {
+        if (item === 'ellipsis') return '<span class="grid h-8 w-8 place-items-center text-xs text-muted" aria-hidden="true">…</span>';
+        const isActive = item === reviewPage;
+        return `<button type="button" data-page-jump="${item}" aria-current="${isActive ? 'page' : 'false'}" class="btn btn-sm min-w-8 h-8 px-2.5 text-xs font-semibold ${isActive ? 'btn-primary' : 'btn-outline'}">${item + 1}</button>`;
+      }).join('');
+
+      feedbackPageSelect.innerHTML = Array.from({ length: totalPages }, (_, i) =>
+        `<option value="${i}" ${i === reviewPage ? 'selected' : ''}>Page ${i + 1}</option>`
+      ).join('');
+    }
   }
 
   async function loadReviews(page = 0) {
@@ -374,6 +397,17 @@ export function initializeMentorWalletPage(root) {
   const reloadReviews = () => loadReviews(reviewPage);
   const prevReviews = () => { if (reviewPage > 0) loadReviews(reviewPage - 1); };
   const nextReviews = () => loadReviews(reviewPage + 1);
+  const onFeedbackJump = event => {
+    const jumpBtn = event.target.closest('[data-page-jump]');
+    if (jumpBtn) {
+      const target = Number(jumpBtn.dataset.pageJump);
+      if (!Number.isNaN(target) && target !== reviewPage) loadReviews(target);
+    }
+  };
+  const onFeedbackSelect = event => {
+    const target = Number(event.target.value);
+    if (!Number.isNaN(target) && target !== reviewPage) loadReviews(target);
+  };
 
   retry.addEventListener('click', load);
   bankForm.addEventListener('submit', saveBank);
@@ -383,6 +417,8 @@ export function initializeMentorWalletPage(root) {
   feedbackRetry.addEventListener('click', reloadReviews);
   feedbackPrev.addEventListener('click', prevReviews);
   feedbackNext.addEventListener('click', nextReviews);
+  feedbackPages?.addEventListener('click', onFeedbackJump);
+  feedbackPageSelect?.addEventListener('change', onFeedbackSelect);
   const closeDialog = () => dialog.close();
   otpClose.addEventListener('click', closeDialog);
   dialog.addEventListener('click', event => { if (event.target === dialog) closeDialog(); });
@@ -400,6 +436,8 @@ export function initializeMentorWalletPage(root) {
     feedbackRetry.removeEventListener('click', reloadReviews);
     feedbackPrev.removeEventListener('click', prevReviews);
     feedbackNext.removeEventListener('click', nextReviews);
+    feedbackPages?.removeEventListener('click', onFeedbackJump);
+    feedbackPageSelect?.removeEventListener('change', onFeedbackSelect);
     otpClose.removeEventListener('click', closeDialog);
     if (dialog.open) dialog.close();
     unbind();

@@ -9,10 +9,18 @@ async function withCsrf(headers = {}) {
 }
 
 export const menteeApplicationsService = {
-  list({ page = 0, size = 10, status = '' } = {}) {
+  async list({ page = 0, size = 10, status = '' } = {}) {
     const params = new URLSearchParams({ page: String(page), size: String(size) });
     if (status) params.set('status', status);
-    return apiClient(`/api/mentorship-requests/mine?${params}`, { cache: 'no-store' });
+    try {
+      return await apiClient(`/api/mentorship-requests/mine?${params}`, { cache: 'no-store' });
+    } catch (err) {
+      if (status === 'CONFIRMED' && (err?.status === 400 || String(err?.message || '').includes('Invalid mentorship application status'))) {
+        params.set('status', 'ACCEPTED');
+        return await apiClient(`/api/mentorship-requests/mine?${params}`, { cache: 'no-store' });
+      }
+      throw err;
+    }
   },
   async cancel(requestId) {
     const headers = await withCsrf();

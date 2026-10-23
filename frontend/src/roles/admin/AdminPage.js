@@ -82,6 +82,22 @@ export function mountAdmin(root, section = 'overview') {
     on('#admin-clear', 'click', () => { Object.assign(state, { query: '', role: '', status: '', page: 1, from: '', to: '' }); render(); });
     on('#admin-prev', 'click', () => { state.page--; render(); root.querySelector('#admin-next')?.focus(); });
     on('#admin-next', 'click', () => { state.page++; render(); root.querySelector('#admin-prev')?.focus(); });
+    root.querySelectorAll('[data-admin-page-jump]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = Number(btn.dataset.adminPageJump);
+        if (!Number.isNaN(target) && target !== state.page) {
+          state.page = target;
+          render();
+        }
+      });
+    });
+    on('#admin-page-select', 'change', event => {
+      const target = Number(event.currentTarget.value);
+      if (!Number.isNaN(target) && target !== state.page) {
+        state.page = target;
+        render();
+      }
+    });
     on('#admin-dates', 'submit', event => {
       event.preventDefault(); const form = event.currentTarget; const values = Object.fromEntries(new FormData(form));
       form.elements.to.setCustomValidity(values.from && values.to && values.to < values.from ? 'End date must be on or after the start date.' : '');

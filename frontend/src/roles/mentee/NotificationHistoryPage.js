@@ -4,6 +4,7 @@ import { bindUserDropdown, getInitials, renderNotificationBell, renderUserDropdo
 import { authService } from '../auth/authService.js';
 import { notificationService } from './notificationService.js';
 import { notificationRelatedHref } from '../../shared/notificationLink.js';
+import { renderPagination } from '../../shared/pagination.js';
 
 const esc = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 const PAGE_SIZE = 10;
@@ -55,7 +56,7 @@ export async function mountNotificationHistory(root) {
       const emptyText = unreadOnly ? 'You have no unread notifications.' : 'No notifications yet.';
       state.innerHTML = `<p class="mb-4 text-xs text-muted">${result.unreadCount} unread · ${result.totalElements} ${unreadOnly ? 'unread ' : ''}notification${result.totalElements === 1 ? '' : 's'}</p>
         ${items.length ? `<div class="space-y-3">${items.map(notificationRow).join('')}</div>` : `<div class="directory-message"><h2>${emptyText}</h2><p>New updates will appear here when available.</p></div>`}
-        ${totalPages > 1 ? `<nav class="mt-7 flex items-center justify-between gap-3" aria-label="Notification pages"><button type="button" data-page="previous" class="btn btn-outline btn-sm" ${page === 0 ? 'disabled' : ''}>← Previous</button><span class="text-xs text-muted">Page ${page + 1} of ${totalPages}</span><button type="button" data-page="next" class="btn btn-outline btn-sm" ${page + 1 >= totalPages ? 'disabled' : ''}>Next →</button></nav>` : ''}`;
+        ${renderPagination(page, totalPages, { ariaLabel: 'Notification pages', idPrefix: 'notification-page' })}`;
     } catch (error) {
       if (current !== request || root.querySelector('#notification-history-state') !== state) return;
       state.innerHTML = `<div class="directory-message"><h2>Could not load notifications</h2><p>${esc(error.message || 'Please try again.')}</p><button type="button" data-retry class="btn btn-outline btn-sm mt-5">Try again</button></div>`;
@@ -84,6 +85,15 @@ export async function mountNotificationHistory(root) {
     if (event.target.closest('[data-retry]')) { load(); return; }
     const pagination = event.target.closest('[data-page]');
     if (pagination) { page += pagination.dataset.page === 'next' ? 1 : -1; load(); return; }
+    const jumpBtn = event.target.closest('[data-page-jump]');
+    if (jumpBtn) {
+      const targetPage = Number(jumpBtn.dataset.pageJump);
+      if (!Number.isNaN(targetPage) && targetPage !== page) {
+        page = targetPage;
+        load();
+      }
+      return;
+    }
     const card = event.target.closest('[data-notification-id]');
     if (!card) return;
     const item = items.find(entry => String(entry.id) === card.dataset.notificationId);
@@ -101,6 +111,16 @@ export async function mountNotificationHistory(root) {
     if (!success) { state.insertAdjacentHTML('afterbegin', '<p class="mb-4 text-sm text-red-600">Could not mark this notification as read. Please try again.</p>'); if (button) button.disabled = false; return; }
     if (open) { location.hash = notificationRelatedHref(item); return; }
     load();
+  });
+  state.addEventListener('change', event => {
+    const pageSelect = event.target.closest('[data-page-select]');
+    if (pageSelect) {
+      const targetPage = Number(pageSelect.value);
+      if (!Number.isNaN(targetPage) && targetPage !== page) {
+        page = targetPage;
+        load();
+      }
+    }
   });
   load();
 }

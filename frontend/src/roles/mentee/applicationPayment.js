@@ -3,6 +3,11 @@ export function canPayApplication(application) {
 }
 
 export function applicationDisplayStatus(application) {
-  if (application?.fundedAt) return 'PAID';
-  return application?.status || 'UNKNOWN';
+  if (!application) return 'UNKNOWN';
+  const status = (application.status || '').toUpperCase();
+  if (['COMPLETED', 'EXPIRED', 'CANCELLED', 'REJECTED', 'DISPUTED'].includes(status)) {
+    return status;
+  }
+  if (application.fundedAt) return 'CONFIRMED';
+  return status || 'UNKNOWN';
 }

@@ -33,7 +33,15 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class MentorshipRequestService {
     private static final int MIN_GOALS_LENGTH = 50;
-    private static final Set<String> APPLICATION_STATUSES = Set.of("PENDING", "ACCEPTED", "REJECTED", "EXPIRED", "CANCELLED");
+    private static final Set<String> APPLICATION_STATUSES = Set.of(
+            "PENDING",
+            "ACCEPTED",
+            "CONFIRMED",
+            "PAID",
+            "COMPLETED",
+            "REJECTED",
+            "EXPIRED",
+            "CANCELLED");
 
     private static final String SELECT_MENTOR = """
             SELECT TOP 1 mp.user_id, u.full_name
@@ -317,37 +325,93 @@ public class MentorshipRequestService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid mentorship application status.");
         }
 
-        String predicate = normalizedStatus == null ? "" : " AND r.status = ?";
-        Object[] countArgs = normalizedStatus == null
+        boolean isConfirmedFilter = "CONFIRMED".equals(normalizedStatus) || "PAID".equals(normalizedStatus);
+        String filterPredicate;
+        if (normalizedStatus == null) {
+            filterPredicate = "";
+        } else if (isConfirmedFilter) {
+            filterPredicate = " WHERE status IN ('CONFIRMED', 'PAID')";
+        } else if ("ACCEPTED".equals(normalizedStatus)) {
+            filterPredicate = " WHERE status = ? AND funded_at IS NULL";
+        } else {
+            filterPredicate = " WHERE status = ?";
+        }
+
+        Object[] countArgs = normalizedStatus == null || isConfirmedFilter
                 ? new Object[] { user.id() }
                 : new Object[] { user.id(), normalizedStatus };
+
+        String cte = """
+                WITH app_rows AS (
+                    SELECT r.id, mentor.full_name AS mentor_name,
+                           COALESCE(JSON_VALUE(r.offer_snapshot, '$.name'), offering.name, 'Monthly Mentorship') AS package_name,
+                           r.learning_goals,
+                           CASE
+                               WHEN r.status IN ('REJECTED','EXPIRED','CANCELLED') THEN r.status
+                               WHEN r.status = 'PENDING' AND r.response_deadline IS NOT NULL AND r.response_deadline <= SYSUTCDATETIME()
+                                   THEN 'EXPIRED'
+                               WHEN r.service_type = 'ONE_OFF' AND booking_summary.bookingStatus IS NOT NULL
+                                   THEN booking_summary.bookingStatus
+                               WHEN r.service_type = 'ONE_OFF' AND r.funded_at IS NOT NULL
+                                   THEN 'CONFIRMED'
+                               WHEN r.service_type = 'MONTHLY' AND (sub.status = 'ENDED' OR (sub.current_period_end IS NOT NULL AND sub.current_period_end <= SYSUTCDATETIME()))
+                                   THEN 'COMPLETED'
+                               WHEN r.service_type = 'MONTHLY' AND r.funded_at IS NOT NULL
+                                   THEN 'CONFIRMED'
+                               ELSE r.status
+                           END AS status,
+                           r.submitted_at, r.responded_at, r.response_deadline,
+                           r.funded_at, r.rejection_reason, latest_payment.payment_status,
+                           latest_payment.payment_expires_at,
+                           r.mentee_id
+                    FROM dbo.mentorship_requests r
+                    JOIN dbo.users mentor ON mentor.id = r.mentor_id
+                    JOIN dbo.service_offerings offering ON offering.id = r.service_id
+                    LEFT JOIN dbo.subscriptions sub ON sub.request_id = r.id
+                    OUTER APPLY (
+                        SELECT
+                            MIN(booking_row.start_at) AS startAt,
+                            MAX(booking_row.end_at) AS endAt,
+                            NULLIF(COUNT(*), 0) AS bookingCount,
+                            CASE
+                                WHEN SUM(CASE WHEN booking_row.status = 'CONFIRMED' AND booking_row.end_at > SYSUTCDATETIME() THEN 1 ELSE 0 END) > 0 THEN 'CONFIRMED'
+                                WHEN SUM(CASE WHEN booking_row.status = 'COMPLETED' OR (booking_row.status = 'CONFIRMED' AND booking_row.end_at <= SYSUTCDATETIME()) THEN 1 ELSE 0 END) = COUNT(*) THEN 'COMPLETED'
+                                WHEN SUM(CASE WHEN booking_row.status = 'CANCELLED' THEN 1 ELSE 0 END) = COUNT(*) THEN 'CANCELLED'
+                                WHEN SUM(CASE WHEN booking_row.status IN ('NO_SHOW','NO_SHOW_REVIEW') THEN 1 ELSE 0 END) > 0 THEN 'NO_SHOW'
+                                ELSE MAX(booking_row.status)
+                            END AS bookingStatus
+                        FROM dbo.bookings booking_row
+                        WHERE booking_row.mentor_id = r.mentor_id
+                          AND booking_row.mentee_id = r.mentee_id
+                          AND TRY_CONVERT(BIGINT, JSON_VALUE(booking_row.terms_snapshot, '$.requestId')) = r.id
+                    ) booking_summary
+                    OUTER APPLY (
+                        SELECT TOP (1) p.status AS payment_status, p.expires_at AS payment_expires_at
+                        FROM dbo.payments p
+                        WHERE p.request_id = r.id
+                        ORDER BY p.billing_cycle_no DESC, p.attempt_no DESC, p.id DESC
+                    ) latest_payment
+                    WHERE r.mentee_id = ?
+                )
+                """;
+
         Long total = template.queryForObject(
-                "SELECT COUNT_BIG(*) FROM dbo.mentorship_requests r WHERE r.mentee_id = ?" + predicate,
+                cte + " SELECT COUNT_BIG(*) FROM app_rows" + filterPredicate,
                 Long.class,
                 countArgs);
         long totalElements = total == null ? 0L : total;
         int totalPages = totalElements == 0 ? 0 : (int) Math.ceil((double) totalElements / size);
         long offset = (long) page * size;
 
-        String sql = """
-                SELECT r.id, mentor.full_name AS mentor_name,
-                       COALESCE(JSON_VALUE(r.offer_snapshot, '$.name'), offering.name, 'Monthly Mentorship') AS package_name,
-                       r.learning_goals, r.status, r.submitted_at, r.responded_at, r.response_deadline,
-                       r.funded_at, r.rejection_reason, latest_payment.payment_status,
-                       latest_payment.payment_expires_at
-                FROM dbo.mentorship_requests r
-                JOIN dbo.users mentor ON mentor.id = r.mentor_id
-                JOIN dbo.service_offerings offering ON offering.id = r.service_id
-                OUTER APPLY (
-                    SELECT TOP (1) p.status AS payment_status, p.expires_at AS payment_expires_at
-                    FROM dbo.payments p
-                    WHERE p.request_id = r.id
-                    ORDER BY p.billing_cycle_no DESC, p.attempt_no DESC, p.id DESC
-                ) latest_payment
-                WHERE r.mentee_id = ?
-                """ + predicate + " ORDER BY r.submitted_at DESC, r.id DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY";
+        String sql = cte + """
+                 SELECT id, mentor_name, package_name, learning_goals, status,
+                        submitted_at, responded_at, response_deadline, funded_at,
+                        rejection_reason, payment_status, payment_expires_at
+                 FROM app_rows
+                """ + filterPredicate + " ORDER BY submitted_at DESC, id DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY";
+
         Object[] listArgs;
-        if (normalizedStatus == null) {
+        if (normalizedStatus == null || isConfirmedFilter) {
             listArgs = new Object[] { user.id(), offset, size };
         } else {
             listArgs = new Object[] { user.id(), normalizedStatus, offset, size };

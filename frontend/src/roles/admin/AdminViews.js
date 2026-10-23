@@ -5,6 +5,7 @@ import { StatCard, StatusBadge, DataTable } from './AdminPrimitives.js';
 import { adminIcon } from './AdminLayout.js';
 import { escapeHtml as e } from '../../shared/html.js';
 import { filterUsers, paymentCommission, money, dateTime, pageItems, revenue } from './admin.js';
+import { getPageNumbers } from '../../shared/pagination.js';
 
 export const heading = (title, description, action = '') => `<div class="admin-page-heading"><div><p class="eyebrow mb-3">HAPPYPROGRAMMING ADMIN</p><h1>${e(title)}</h1><p>${e(description)}</p></div>${action}</div>`;
 const panel = (title, description, content, action = '') => `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>${e(title)}</h2>${description ? `<p>${e(description)}</p>` : ''}</div>${action}</div>${content}</section>`;
@@ -12,7 +13,36 @@ const empty = (title = 'No results found', description = 'Try another search or 
 const person = user => `<div class="admin-person"><span class="admin-avatar">${e(user.name.split(/\s+/).map(p => p[0]).slice(0, 2).join(''))}</span><div><strong>${e(user.name)}</strong><small>${e(user.email)}</small></div></div>`;
 const select = (id, label, values, current = '', all = 'All') => `<label class="admin-field" for="${id}">${e(label)}<select id="${id}" name="${id}">${all ? `<option value="">${e(all)}</option>` : ''}${values.map(v => `<option value="${e(v)}" ${v === current ? 'selected' : ''}>${e(v.charAt(0) + v.slice(1).toLowerCase())}</option>`).join('')}</select></label>`;
 function pagination(result) {
-  return `<div class="admin-pagination"><p>${result.total ? (result.page - 1) * 8 + 1 : 0}–${Math.min(result.page * 8, result.total)} of ${result.total} results</p><div>${Button({ id: 'admin-prev', label: 'Previous', variant: 'outline', size: 'sm', disabled: result.page === 1 })}<span class="self-center px-2">${result.page} / ${result.pages}</span>${Button({ id: 'admin-next', label: 'Next', variant: 'outline', size: 'sm', disabled: result.page === result.pages })}</div></div>`;
+  if (!result || !result.pages || result.pages <= 1) {
+    return `<div class="admin-pagination"><p>${result?.total ? (result.page - 1) * 8 + 1 : 0}–${Math.min(result?.page * 8 || 0, result?.total || 0)} of ${result?.total || 0} results</p></div>`;
+  }
+  const totalPages = result.pages;
+  const currentPage = result.page;
+
+  const pageNumbers = getPageNumbers(currentPage - 1, totalPages);
+  const pageItemsList = pageNumbers.map(item => {
+    if (item === 'ellipsis') return '<span class="grid h-8 w-8 place-items-center text-xs text-muted" aria-hidden="true">…</span>';
+    const isActive = item === currentPage - 1;
+    return `<button type="button" data-admin-page-jump="${item + 1}" aria-current="${isActive ? 'page' : 'false'}" class="btn btn-sm min-w-8 h-8 px-2 text-xs font-semibold ${isActive ? 'btn-primary' : 'btn-outline'}">${item + 1}</button>`;
+  }).join('');
+
+  const selectOptions = Array.from({ length: totalPages }, (_, i) =>
+    `<option value="${i + 1}" ${i + 1 === currentPage ? 'selected' : ''}>Page ${i + 1}</option>`
+  ).join('');
+
+  return `<div class="admin-pagination flex-wrap gap-4">
+    <p>${result.total ? (result.page - 1) * 8 + 1 : 0}–${Math.min(result.page * 8, result.total)} of ${result.total} results</p>
+    <div class="flex flex-wrap items-center gap-2">
+      ${Button({ id: 'admin-prev', label: 'Previous', variant: 'outline', size: 'sm', disabled: result.page === 1 })}
+      <div class="flex items-center gap-1.5" role="group" aria-label="Page numbers">${pageItemsList}</div>
+      ${Button({ id: 'admin-next', label: 'Next', variant: 'outline', size: 'sm', disabled: result.page === result.pages })}
+      <div class="flex items-center gap-2 ml-2 text-xs text-muted">
+        <label for="admin-page-select" class="font-medium text-ink">Go to:</label>
+        <select id="admin-page-select" class="rounded-lg border border-line bg-white px-2.5 py-1 text-xs text-ink focus:border-brand focus:outline-none">${selectOptions}</select>
+        <span>of ${totalPages} pages</span>
+      </div>
+    </div>
+  </div>`;
 }
 function stats(data, report) {
   return `<div class="admin-stats">${StatCard({ label: 'Community accounts', value: data.users.length, note: `${data.users.filter(u => u.status === 'ACTIVE').length} active accounts`, icon: adminIcon('users') })}${StatCard({ label: 'Active mentors', value: data.users.filter(u => u.role === 'MENTOR' && u.status === 'ACTIVE').length, note: 'Accounts with active status', icon: adminIcon('staff') })}${StatCard({ label: 'Gross payments', value: money(report.gross), note: 'Verified payments · all time', icon: adminIcon('revenue') })}${StatCard({ label: 'Estimated gross commission', value: money(report.commission), note: 'Historical commission rates · all time', icon: adminIcon('settings') })}</div>`;
