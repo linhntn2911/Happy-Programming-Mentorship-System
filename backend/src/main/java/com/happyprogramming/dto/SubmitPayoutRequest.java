@@ -11,4 +11,6 @@ public record SubmitPayoutRequest(
         @Digits(integer = 16, fraction = 0, message = "Payout amount must use whole VND.")
         BigDecimal amount,
         @NotBlank(message = "Verification code is required.")
-        @Pattern(regexp = "^[0-9]{6}$", message = "Verification code must be 6 digits.") String otp) { }
+        @Pattern(regexp = "^[0-9]{6}$", message = "Verification code must be 6 digits.") String otp, BigDecimal expectedFee) {
+    public SubmitPayoutRequest(BigDecimal amount,String otp) { this(amount,otp,null); }
+}

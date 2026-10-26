@@ -1,3 +1,4 @@
 package com.happyprogramming.dto;
-
-public record PayoutOtpResponse(String maskedEmail, String destinationLabel, int expiresInSeconds) { }
+import java.math.BigDecimal;
+public record PayoutOtpResponse(String maskedEmail, String destinationLabel, int expiresInSeconds,
+    BigDecimal feeAmount, BigDecimal netAmount, int resendAfterSeconds) { }

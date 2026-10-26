@@ -31,6 +31,11 @@ import java.net.URI;
 
 @Service
 public class MentorApplicationService {
+    @org.springframework.beans.factory.annotation.Autowired
+    OperationalPolicy operationalPolicy;
+    private com.happyprogramming.dto.OperationalSettings policy() {
+        return operationalPolicy == null ? new com.happyprogramming.dto.OperationalSettings(false, "") : operationalPolicy.current();
+    }
     private final UserRepository users;
     private final MentorApplicationRepository applications;
     private final AuthService auth;
@@ -230,13 +235,14 @@ public class MentorApplicationService {
         return a;
     }
     private void checkCooldown(MentorApplication a, LocalDateTime now) {
-        if (a.getOtpSentAt()!=null && a.getOtpSentAt().plusSeconds(60).isAfter(now))
-            throw error(HttpStatus.TOO_MANY_REQUESTS,"Please wait 60 seconds before requesting another code.");
+        if (a.getOtpSentAt()!=null && a.getOtpSentAt().plusSeconds(policy().otpResendSeconds()).isAfter(now))
+            throw error(HttpStatus.TOO_MANY_REQUESTS,"Please wait before requesting another code.");
     }
     private void issue(MentorApplication a, User user, LocalDateTime now) {
         String code = String.format(Locale.ROOT,"%06d",random.nextInt(1000000));
-        a.issue(passwords.encode(code),now);
-        mail.sendMentorOtpEmail(user.getEmail(),user.getFirstName(),code);
+        var config = policy();
+        a.issue(passwords.encode(code),now,config.otpExpiryMinutes());
+        mail.sendMentorOtpEmail(user.getEmail(),user.getFirstName(),code,config.otpExpiryMinutes());
     }
     private byte[] pdf(MentorSignupRequest r, MentorApplication previous) {
         if (r.cvBase64()==null || r.cvBase64().isBlank()) {
@@ -285,7 +291,7 @@ public class MentorApplicationService {
         try {
             return new MentorApplicationResponse(a.getId(),u.getId(),u.getFullName(),u.getEmail(),a.getStatus(),
                 a.getRejectionReason(),json.readTree(a.getProfileSnapshot()),a.getCvFileName(),a.getSubmittedAt(),
-                a.getOtpExpiresAt(),a.getOtpSentAt()==null ? null : a.getOtpSentAt().plusSeconds(60));
+                a.getOtpExpiresAt(),a.getOtpSentAt()==null ? null : a.getOtpSentAt().plusSeconds(policy().otpResendSeconds()));
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) { throw new IllegalStateException("Invalid stored application snapshot",e); }
     }
 

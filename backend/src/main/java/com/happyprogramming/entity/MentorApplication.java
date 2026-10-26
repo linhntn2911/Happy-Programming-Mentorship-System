@@ -38,7 +38,10 @@ public class MentorApplication {
         profileSnapshot = snapshot; cvFileName = fileName; cvContent = content; updatedAt = now;
     }
     public void issue(String hash, LocalDateTime now) {
-        otpHash = hash; otpSentAt = now; otpExpiresAt = now.plusMinutes(15); otpAttempts = 0; updatedAt = now;
+        issue(hash, now, 15);
+    }
+    public void issue(String hash, LocalDateTime now, int minutes) {
+        otpHash = hash; otpSentAt = now; otpExpiresAt = now.plusMinutes(minutes); otpAttempts = 0; updatedAt = now;
     }
     public void failOtp() { otpAttempts++; }
     public void submit(LocalDateTime now) {

@@ -6,7 +6,7 @@ test('mentor wallet page explains the hold, available funds and payout flow', ()
   const html = MentorWalletPage();
   assert.match(html, /MENTOR EARNINGS &amp; FEEDBACK/);
   assert.match(html, /Earnings and feedback/);
-  assert.match(html, /Verified payments are held for seven days before becoming available to withdraw\./);
+  assert.match(html, /Verified earnings become available after the hold period recorded when payment is confirmed\./);
   assert.match(html, /Requests reserve available balance until the admin records payment or rejection\./);
   assert.match(html, /Request a payout/);
   assert.match(html, /Account number/);

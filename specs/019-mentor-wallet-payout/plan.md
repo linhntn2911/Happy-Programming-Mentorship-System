@@ -1,6 +1,6 @@
 # Implementation Plan: Mentor Wallet and Payout Requests
 
-Use the existing VNPay IPN and immutable escrow ledger. Add an idempotent scheduled release after seven days, append mentor share and platform commission entries, and add a mentor-owned payout request lifecycle. Encrypt destination account data with AES-GCM using a configured 256-bit key. Admin payout processing remains manual and records the external bank transfer reference.
+Use the existing SePay webhook and immutable escrow ledger. Add an idempotent scheduled release after seven days, append mentor share and platform commission entries, and add a mentor-owned payout request lifecycle. Encrypt destination account data with AES-GCM using a configured 256-bit key. Admin payout processing remains manual and records the external bank transfer reference.
 
 ## Data & API
 
@@ -25,3 +25,7 @@ Use the existing VNPay IPN and immutable escrow ledger. Add an idempotent schedu
 
 ## SePay integration repair (2026-10-12)
 Verified SEPAY and VNPAY receipts use the same escrow ledger. Available wallet balance is released mentor share minus completed payouts minus active reservations; the request and admin decision paths must agree. Gross commission reporting is an estimate before refunds, while actual release subtracts completed refunds and rounds the saved rate to whole VND. Validation may migrate a dedicated disposable database copy; the existing development database is not migrated by the repair workflow.
+
+
+## Operational policy amendment (2026-10-23)
+Feature 029 supersedes the fixed seven-day hold for newly verified payments: snapshot the Admin-configured 1–90-day hold at settlement. Historical payments retain seven days. Withdrawals must exceed the configured threshold (at least 10,000 VND). A fixed fee is disclosed and snapshotted; the wallet debits gross, and the external transfer equals gross minus fee. Existing requests retain their fee.

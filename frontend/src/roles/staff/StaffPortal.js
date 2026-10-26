@@ -788,8 +788,8 @@ export async function mountStaffPayouts(root) {
                   <div class="flex items-center justify-between pb-1.5 border-b border-line/50">
                     <span class="text-muted">Transfer amount:</span>
                     <div class="flex items-center gap-1.5">
-                      <strong class="text-brand font-bold text-sm">${money(item.amount)}</strong>
-                      <button type="button" class="btn btn-ghost btn-xs copy-btn text-brand" data-copy="${e(item.amount)}" title="Copy amount">Copy</button>
+                      <strong class="text-brand font-bold text-sm">${money(item.netAmount ?? item.amount)}</strong><small>Net transfer · Fee: ${money(item.feeAmount)} · Wallet debit: ${money(item.amount)}</small>
+                      <button type="button" class="btn btn-ghost btn-xs copy-btn text-brand" data-copy="${e(item.netAmount ?? item.amount)}" title="Copy amount">Copy</button>
                     </div>
                   </div>
                   <div class="flex items-center justify-between">

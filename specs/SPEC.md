@@ -322,3 +322,7 @@ A payment or finance change is Done only when:
 5. Configuration examples contain placeholders only and required secrets are supplied through the environment.
 6. Manual verification confirms: application → Mentor acceptance → SePay QR → verified webhook → active mentorship → held wallet balance → seven-day release → payout request → Admin decision.
 7. Documentation marks VNPay material as historical and introduces no active VNPay fallback unless a later approved specification requires it.
+
+
+### Operational settings amendment — feature 029 (2026-10-23)
+The seven-day references above describe the default and historical payments. New verified payments snapshot a configurable hold of 1–90 days; subsequent setting changes do not alter existing holds. Withdrawals must be whole VND strictly above the configured threshold, whose minimum/default is 10,000 VND. Fixed withdrawal fees default to zero, are disclosed before confirmation, and are snapshotted on each request; gross is reserved/debited and net is transferred. Admin controls OTP resend cooldown and validity, maintenance and a plain-text global announcement. See specs/029-admin-operational-settings.

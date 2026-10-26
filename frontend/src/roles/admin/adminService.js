@@ -14,5 +14,7 @@ export const adminService = {
   status: (id, change) => mutate(`/users/${id}/status`, change, 'PATCH'),
   permissions: (id, change) => mutate(`/users/${id}/permissions`, change, 'PUT'),
   settings: change => mutate('/settings', change, 'PUT'),
+  operations: () => apiClient('/api/admin/operations'),
+  updateOperations: change => mutate('/operations', change, 'PUT'),
   decidePayout: (id, change) => mutate(`/payout-requests/${id}`, change, 'PATCH'),
 };

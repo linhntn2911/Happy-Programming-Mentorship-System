@@ -302,7 +302,7 @@ class AuthControllerTest {
         org.mockito.Mockito.verify(mail).sendPasswordResetOtpEmail(
             org.mockito.ArgumentMatchers.eq(email),
             org.mockito.ArgumentMatchers.any(),
-            codeCaptor.capture()
+            codeCaptor.capture(), org.mockito.ArgumentMatchers.anyInt()
         );
         String testCode = codeCaptor.getValue();
 
