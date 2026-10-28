@@ -1,0 +1,2 @@
+# Read model
+Existing mentor_payout_requests joined to users for mentor and reviewer. No migration. History fields: id, mentorId, mentorName, mentorEmail, amount (gross), feeAmount, netAmount (gross-fee), bankName, accountName, accountNumber (masked last4), status, requestedAt, reviewedAt (nullable), reviewedBy (nullable display name), transferReference (nullable), rejectionReason (nullable). No ciphertext exposed/decrypted by history.

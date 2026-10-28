@@ -8,6 +8,7 @@ export const adminService = {
   demo: false,
   session: () => apiClient('/api/admin/session'),
   workspace: () => apiClient('/api/admin/workspace'),
+  payoutHistory: () => apiClient('/api/admin/payout-history'),
   payoutRequests: () => apiClient('/api/admin/payout-requests'),
   login: body => authService.login({ ...body, role: 'ADMIN' }),
   logout: () => authService.logout(),

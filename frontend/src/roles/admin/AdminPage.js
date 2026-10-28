@@ -57,7 +57,12 @@ export function mountAdmin(root, section = 'overview') {
       const currentSession = await service.session();
       const result = await service.workspace();
       if (section === 'settings' && !service.demo) result.operations = await service.operations();
-      const pendingPayouts = section === 'payouts' && !service.demo ? await service.payoutRequests() : [];
+      let pendingPayouts = section === 'payouts' && !service.demo ? await service.payoutRequests() : [];
+      if (section === 'payouts' && !service.demo) {
+        const history = await service.payoutHistory();
+        const pending = new Map(pendingPayouts.map(item => [item.id, item]));
+        pendingPayouts = history.map(item => ({ ...item, ...(item.status === 'REQUESTED' ? pending.get(item.id) : {}) }));
+      }
       if (!alive() || version !== requestVersion) return;
       session = currentSession; data = result; payoutRequests = pendingPayouts; render();
     } catch (err) {
@@ -71,7 +76,7 @@ export function mountAdmin(root, section = 'overview') {
   }
   function render() {
     if (!alive()) return;
-    const views = { overview: () => OverviewView(data, session), users: () => UsersView(data, state), staff: () => UsersView(data, state, true), revenue: () => RevenueView(data, state), payouts: () => PayoutsView(payoutRequests, service.demo), settings: () => SettingsView(data), audit: () => AuditView(data, state) };
+    const views = { overview: () => OverviewView(data, session), users: () => UsersView(data, state), staff: () => UsersView(data, state, true), revenue: () => RevenueView(data, state), payouts: () => PayoutsView(payoutRequests, service.demo, state), settings: () => SettingsView(data), audit: () => AuditView(data, state) };
     const content = Object.hasOwn(adminSections, section) ? views[section]() : '<h1 class="section-title">Page not found</h1><a class="btn btn-primary mt-5" href="#/admin">Back to overview</a>';
     renderShell(`<div class="flex flex-wrap items-center justify-between gap-3 mb-5"><div class="grow">${service.demo ? Notice({ message: 'Demo workspace · Sample data only. Changes are saved in this browser.' }) : '<p class="text-[11px] text-muted">Administrator workspace · Live data</p>'}</div>${Button({ label: service.demo ? 'Exit demo' : 'Sign out', variant: 'outline', size: 'sm', id: 'admin-logout' })}</div>${service.warning ? Notice({ message: service.warning }) : ''}${message ? Notice({ message }) : ''}${content}`);
     on('#admin-logout', 'click', async event => {
