@@ -46,6 +46,9 @@ public class AdminController {
         service.settings(change, service.requireAdmin(email(auth)), request.getRemoteAddr()); return ApiResponse.ok(true);
     }
 
+    @GetMapping("/payout-history") public ApiResponse<List<com.happyprogramming.dto.AdminPayoutHistory>> payoutHistory(Authentication auth) {
+        return ApiResponse.ok(service.payoutHistory(email(auth)));
+    }
     @GetMapping("/payout-requests") public ApiResponse<List<AdminPayoutRequest>> payoutRequests(Authentication auth) {
         service.requireAdmin(email(auth)); return ApiResponse.ok(wallet.pendingPayouts());
     }

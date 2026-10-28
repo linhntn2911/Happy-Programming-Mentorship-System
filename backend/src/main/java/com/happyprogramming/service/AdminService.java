@@ -25,6 +25,11 @@ public class AdminService {
     }
     @Transactional(readOnly=true)
     public Workspace workspace() { return new Workspace(repository.accounts(), repository.audit(), repository.payments(), repository.settings()); }
+    @Transactional(readOnly=true)
+    public java.util.List<com.happyprogramming.dto.AdminPayoutHistory> payoutHistory(String email) {
+        requireAdmin(email);
+        return repository.payoutHistory();
+    }
     @Transactional
     public void status(long id, StatusChange change, Session actor, String ip) {
         var target = repository.lockAccount(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account no longer exists."));

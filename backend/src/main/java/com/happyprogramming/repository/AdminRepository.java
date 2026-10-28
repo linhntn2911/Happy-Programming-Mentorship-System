@@ -82,6 +82,21 @@ public class AdminRepository {
         return jdbc.query("SELECT id, merchant_reference, amount, commission_rate_snapshot, status, gateway, gateway_transaction_id, paid_at FROM dbo.payments WHERE status='SUCCEEDED' AND gateway IN ('SEPAY', 'VNPAY') AND NULLIF(LTRIM(RTRIM(gateway_transaction_id)), '') IS NOT NULL AND paid_at IS NOT NULL AND currency='VND' ORDER BY paid_at DESC, id DESC",
             (r, n) -> new Payment(r.getLong("id"), r.getString("merchant_reference"), r.getBigDecimal("amount"), r.getBigDecimal("commission_rate_snapshot"), r.getString("status"), r.getString("gateway"), r.getString("gateway_transaction_id"), instant(r.getTimestamp("paid_at"))));
     }
+    public List<com.happyprogramming.dto.AdminPayoutHistory> payoutHistory() {
+        return jdbc.query("""
+            SELECT p.id,p.mentor_id,u.full_name,u.email,p.amount,p.fee_amount,
+                   p.bank_name,p.account_name,p.account_last4,p.status,p.requested_at,
+                   p.reviewed_at,reviewer.full_name AS reviewer_name,p.transfer_reference,p.rejection_reason
+            FROM dbo.mentor_payout_requests p JOIN dbo.users u ON u.id=p.mentor_id
+            LEFT JOIN dbo.users reviewer ON reviewer.id=p.reviewed_by
+            ORDER BY p.requested_at DESC,p.id DESC
+            """, (r,n) -> new com.happyprogramming.dto.AdminPayoutHistory(
+                r.getLong("id"),r.getLong("mentor_id"),r.getString("full_name"),r.getString("email"),
+                r.getBigDecimal("amount"),r.getBigDecimal("fee_amount"),r.getBigDecimal("amount").subtract(r.getBigDecimal("fee_amount")),
+                r.getString("bank_name"),r.getString("account_name"),"**** " + r.getString("account_last4"),
+                r.getString("status"),instant(r.getTimestamp("requested_at")),instant(r.getTimestamp("reviewed_at")),
+                r.getString("reviewer_name"),r.getString("transfer_reference"),r.getString("rejection_reason")));
+    }
     public List<Audit> audit() {
         return jdbc.query("SELECT a.id, a.actor_id, COALESCE(u.full_name, 'System') actor, a.action, a.entity_type, a.entity_id, a.reason, a.ip_address, a.created_at FROM dbo.audit_logs a LEFT JOIN dbo.users u ON u.id=a.actor_id ORDER BY a.created_at DESC, a.id DESC",
             (r, n) -> new Audit(r.getLong("id"), r.getString("actor"), r.getObject("actor_id", Long.class), r.getString("action"), r.getString("entity_type") + ":" + r.getString("entity_id"), r.getString("reason"), r.getString("ip_address"), instant(r.getTimestamp("created_at"))));

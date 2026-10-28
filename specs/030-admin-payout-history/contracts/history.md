@@ -1,0 +1,2 @@
+# GET /api/admin/payout-history
+Requires authenticated ACTIVE ADMIN; standard ApiResponse<List<AdminPayoutHistory>>. 401/403 follow existing security/session policy. No query parameters: all statuses returned, ordered requested_at DESC,id DESC. Fields as data-model.md; timestamps UTC ISO8601. Empty list is success. Existing GET/PATCH /api/admin/payout-requests unchanged. History has no mutation endpoint.
