@@ -146,6 +146,31 @@ public class AuthService {
         users.saveAndFlush(user);
     }
 
+    @Transactional
+    public void changePassword(Long userId, com.happyprogramming.dto.ChangePasswordRequest request) {
+        if (userId == null) {
+            throw new IllegalArgumentException("User ID is required.");
+        }
+        var user = users.findById(userId).orElseThrow(
+            () -> new IllegalArgumentException("User not found.")
+        );
+        String currentHash = user.getPasswordHash();
+        if (currentHash != null && currentHash.startsWith("{bcrypt}")) {
+            currentHash = currentHash.substring(8);
+        }
+        if (currentHash == null || !passwords.matches(request.currentPassword(), currentHash)) {
+            throw new IllegalArgumentException("Current password is incorrect.");
+        }
+        if (passwords.matches(request.newPassword(), currentHash)) {
+            throw new IllegalArgumentException("New password cannot be the same as current password.");
+        }
+        validatePasswordPolicy(request.newPassword());
+        var now = LocalDateTime.now(clock);
+        String newHash = passwords.encode(request.newPassword());
+        user.resetPassword(newHash, now);
+        users.saveAndFlush(user);
+    }
+
     public void validatePasswordPolicy(String password) {
         if (password == null || password.length() < 8) {
             throw new IllegalArgumentException("Password must be at least 8 characters.");

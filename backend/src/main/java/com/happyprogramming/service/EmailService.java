@@ -2,22 +2,50 @@ package com.happyprogramming.service;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class EmailService {
+    private static final Logger log = LoggerFactory.getLogger(EmailService.class);
     private final JavaMailSender sender;
     private final String from;
     private final String name;
+    private final boolean logPayoutOtp;
     public EmailService(JavaMailSender sender, @Value("${spring.mail.username:}") String from,
-                        @Value("${hpms.mail.from-name:HappyProgramming}") String name) {
+                        @Value("${hpms.mail.from-name:HappyProgramming}") String name,
+                        @Value("${hpms.mail.log-payout-otp:false}") boolean logPayoutOtp,
+                        org.springframework.core.env.Environment environment) {
         this.sender=sender; this.from=from; this.name=name;
+        this.logPayoutOtp=logPayoutOtp && environment.acceptsProfiles(org.springframework.core.env.Profiles.of("dev"));
     }
     public void sendOtpEmail(String email, String recipient, String code) { send(email,code,10,"verify your email"); }
     public void sendMentorOtpEmail(String email, String recipient, String code) { send(email,code,15,"submit your mentor application"); }
     public void sendPasswordResetOtpEmail(String email, String recipient, String code) { send(email,code,15,"reset your HappyProgramming password"); }
+
+    public void sendPayoutOtpEmail(String email, String recipient, String code, String amountLabel, String destinationLabel) {
+        if (logPayoutOtp) log.warn("DEV ONLY payout OTP for {}: {} (expires in 10 minutes)", email, code);
+        if (from==null || from.isBlank()) throw unavailable();
+        try {
+            var message=sender.createMimeMessage();
+            var helper=new MimeMessageHelper(message,false,"UTF-8");
+            helper.setFrom(from,name); helper.setTo(email);
+            helper.setSubject("HappyProgramming payout verification code");
+            String who=(recipient!=null && !recipient.isBlank()) ? recipient : "Mentor";
+            helper.setText("Dear "+who+",\n\n"
+                +"You requested to withdraw "+amountLabel+" to "+destinationLabel+".\n"
+                +"Your verification code is "+code+". It expires in 10 minutes.\n"
+                +"If you did not request this payout, ignore this email and review your account security.\n\n"
+                +"HappyProgramming Mentorship Team",false);
+            sender.send(message);
+        } catch (Exception e) {
+            // Do not log the code, recipient, amount, SMTP credentials or provider response.
+            throw unavailable();
+        }
+    }
 
     public void sendMentorApplicationApprovedEmail(String email, String recipient) {
         sendNotification(email, "Mentor Application Approved - Welcome to HappyProgramming!",

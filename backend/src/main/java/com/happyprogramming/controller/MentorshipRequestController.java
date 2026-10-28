@@ -4,6 +4,7 @@ import com.happyprogramming.dto.ApiResponse;
 import com.happyprogramming.dto.CheckoutInfoDto;
 import com.happyprogramming.dto.CheckoutResponse;
 import com.happyprogramming.dto.CreateMentorshipRequest;
+import com.happyprogramming.dto.CreateOneOffSessionRequest;
 import com.happyprogramming.dto.MenteeApplicationPageDto;
 import com.happyprogramming.dto.MentorshipRequestResponse;
 import com.happyprogramming.service.MentorshipRequestService;
@@ -39,6 +40,13 @@ public class MentorshipRequestController {
     public ApiResponse<MentorshipRequestResponse> createRequest(
             @Valid @RequestBody CreateMentorshipRequest payload) {
         return ApiResponse.ok("Mentorship request submitted.", mentorshipRequestService.create(payload));
+    }
+
+    @PostMapping("/api/one-off-requests")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<MentorshipRequestResponse> createOneOffRequest(
+            @Valid @RequestBody CreateOneOffSessionRequest payload) {
+        return ApiResponse.ok("One-off session request submitted.", mentorshipRequestService.createOneOff(payload));
     }
 
     @GetMapping("/api/mentorship-requests/mine")

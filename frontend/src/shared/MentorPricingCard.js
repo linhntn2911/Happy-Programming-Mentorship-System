@@ -144,6 +144,7 @@ export function MentorPricingCard({
   tiers = [],
   activeTierId = '',
   oneOffPrice = '',
+  showOneOff = false,
   onApplyClick = "window.location.hash = '#/apply'",
   onOneOffClick = "window.location.hash = '#/book'",
 } = {}) {
@@ -153,6 +154,7 @@ export function MentorPricingCard({
 <aside class="mentor-pricing-card w-full max-w-[420px] rounded-3xl border border-line bg-cream p-6 text-center text-ink shadow-sm" data-component="mentor-pricing-card">
   <h3 class="font-display text-xl text-ink">No packages published yet</h3>
   <p class="mt-2 text-sm text-muted">This mentor has not published an active mentorship package. Check back soon or browse other mentors.</p>
+  ${showOneOff ? `<a href="#/book-session" onclick="${onOneOffClick}" class="btn btn-primary mt-5 w-full">Book a one-off session${oneOffPrice ? ` from ${escapeHtml(oneOffPrice)} ₫` : ''}</a>` : ''}
 </aside>`;
   }
 
@@ -235,13 +237,13 @@ export function MentorPricingCard({
       <a href="#/what-is-included" class="font-medium text-brand underline decoration-brand/40 underline-offset-2 hover:decoration-brand">What's included?</a>
     </p>
 
-    ${oneOffPrice ? `
+    ${showOneOff ? `
     <div class="mt-5 border-t border-line/60 pt-4">
       <a
         href="#/book-session"
         onclick="${onOneOffClick}"
         class="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-brand hover:text-brand-dark transition-colors group">
-        <span>Just need one session? Book a one-off call (${escapeHtml(oneOffPrice)} ₫)</span>
+        <span>Just need one session? Book a one-off call${oneOffPrice ? ` (${escapeHtml(oneOffPrice)} ₫)` : ''}</span>
         <span class="transition-transform group-hover:translate-x-0.5">→</span>
       </a>
     </div>` : ''}

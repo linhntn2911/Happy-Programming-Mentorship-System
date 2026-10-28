@@ -125,16 +125,27 @@ public class MentorDashboardService {
         String mentorName = context.getMentorName() == null ? "The mentor" : context.getMentorName();
         String packageName = context.getPackageName() == null ? "your mentorship request" : context.getPackageName();
         boolean accepted = "ACCEPTED".equals(status);
-        String title = accepted ? "Mentorship request accepted" : "Mentorship request declined";
-        String message = accepted
-                ? mentorName + " accepted your request for " + packageName
-                        + ". You can now complete payment to start."
-                : mentorName + " declined your request for " + packageName + ".";
+        boolean oneOff = "ONE_OFF".equals(context.getServiceType());
+        String title;
+        String message;
+        if (oneOff) {
+            title = accepted ? "Session request accepted" : "Session request declined";
+            message = accepted
+                    ? mentorName + " accepted your request for \"" + packageName
+                            + "\". They will be in touch to arrange your session."
+                    : mentorName + " declined your request for \"" + packageName + "\".";
+        } else {
+            title = accepted ? "Mentorship request accepted" : "Mentorship request declined";
+            message = accepted
+                    ? mentorName + " accepted your request for " + packageName
+                            + ". You can now complete payment to start."
+                    : mentorName + " declined your request for " + packageName + ".";
+        }
         String type = accepted ? "MENTORSHIP_REQUEST_ACCEPTED" : "MENTORSHIP_REQUEST_REJECTED";
         String actionUrl = "#/applications";
         notificationService.create(context.getMenteeId(), title, message, type, actionUrl);
 
-        if (accepted && context.getMenteeEmail() != null && !context.getMenteeEmail().isBlank()) {
+        if (!oneOff && accepted && context.getMenteeEmail() != null && !context.getMenteeEmail().isBlank()) {
             emailService.sendMentorshipRequestAcceptedEmail(
                     context.getMenteeEmail(),
                     context.getMenteeName(),
@@ -149,6 +160,7 @@ public class MentorDashboardService {
                 request.getId(),
                 request.getMenteeName(),
                 request.getPackageName() == null ? "Offering unavailable" : request.getPackageName(),
+                request.getServiceType(),
                 goals,
                 summarizeLearningGoals(goals),
                 request.getStatus(),

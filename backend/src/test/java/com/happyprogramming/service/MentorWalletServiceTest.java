@@ -33,7 +33,7 @@ class MentorWalletServiceTest {
     @Test
     void payoutAccountEncryptionUsesAuthenticatedCiphertextAndRandomNonce() {
         byte[] key = new byte[32]; new SecureRandom().nextBytes(key);
-        MentorWalletService service = new MentorWalletService(null, Base64.getEncoder().encodeToString(key));
+        MentorWalletService service = new MentorWalletService(null, Base64.getEncoder().encodeToString(key), null, null, null);
 
         String first = service.encryptAccount("1234567890");
         String second = service.encryptAccount("1234567890");
@@ -45,11 +45,18 @@ class MentorWalletServiceTest {
 
     @Test
     void payoutDetailsFailClosedWithoutConfiguredEncryptionKey() {
-        MentorWalletService service = new MentorWalletService(null, "");
+        MentorWalletService service = new MentorWalletService(null, "", null, null, null);
 
         ResponseStatusException error = assertThrows(ResponseStatusException.class,
                 () -> service.encryptAccount("1234567890"));
 
         assertEquals(503, error.getStatusCode().value());
+    }
+
+    @Test
+    void masksMentorEmailBeforeEchoingItToTheClient() {
+        assertEquals("ng•••@example.com", MentorWalletService.maskEmail("nguyen@example.com"));
+        assertEquals("a•••@example.com", MentorWalletService.maskEmail("ab@example.com"));
+        assertEquals("", MentorWalletService.maskEmail(""));
     }
 }

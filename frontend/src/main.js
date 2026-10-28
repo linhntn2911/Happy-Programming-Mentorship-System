@@ -5,6 +5,7 @@ import {
 } from './roles/mentor/MentorProfilePage.js';
 import { mountLogin } from './roles/auth/LoginPage.js';
 import { mountForgotPassword } from './roles/auth/ForgotPasswordPage.js';
+import { mountChangePassword } from './roles/auth/ChangePasswordPage.js';
 import { mountAdmin } from './roles/admin/AdminPage.js';
 import { mountMenteeSignup } from './roles/auth/MenteeSignupPage.js';
 import { mountAccount } from './roles/mentee/AccountPage.js';
@@ -21,6 +22,7 @@ import { mountWishlist } from './roles/mentee/WishlistPage.js';
 import { mountNotificationHistory } from './roles/mentee/NotificationHistoryPage.js';
 import { mountCheckout } from './roles/mentee/CheckoutPage.js';
 import { mountMenteeApplications } from './roles/mentee/MenteeApplicationsPage.js';
+import { mountOneOffSessionPage } from './roles/mentee/OneOffSessionPage.js';
 import { bindAuthInfo } from './roles/auth/LoginForm.js';
 import './app.css';
 import { HomePage } from './roles/guest/HomePage.js';
@@ -28,6 +30,7 @@ import { ComponentShowcasePage } from './shared/ComponentShowcasePage.js';
 import { initializeMentorDashboardPage, MentorDashboardPage } from './roles/mentor/MentorDashboardPage.js';
 import { initializeMentorRequestsPage, MentorRequestsPage } from './roles/mentor/MentorRequestsPage.js';
 import { initializeMentorWalletPage, MentorWalletPage } from './roles/mentor/MentorWalletPage.js';
+import { initializeMenteeFeedbackPage, MenteeFeedbackPage } from './roles/mentor/MenteeFeedbackPage.js';
 import { mountMentorWorkspacePage } from './roles/mentor/MentorWorkspacePage.js';
 import { MentorSearchPage } from './roles/guest/MentorSearchPage.js';
 import { DirectoryMentorCard } from './shared/DirectoryMentorCard.js';
@@ -457,6 +460,9 @@ function router() {
   } else if (hash === '#/forgot-password' || hash.startsWith('#/forgot-password?')) {
     mountForgotPassword(appEl);
     window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/change-password' || hash.startsWith('#/change-password?')) {
+    mountChangePassword(appEl);
+    window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash === '#/staff/dashboard') {
     mountStaffDashboard(appEl);
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -512,6 +518,12 @@ function router() {
   } else if (hash === '#/account') {
     mountAccount(appEl);
     window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (/^#\/mentors\/[^/]+\/sessions(?:\?|$)/.test(hash)) {
+    const path = hash.split('?')[0];
+    const mentorId = decodeURIComponent(path.split('/')[2] || '');
+    const query = new URLSearchParams(hash.split('?')[1] || '');
+    void mountOneOffSessionPage(appEl, mentorId, query.get('offeringId') || '');
+    window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash.startsWith('#/mentors/')) {
     let id;
     try { id = decodeURIComponent(hash.slice('#/mentors/'.length)); } catch { id = ''; }
@@ -550,6 +562,10 @@ function router() {
     appEl.innerHTML = MentorWalletPage();
     window.scrollTo({ top: 0, behavior: 'instant' });
     cleanupCurrentPage = initializeMentorWalletPage(appEl) || (() => {});
+  } else if (hash === '#/mentor/feedback') {
+    appEl.innerHTML = MenteeFeedbackPage();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    cleanupCurrentPage = initializeMenteeFeedbackPage(appEl) || (() => {});
   } else if (hash === '#/mentor/availability' || hash === '#/mentor/packages') {
     cleanupCurrentPage = mountMentorWorkspacePage(appEl, hash === '#/mentor/packages' ? 'packages' : 'availability');
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -787,6 +803,8 @@ mentorService
       '#/admin',
       '#/login',
       '#/signup',
+      '#/forgot-password',
+      '#/change-password',
       '#/apply',
       '#/staff/',
       '#/account',
