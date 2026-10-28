@@ -4,4 +4,4 @@
 - [x] Implement repository, DTO, service and authorized endpoint.
 - [x] Implement history table/search/status/date filters/pagination and pending actions.
 - [x] Verify focused backend/frontend checks and build.
-- [ ] Converge, commit with dulu04 identity and push luong.
+- [x] Converge, commit with dulu04 identity and push luong (implementation dc8f162).
