@@ -56,17 +56,31 @@ function walletContent() {
     </div>
     <dialog id="payout-otp-dialog" class="modal" aria-labelledby="payout-otp-title">
       <button class="modal-close" id="payout-otp-close" type="button" aria-label="Close"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button>
-      <p class="eyebrow mt-4">VERIFY WITHDRAWAL</p>
-      <h2 id="payout-otp-title" class="mt-2 font-display text-2xl">Enter your verification code</h2>
-      <p id="payout-otp-summary" class="mt-3 text-sm leading-6 text-muted"></p>
-      <p id="payout-otp-message" class="mt-3 text-sm" role="status" aria-live="polite"></p>
-      <form id="payout-otp-form" class="mt-4 space-y-4" novalidate>
-        <label class="admin-field">6-digit code<input class="w-full" name="otp" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code" required></label>
-        <div class="admin-actions flex flex-wrap gap-3">
-          <button id="payout-otp-resend" class="btn btn-outline" type="button">Resend code</button>
-          <button id="payout-otp-confirm" class="btn btn-primary" type="submit">Confirm withdrawal</button>
+      <div class="space-y-6 py-2">
+        <div class="text-center space-y-2">
+          <div class="mx-auto w-12 h-12 rounded-2xl bg-lilac text-brand grid place-items-center mb-3">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+            </svg>
+          </div>
+          <h2 id="payout-otp-title" class="text-xl font-semibold text-ink">Enter your verification code</h2>
+          <p id="payout-otp-summary" class="text-sm text-muted leading-6"></p>
         </div>
-      </form>
+        <form id="payout-otp-form" class="auth-form space-y-4" novalidate>
+          <div class="auth-field space-y-2">
+            <label for="payout-otp-input" class="block text-xs font-semibold text-ink text-center">Enter 6-digit code</label>
+            <input type="text" id="payout-otp-input" name="otp" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code" placeholder="••••••" required autofocus class="auth-otp-input">
+          </div>
+          <p id="payout-otp-message" class="auth-feedback" role="alert" hidden></p>
+          <button id="payout-otp-confirm" class="auth-submit btn btn-primary w-full" type="submit">Confirm withdrawal</button>
+          <div class="text-center pt-2">
+            <p class="text-xs text-muted">
+              Didn't receive the email?
+              <button type="button" id="payout-otp-resend" class="auth-link font-medium inline-block ml-1">Resend code</button>
+            </p>
+          </div>
+        </form>
+      </div>
     </dialog>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>`;
 }
@@ -214,6 +228,7 @@ export function initializeMentorWalletPage(root) {
   function openOtp(summaryText) {
     otpSummary.textContent = summaryText;
     otpMessage.textContent = '';
+    otpMessage.hidden = true;
     otpInput.value = '';
     otpConfirm.disabled = false; otpConfirm.textContent = 'Confirm withdrawal';
     if (typeof dialog.showModal === 'function' && !dialog.open) dialog.showModal();
@@ -250,9 +265,9 @@ export function initializeMentorWalletPage(root) {
   }
 
   async function confirmPayout(event) {
-    event.preventDefault(); otpMessage.textContent = '';
+    event.preventDefault(); otpMessage.textContent = ''; otpMessage.hidden = true;
     const otp = (otpInput.value || '').trim();
-    if (!/^\d{6}$/.test(otp)) { otpMessage.textContent = 'Enter the 6-digit code from your email.'; return; }
+    if (!/^\d{6}$/.test(otp)) { otpMessage.textContent = 'Enter the 6-digit code from your email.'; otpMessage.hidden = false; return; }
     otpConfirm.disabled = true; otpResend.disabled = true; otpConfirm.textContent = 'Submitting…';
     try {
       await mentorWalletService.requestPayout({ amount: pendingAmount, otp });
@@ -262,6 +277,7 @@ export function initializeMentorWalletPage(root) {
       await load();
     } catch (submitError) {
       otpMessage.textContent = submitError.message || 'Unable to submit the payout request.';
+      otpMessage.hidden = false;
     } finally {
       otpConfirm.disabled = false; otpResend.disabled = false; otpConfirm.textContent = 'Confirm withdrawal';
     }
@@ -269,12 +285,14 @@ export function initializeMentorWalletPage(root) {
 
   async function resendOtp() {
     if (!pendingAmount) return;
-    otpResend.disabled = true; otpMessage.textContent = '';
+    otpResend.disabled = true; otpMessage.textContent = ''; otpMessage.hidden = true;
     try {
       await mentorWalletService.requestPayoutOtp(pendingAmount);
       otpMessage.textContent = 'A new code is on its way.';
+      otpMessage.hidden = false;
     } catch (resendError) {
       otpMessage.textContent = resendError.message || 'Unable to resend the code.';
+      otpMessage.hidden = false;
     } finally { otpResend.disabled = false; }
   }
 
