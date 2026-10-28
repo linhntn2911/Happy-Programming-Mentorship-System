@@ -80,13 +80,13 @@ export function RevenueView(data, state) {
 export function PayoutsView(requests = [], demo = false) {
   const rows = requests.map(item => [
     `${e(item.mentorName)}<small class="block text-muted mt-1">${e(item.mentorEmail)} · ID ${e(item.mentorId)}</small>`,
-    money(item.amount),
+    `${money(item.netAmount ?? item.amount)}<small class="block text-muted mt-1">Wallet debit: ${money(item.amount)} · Fee: ${money(item.feeAmount)}</small>`,
     `${e(item.bankName)} · ${e(item.accountName)}<small class="block text-muted mt-1">${e(item.accountNumber)}</small>`,
     e(dateTime(item.requestedAt)),
     demo ? 'Demo mode — no live payouts.' : `<div class="flex flex-wrap gap-2"><button class="btn btn-primary btn-sm" data-payout-paid="${e(item.id)}">Record transfer</button><button class="btn btn-outline btn-sm" data-payout-reject="${e(item.id)}">Reject</button></div>`,
   ]);
   return heading('Mentor payouts', 'Review withdrawal requests. Complete the bank transfer outside HappyProgramming, then record its reference.') +
-    panel('Pending requests', `${requests.length} awaiting review`, DataTable({ caption: 'Pending mentor payout requests', headings: ['Mentor', 'Amount', 'Bank destination', 'Requested (UTC)', 'Actions'], rows, empty: empty('No pending payouts', 'New mentor requests will appear here.') }));
+    panel('Pending requests', `${requests.length} awaiting review`, DataTable({ caption: 'Pending mentor payout requests', headings: ['Mentor', 'Bank transfer (net)', 'Bank destination', 'Requested (UTC)', 'Actions'], rows, empty: empty('No pending payouts', 'New mentor requests will appear here.') }));
 }
 export function SettingsView(data) {
   return heading('System settings', 'Manage platform contact details and the commission for new payments.') + panel('Platform configuration', 'Changes require a reason and are recorded in the audit log.', `<form id="admin-settings" class="admin-panel-body admin-form"><div class="admin-form-grid"><label class="admin-field" for="commissionRate">Platform commission (%)<input id="commissionRate" name="commissionRate" type="number" min="0" max="100" step="0.01" value="${e(data.settings.commissionRate)}" required><span class="text-muted font-normal">Only applies to future payments. Existing rates stay unchanged.</span></label><label class="admin-field" for="supportEmail">Support email<input id="supportEmail" name="supportEmail" type="email" maxlength="254" value="${e(data.settings.supportEmail)}" placeholder="support@example.com"><span class="text-muted font-normal">Shown in the website footer. Leave blank to hide support contact.</span></label></div><label class="admin-field" for="settings-reason">Reason for change<textarea id="settings-reason" name="reason" rows="3" required maxlength="1000" placeholder="Explain why this update is needed"></textarea></label><div class="admin-actions">${Button({ id: 'admin-settings-reset', label: 'Discard changes', variant: 'outline' })}${Button({ label: 'Review changes', type: 'submit' })}</div></form>`);

@@ -44,7 +44,7 @@ class MentorApplicationControllerTest {
     @BeforeEach void setup() {
         email="application-"+UUID.randomUUID()+"@example.invalid";
         doAnswer(invocation -> { code.set(invocation.getArgument(2)); return null; })
-            .when(mail).sendMentorOtpEmail(anyString(),nullable(String.class),anyString());
+            .when(mail).sendMentorOtpEmail(anyString(),nullable(String.class),anyString(),anyInt());
     }
     Map<String,Object> form(String email) {
         var form=new LinkedHashMap<String,Object>();
@@ -162,7 +162,7 @@ class MentorApplicationControllerTest {
         var fields=form(email); fields.put("cvBase64",Base64.getEncoder().encodeToString("not a PDF".getBytes()));
         postJson("/api/mentor-applications",session,fields).andExpect(status().isBadRequest());
         doThrow(new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,"Mail unavailable"))
-            .when(mail).sendMentorOtpEmail(anyString(),nullable(String.class),anyString());
+            .when(mail).sendMentorOtpEmail(anyString(),nullable(String.class),anyString(),anyInt());
         // Different email because this test itself owns the surrounding rollback transaction.
         postJson("/api/mentor-applications",session,form("mail-"+email)).andExpect(status().isServiceUnavailable());
         assertNull(session.getAttribute("MENTOR_DRAFT_OWNER"));

@@ -13,4 +13,6 @@ public record CreatePayoutRequest(
         BigDecimal amount,
         @NotBlank @Size(max = 100) String bankName,
         @NotBlank @Size(max = 150) String accountName,
-        @NotBlank @Pattern(regexp = "[0-9]{6,34}", message = "Enter a valid bank account number.") String accountNumber) { }
+        @NotBlank @Pattern(regexp = "[0-9]{6,34}", message = "Enter a valid bank account number.") String accountNumber, BigDecimal expectedFee) {
+    public CreatePayoutRequest(BigDecimal amount,String bankName,String accountName,String accountNumber) { this(amount,bankName,accountName,accountNumber,null); }
+}

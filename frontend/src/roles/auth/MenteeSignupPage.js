@@ -1,3 +1,4 @@
+import { apiClient } from '../../shared/apiClient.js';
 import { MenteeSignupForm, bindMenteeSignupEvents } from './MenteeSignupForm.js';
 import { OtpVerificationForm } from './OtpVerificationForm.js';
 import { AuthShell } from './LoginPage.js';
@@ -119,11 +120,12 @@ export function mountMenteeSignup(root) {
     const backBtn = otpForm.querySelector('#back-to-signup-btn');
 
     let busy = false;
-    let cooldown = 60;
+    let resendSeconds = 60;
+    let cooldown = resendSeconds;
     let timerId = null;
 
     function startCooldown() {
-      cooldown = 60;
+      cooldown = resendSeconds;
       resendBtn.disabled = true;
       resendBtn.classList.add('opacity-50', 'pointer-events-none');
       resendTimer.classList.remove('hidden');
@@ -144,6 +146,7 @@ export function mountMenteeSignup(root) {
     }
 
     startCooldown();
+    apiClient('/api/public/operations').then(config => { if (!otpForm.isConnected) return; resendSeconds = config.otpResendSeconds; startCooldown(); }).catch(() => {});
 
     otpInput.focus();
 

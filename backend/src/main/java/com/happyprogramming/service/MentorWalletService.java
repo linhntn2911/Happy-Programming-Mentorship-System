@@ -36,12 +36,15 @@ import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 public class MentorWalletService {
+    @org.springframework.beans.factory.annotation.Autowired
+    OperationalPolicy operationalPolicy;
+    private com.happyprogramming.dto.OperationalSettings policy() {
+        return operationalPolicy == null ? new com.happyprogramming.dto.OperationalSettings(false, "") : operationalPolicy.current();
+    }
     private static final SecureRandom RANDOM = new SecureRandom();
-    private static final int PAYOUT_OTP_EXPIRY_MINUTES = 10;
     private final JdbcTemplate jdbc;
     private final String encryptionKey;
     private final SecurityTokenRepository securityTokens;
@@ -79,13 +82,13 @@ public class MentorWalletService {
                 """, (rs, n) -> new MentorWalletResponse.Entry(rs.getLong("id"), rs.getString("entry_type"),
                 rs.getBigDecimal("amount"), rs.getString("merchant_reference"), rs.getTimestamp("created_at").toInstant()), mentorId);
         var requests = db.query("""
-                SELECT TOP (50) id,amount,bank_name,account_name,account_last4,status,transfer_reference,
+                SELECT TOP (50) id,amount,fee_amount,bank_name,account_name,account_last4,status,transfer_reference,
                     rejection_reason,requested_at,reviewed_at
                 FROM dbo.mentor_payout_requests WHERE mentor_id=? ORDER BY requested_at DESC,id DESC
                 """, (rs, n) -> new MentorWalletResponse.PayoutRequest(rs.getLong("id"), rs.getBigDecimal("amount"),
                 rs.getString("bank_name"), rs.getString("account_name"), rs.getString("account_last4"), rs.getString("status"),
                 rs.getString("transfer_reference"), rs.getString("rejection_reason"), rs.getTimestamp("requested_at").toInstant(),
-                rs.getTimestamp("reviewed_at") == null ? null : rs.getTimestamp("reviewed_at").toInstant()), mentorId);
+                rs.getTimestamp("reviewed_at") == null ? null : rs.getTimestamp("reviewed_at").toInstant(), rs.getBigDecimal("fee_amount"), rs.getBigDecimal("amount").subtract(rs.getBigDecimal("fee_amount"))), mentorId);
         return new MentorWalletResponse(held, available.max(BigDecimal.ZERO), reserved, paid, entries, requests);
     }
 
@@ -99,8 +102,9 @@ public class MentorWalletService {
         String accountNumber = input.accountNumber() == null ? "" : input.accountNumber().trim();
         if (!accountNumber.matches("[0-9]{6,34}")) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Enter a valid bank account number.");
         String encrypted = encryptAccount(accountNumber);
+        confirmFee(input.expectedFee(), policy().withdrawalFee());
         return createPayout(db(), mentorId, input.amount(), bank, accountName, encrypted,
-                accountNumber.substring(accountNumber.length() - 4), remoteAddress);
+                accountNumber.substring(accountNumber.length() - 4), remoteAddress, input.expectedFee());
     }
 
     @Transactional(readOnly = true)
@@ -140,7 +144,10 @@ public class MentorWalletService {
         long mentorId = requireRole("MENTOR");
         if (input == null || input.amount() == null || input.amount().signum() <= 0 || input.amount().scale() > 0)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Enter a positive whole-VND amount.");
+        var config = policy();
+        OperationalPolicy.validateWithdrawal(input.amount(), config);
         JdbcTemplate db = db();
+        lockMentor(db, mentorId);
         SavedBankAccount saved = loadSavedBankAccount(db, mentorId);
         if (saved == null)
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Save your bank account before requesting a payout.");
@@ -149,12 +156,13 @@ public class MentorWalletService {
         if (input.amount().compareTo(available) > 0)
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Payout amount exceeds your available balance.");
         MentorContact contact = mentorContact(db, mentorId);
-        String code = String.format("%06d", ThreadLocalRandom.current().nextInt(1000000));
-        securityTokens.save(SecurityToken.createPayoutOtp(mentorId, code, LocalDateTime.now(clock), PAYOUT_OTP_EXPIRY_MINUTES));
+        if (operationalPolicy != null) operationalPolicy.requireReady(mentorId,"PAYOUT",LocalDateTime.now(clock),config.otpResendSeconds());
+        String code = String.format("%06d", RANDOM.nextInt(1000000));
+        securityTokens.save(SecurityToken.createPayoutOtp(mentorId, code, LocalDateTime.now(clock), config.otpExpiryMinutes()));
         String destination = saved.bankName() + " ···· " + saved.last4();
         String amountLabel = input.amount().toPlainString() + " VND";
-        emailService.sendPayoutOtpEmail(contact.email(), contact.name(), code, amountLabel, destination);
-        return new PayoutOtpResponse(maskEmail(contact.email()), destination, PAYOUT_OTP_EXPIRY_MINUTES * 60);
+        emailService.sendPayoutOtpEmail(contact.email(), contact.name(), code, amountLabel, destination, config.otpExpiryMinutes());
+        return new PayoutOtpResponse(maskEmail(contact.email()), destination, config.otpExpiryMinutes() * 60, config.withdrawalFee(), input.amount().subtract(config.withdrawalFee()), config.otpResendSeconds());
     }
 
     @Transactional
@@ -162,30 +170,42 @@ public class MentorWalletService {
         long mentorId = requireRole("MENTOR");
         if (input == null || input.amount() == null || input.amount().signum() <= 0 || input.amount().scale() > 0)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Enter a positive whole-VND amount.");
+        var config = policy();
+        OperationalPolicy.validateWithdrawal(input.amount(), config);
         JdbcTemplate db = db();
+        lockMentor(db, mentorId);
         SavedBankAccount saved = loadSavedBankAccount(db, mentorId);
         if (saved == null)
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Save your bank account before requesting a payout.");
+        confirmFee(input.expectedFee(), config.withdrawalFee());
         verifyPayoutOtp(mentorId, input.otp());
         return createPayout(db, mentorId, input.amount(), saved.bankName(), saved.accountName(),
-                saved.ciphertext(), saved.last4(), remoteAddress);
+                saved.ciphertext(), saved.last4(), remoteAddress, input.expectedFee());
     }
 
     private MentorWalletResponse.PayoutRequest createPayout(JdbcTemplate db, long mentorId, BigDecimal amount, String bank,
-                                                            String accountName, String encrypted, String last4, String remoteAddress) {
+                                                            String accountName, String encrypted, String last4, String remoteAddress, BigDecimal expectedFee) {
+        var config = policy();
+        OperationalPolicy.validateWithdrawal(amount, config);
+        confirmFee(expectedFee, config.withdrawalFee());
         releaseMatured(db, 100);
         lockMentor(db, mentorId);
         BigDecimal available = releasedBalance(db, mentorId).subtract(paidBalance(db, mentorId)).subtract(reservedBalance(db, mentorId, null));
         if (amount.compareTo(available) > 0)
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Payout amount exceeds your available balance.");
-        KeyHolderHolder key = insertPayoutRequest(db, mentorId, amount, bank, accountName, encrypted, last4);
+        KeyHolderHolder key = insertPayoutRequest(db, mentorId, amount, bank, accountName, encrypted, last4, config.withdrawalFee());
         audit(db, mentorId, "MENTOR_PAYOUT_REQUESTED", key.id(), null,
                 "{\"status\":\"REQUESTED\",\"amount\":\"" + amount.toPlainString() + "\"}",
                 "Mentor requested a wallet payout.", remoteAddress);
         return db.queryForObject("""
-                SELECT id,amount,bank_name,account_name,account_last4,status,transfer_reference,
+                SELECT id,amount,fee_amount,bank_name,account_name,account_last4,status,transfer_reference,
                     rejection_reason,requested_at,reviewed_at FROM dbo.mentor_payout_requests WHERE id=?
                 """, (rs, n) -> payoutDto(rs), key.id());
+    }
+
+    private void confirmFee(BigDecimal expected, BigDecimal actual) {
+        if ((expected == null ? BigDecimal.ZERO : expected).compareTo(actual) != 0)
+            throw new ResponseStatusException(HttpStatus.CONFLICT,"Withdrawal fee changed. Request a new code and review the updated fee.");
     }
 
     private void verifyPayoutOtp(long mentorId, String code) {
@@ -231,14 +251,14 @@ public class MentorWalletService {
     public List<AdminPayoutRequest> pendingPayouts() {
         requireAnyRole("ADMIN", "STAFF");
         return db().query("""
-                SELECT p.id,p.mentor_id,u.full_name,u.email,p.amount,p.bank_name,p.account_name,
+                SELECT p.id,p.mentor_id,u.full_name,u.email,p.amount,p.fee_amount,p.bank_name,p.account_name,
                     p.account_number_ciphertext,p.status,p.requested_at
                 FROM dbo.mentor_payout_requests p JOIN dbo.users u ON u.id=p.mentor_id
                 WHERE p.status='REQUESTED' ORDER BY p.requested_at,p.id
                 """, (rs, n) -> new AdminPayoutRequest(rs.getLong("id"), rs.getLong("mentor_id"),
                 rs.getString("full_name"), rs.getString("email"), rs.getBigDecimal("amount"),
                 rs.getString("bank_name"), rs.getString("account_name"), decryptAccount(rs.getString("account_number_ciphertext")),
-                rs.getString("status"), rs.getTimestamp("requested_at").toInstant()));
+                rs.getString("status"), rs.getTimestamp("requested_at").toInstant(), rs.getBigDecimal("fee_amount"), rs.getBigDecimal("amount").subtract(rs.getBigDecimal("fee_amount"))));
     }
 
     @Transactional
@@ -294,7 +314,7 @@ public class MentorWalletService {
                 JOIN dbo.mentorship_requests r ON r.id=p.request_id
                 JOIN dbo.escrow_ledger_entries h ON h.payment_id=p.id AND h.entry_type='HOLD' AND h.reversal_of_id IS NULL
                 OUTER APPLY (SELECT SUM(CASE WHEN status='SUCCEEDED' THEN amount ELSE 0 END) AS amount FROM dbo.refunds WHERE payment_id=p.id) refunded
-                WHERE p.status='SUCCEEDED' AND p.paid_at<=DATEADD(DAY,-7,SYSUTCDATETIME())
+                WHERE p.status='SUCCEEDED' AND p.paid_at<=DATEADD(DAY,-p.earnings_hold_days,SYSUTCDATETIME())
                   AND p.amount>COALESCE(refunded.amount,0)
                   AND NOT EXISTS (SELECT 1 FROM dbo.escrow_ledger_entries e WHERE e.payment_id=p.id AND e.entry_type='MENTOR_RELEASE')
                   AND NOT EXISTS (SELECT 1 FROM dbo.refunds f WHERE f.payment_id=p.id AND f.status IN ('PENDING','PROCESSING'))
@@ -436,11 +456,11 @@ public class MentorWalletService {
     }
 
     private KeyHolderHolder insertPayoutRequest(JdbcTemplate db, long mentorId, BigDecimal amount, String bank,
-                                                 String accountName, String encrypted, String last4) {
+                                                 String accountName, String encrypted, String last4, BigDecimal fee) {
         Long id = db.queryForObject("""
-                INSERT INTO dbo.mentor_payout_requests(mentor_id,amount,bank_name,account_name,account_number_ciphertext,account_last4)
-                OUTPUT INSERTED.id VALUES (?,?,?,?,?,?)
-                """, Long.class, mentorId, amount, bank, accountName, encrypted, last4);
+                INSERT INTO dbo.mentor_payout_requests(mentor_id,amount,bank_name,account_name,account_number_ciphertext,account_last4,fee_amount)
+                OUTPUT INSERTED.id VALUES (?,?,?,?,?,?,?)
+                """, Long.class, mentorId, amount, bank, accountName, encrypted, last4, fee);
         return new KeyHolderHolder(id);
     }
 
@@ -448,7 +468,7 @@ public class MentorWalletService {
         Timestamp reviewed = rs.getTimestamp("reviewed_at");
         return new MentorWalletResponse.PayoutRequest(rs.getLong("id"), rs.getBigDecimal("amount"), rs.getString("bank_name"),
                 rs.getString("account_name"), rs.getString("account_last4"), rs.getString("status"), rs.getString("transfer_reference"),
-                rs.getString("rejection_reason"), rs.getTimestamp("requested_at").toInstant(), reviewed == null ? null : reviewed.toInstant());
+                rs.getString("rejection_reason"), rs.getTimestamp("requested_at").toInstant(), reviewed == null ? null : reviewed.toInstant(), rs.getBigDecimal("fee_amount"), rs.getBigDecimal("amount").subtract(rs.getBigDecimal("fee_amount")));
     }
 
     private long requireRole(String role) {

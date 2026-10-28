@@ -85,14 +85,14 @@ class MentorPayoutOtpIntegrationTest {
     @Test
     void requestPayoutOtpRequiresASavedBankAccount() {
         ResponseStatusException error = assertThrows(ResponseStatusException.class,
-                () -> wallet.requestPayoutOtp(new RequestPayoutOtpRequest(BigDecimal.TEN), "127.0.0.1"));
+                () -> wallet.requestPayoutOtp(new RequestPayoutOtpRequest(new BigDecimal("10001")), "127.0.0.1"));
         assertEquals(409, error.getStatusCode().value());
     }
 
     @Test
     void submitPayoutRequiresASavedBankAccount() {
         ResponseStatusException error = assertThrows(ResponseStatusException.class,
-                () -> wallet.submitPayoutWithOtp(new SubmitPayoutRequest(BigDecimal.TEN, "123456"), "127.0.0.1"));
+                () -> wallet.submitPayoutWithOtp(new SubmitPayoutRequest(new BigDecimal("10001"), "123456"), "127.0.0.1"));
         assertEquals(409, error.getStatusCode().value());
     }
 
@@ -101,7 +101,7 @@ class MentorPayoutOtpIntegrationTest {
         wallet.saveBankAccount(new MentorBankAccountRequest("TPBank", "Nguyen Van A", "123456789"), "127.0.0.1");
 
         ResponseStatusException error = assertThrows(ResponseStatusException.class,
-                () -> wallet.submitPayoutWithOtp(new SubmitPayoutRequest(BigDecimal.TEN, "123456"), "127.0.0.1"));
+                () -> wallet.submitPayoutWithOtp(new SubmitPayoutRequest(new BigDecimal("10001"), "123456"), "127.0.0.1"));
         assertEquals(400, error.getStatusCode().value());
     }
 
@@ -111,7 +111,7 @@ class MentorPayoutOtpIntegrationTest {
         securityTokens.save(SecurityToken.createPayoutOtp(mentor, "246810", LocalDateTime.now(clock), 10));
 
         ResponseStatusException error = assertThrows(ResponseStatusException.class,
-                () -> wallet.submitPayoutWithOtp(new SubmitPayoutRequest(BigDecimal.TEN, "135790"), "127.0.0.1"));
+                () -> wallet.submitPayoutWithOtp(new SubmitPayoutRequest(new BigDecimal("10001"), "135790"), "127.0.0.1"));
         assertEquals(400, error.getStatusCode().value());
     }
 
@@ -122,7 +122,7 @@ class MentorPayoutOtpIntegrationTest {
 
         // A valid code with no released earnings must fail on balance (409), not on the code (400).
         ResponseStatusException error = assertThrows(ResponseStatusException.class,
-                () -> wallet.submitPayoutWithOtp(new SubmitPayoutRequest(BigDecimal.TEN, "246810"), "127.0.0.1"));
+                () -> wallet.submitPayoutWithOtp(new SubmitPayoutRequest(new BigDecimal("10001"), "246810"), "127.0.0.1"));
         assertEquals(409, error.getStatusCode().value());
     }
 }

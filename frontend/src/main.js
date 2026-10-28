@@ -47,6 +47,8 @@ import { mountMentorshipWorkspace } from './shared/MentorshipWorkspacePage.js';
 import { registerSupportContact } from './shared/SupportContact.js';
 
 registerSupportContact();
+import { registerSystemOperations } from './shared/systemOperations.js';
+registerSystemOperations();
 
 
 const INITIAL_MENTORS = [

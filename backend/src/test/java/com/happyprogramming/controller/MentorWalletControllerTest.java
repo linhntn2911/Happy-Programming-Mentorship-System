@@ -83,7 +83,7 @@ class MentorWalletControllerTest {
     @Test
     void requestPayoutOtpSendsACode() throws Exception {
         when(wallet.requestPayoutOtp(ArgumentMatchers.any(), ArgumentMatchers.any()))
-                .thenReturn(new PayoutOtpResponse("ng•••@example.com", "TPBank ···· 6789", 600));
+                .thenReturn(new PayoutOtpResponse("ng•••@example.com", "TPBank ···· 6789", 600, java.math.BigDecimal.ZERO, new java.math.BigDecimal("100000"), 60));
 
         mockMvc.perform(post("/api/mentors/me/payout-otp")
                         .contentType(MediaType.APPLICATION_JSON)

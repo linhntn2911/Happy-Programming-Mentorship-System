@@ -6,5 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 
 public interface SecurityTokenRepository extends JpaRepository<SecurityToken, Long> {
+    Optional<SecurityToken> findFirstByUserIdAndPurposeOrderByCreatedAtDesc(Long userId, String purpose);
     Optional<SecurityToken> findFirstByUserIdAndPurposeAndUsedAtIsNullOrderByCreatedAtDesc(Long userId, String purpose);
 }

@@ -1,3 +1,4 @@
+import { apiClient } from '../../shared/apiClient.js';
 import { MentorLayout, bindMentorLayout } from './MentorLayout.js';
 import { authService } from '../auth/authService.js';
 import { mentorWalletService } from './mentorWalletService.js';
@@ -8,7 +9,7 @@ const dateTime = value => value ? new Date(value).toLocaleString('en-US', { date
 
 function walletContent() {
   return `
-    <div class="admin-page-heading"><div><p class="eyebrow mb-3">MENTOR WALLET &amp; EARNINGS</p><h1>Wallet and earnings</h1><p>Verified payments are held for seven days before becoming available to withdraw.</p></div></div>
+    <div class="admin-page-heading"><div><p class="eyebrow mb-3">MENTOR WALLET &amp; EARNINGS</p><h1>Wallet and earnings</h1><p>Verified earnings become available after the hold period recorded when payment is confirmed. Verified payments are held for seven days before becoming available to withdraw.</p></div></div>
     <div id="wallet-loading" class="admin-panel admin-panel-body text-sm text-muted" role="status">Loading your wallet…</div>
     <div id="wallet-error" class="admin-notice notice-error mb-5" role="alert" hidden></div>
     <button id="wallet-retry" class="btn btn-outline mb-5" type="button" hidden>Try again</button>
@@ -100,7 +101,7 @@ function renderEntries(entries = []) {
 
 function renderPayouts(requests = []) {
   if (!requests.length) return '<p class="text-sm text-muted">No payout requests yet.</p>';
-  return `<div class="data-table-scroll"><table class="data-table"><thead><tr><th>Requested</th><th>Amount</th><th>Destination</th><th>Status</th><th>Transfer / note</th></tr></thead><tbody>${requests.map(item => `<tr><td>${e(dateTime(item.requestedAt))}</td><td>${money(item.amount)}</td><td>${e(item.bankName)} ···· ${e(item.accountLast4)}</td><td>${e(item.status)}</td><td>${e(item.transferReference || item.rejectionReason || '—')}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<div class="data-table-scroll"><table class="data-table"><thead><tr><th>Requested</th><th>Amount</th><th>Destination</th><th>Status</th><th>Transfer / note</th></tr></thead><tbody>${requests.map(item => `<tr><td>${e(dateTime(item.requestedAt))}</td><td>${money(item.amount)}<small class="block">Fee: ${money(item.feeAmount)} · Net: ${money(item.netAmount ?? item.amount)}</small></td><td>${e(item.bankName)} ···· ${e(item.accountLast4)}</td><td>${e(item.status)}</td><td>${e(item.transferReference || item.rejectionReason || '—')}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 export function MentorWalletPage() {
@@ -135,6 +136,20 @@ export function initializeMentorWalletPage(root) {
   let currentWallet = null;
   let savedBank = null;
   let pendingAmount = 0;
+  let payoutQuote = null;
+  let resendReadyAt = 0;
+  const resendTimer = setInterval(updateResend, 1000);
+  function updateResend() {
+    const remaining = Math.max(0, Math.ceil((resendReadyAt - Date.now()) / 1000));
+    otpResend.disabled = remaining > 0;
+    otpResend.textContent = remaining ? `Resend code (${remaining}s)` : 'Resend code';
+  }
+  function acceptQuote(result) {
+    payoutQuote = result;
+    resendReadyAt = Date.now() + Number(result?.resendAfterSeconds || 60) * 1000;
+    updateResend();
+  }
+  let operations = null;
   let toastTimer;
   let disposed = false;
 
@@ -171,8 +186,9 @@ export function initializeMentorWalletPage(root) {
 
   function updatePayoutAvailability() {
     const available = Number(currentWallet?.availableAmount || 0);
-    const ready = Boolean(savedBank?.saved) && available >= 1;
+    const ready = Boolean(savedBank?.saved) && available > Number(operations?.withdrawalThreshold ?? 10000);
     payoutForm.elements.amount.max = String(available);
+    payoutForm.elements.amount.min = String(Number(operations?.withdrawalThreshold ?? 10000) + 1);
     payoutForm.elements.amount.placeholder = `Up to ${money(available)}`;
     payoutSubmit.disabled = !ready;
   }
@@ -180,12 +196,14 @@ export function initializeMentorWalletPage(root) {
   async function load() {
     loading.hidden = false; error.hidden = true; retry.hidden = true; content.hidden = true;
     try {
-      const [wallet, bank] = await Promise.all([
+      const [wallet, config, bank] = await Promise.all([
         mentorWalletService.getWallet(),
+        apiClient('/api/public/operations'),
         mentorWalletService.getBankAccount().catch(() => ({ saved: false })),
       ]);
       if (disposed) return;
       currentWallet = wallet;
+      operations = config;
       savedBank = bank;
       shell.querySelector('#wallet-stats').innerHTML = renderStats(wallet);
       shell.querySelector('#wallet-entries').innerHTML = renderEntries(wallet.entries);
@@ -237,7 +255,8 @@ export function initializeMentorWalletPage(root) {
   }
 
   function otpSummaryText(amount) {
-    return `We sent a 6-digit code to ${savedBank?.maskedEmail || 'your email'}. Confirming withdraws ${money(amount)} to ${destinationLabel()}. The code expires in 10 minutes.`;
+    const feeText = payoutQuote ? ` (Fee: ${money(payoutQuote.feeAmount)}, Net: ${money(payoutQuote.netAmount)})` : '';
+    return `We sent a 6-digit code to ${savedBank?.maskedEmail || 'your email'}. Confirming withdraws ${money(amount)}${feeText} to ${destinationLabel()}. The code expires in ${payoutQuote?.expiryMinutes || 10} minutes.`;
   }
 
   async function continuePayout(event) {
@@ -254,6 +273,7 @@ export function initializeMentorWalletPage(root) {
     try {
       const result = await mentorWalletService.requestPayoutOtp(amount);
       pendingAmount = amount;
+      acceptQuote(result);
       savedBank = { ...savedBank, maskedEmail: result?.maskedEmail };
       openOtp(otpSummaryText(amount));
     } catch (otpError) {
@@ -270,7 +290,7 @@ export function initializeMentorWalletPage(root) {
     if (!/^\d{6}$/.test(otp)) { otpMessage.textContent = 'Enter the 6-digit code from your email.'; otpMessage.hidden = false; return; }
     otpConfirm.disabled = true; otpResend.disabled = true; otpConfirm.textContent = 'Submitting…';
     try {
-      await mentorWalletService.requestPayout({ amount: pendingAmount, otp });
+      await mentorWalletService.requestPayout({ amount: pendingAmount, otp, expectedFee: payoutQuote?.feeAmount ?? 0 });
       dialog.close();
       payoutForm.reset();
       showToast('Payout request submitted. Funds are now reserved.');
@@ -279,7 +299,7 @@ export function initializeMentorWalletPage(root) {
       otpMessage.textContent = submitError.message || 'Unable to submit the payout request.';
       otpMessage.hidden = false;
     } finally {
-      otpConfirm.disabled = false; otpResend.disabled = false; otpConfirm.textContent = 'Confirm withdrawal';
+      otpConfirm.disabled = false; updateResend(); otpConfirm.textContent = 'Confirm withdrawal';
     }
   }
 
@@ -287,13 +307,14 @@ export function initializeMentorWalletPage(root) {
     if (!pendingAmount) return;
     otpResend.disabled = true; otpMessage.textContent = ''; otpMessage.hidden = true;
     try {
-      await mentorWalletService.requestPayoutOtp(pendingAmount);
+      acceptQuote(await mentorWalletService.requestPayoutOtp(pendingAmount));
+      otpSummary.textContent = otpSummaryText(pendingAmount);
       otpMessage.textContent = 'A new code is on its way.';
       otpMessage.hidden = false;
     } catch (resendError) {
       otpMessage.textContent = resendError.message || 'Unable to resend the code.';
       otpMessage.hidden = false;
-    } finally { otpResend.disabled = false; }
+    } finally { updateResend(); }
   }
 
   const closeDialog = () => dialog.close();
@@ -310,6 +331,7 @@ export function initializeMentorWalletPage(root) {
   return () => {
     disposed = true;
     clearTimeout(toastTimer);
+    clearInterval(resendTimer);
     retry.removeEventListener('click', load);
     bankForm.removeEventListener('submit', saveBank);
     payoutForm.removeEventListener('submit', continuePayout);

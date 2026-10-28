@@ -20,6 +20,11 @@ import java.util.*;
 
 @Service
 public class AuthService {
+    @org.springframework.beans.factory.annotation.Autowired
+    OperationalPolicy operationalPolicy;
+    private com.happyprogramming.dto.OperationalSettings policy() {
+        return operationalPolicy == null ? new com.happyprogramming.dto.OperationalSettings(false, "") : operationalPolicy.current();
+    }
     private final UserRepository users;
     private final AuthIdentityRepository identities;
     private final SecurityTokenRepository securityTokens;
@@ -63,11 +68,12 @@ public class AuthService {
             user = users.save(user);
         }
 
-        String otp = String.format("%06d", java.util.concurrent.ThreadLocalRandom.current().nextInt(1000000));
-        var token = com.happyprogramming.entity.SecurityToken.createVerifyEmail(user.getId(), otp, now, 10);
+        String otp = String.format("%06d", new java.security.SecureRandom().nextInt(1000000));
+        var config = policy();
+        var token = com.happyprogramming.entity.SecurityToken.createVerifyEmail(user.getId(), otp, now, config.otpExpiryMinutes());
         securityTokens.save(token);
 
-        emailService.sendOtpEmail(user.getEmail(), user.getFirstName(), otp);
+        emailService.sendOtpEmail(user.getEmail(), user.getFirstName(), otp, config.otpExpiryMinutes());
 
         return new SignupResponse(user.getEmail(), true, "Verification code sent to " + user.getEmail());
     }
@@ -102,11 +108,13 @@ public class AuthService {
             throw new IllegalArgumentException("This account is already verified. Please log in.");
         }
         var now = LocalDateTime.now(clock);
-        String otp = String.format("%06d", java.util.concurrent.ThreadLocalRandom.current().nextInt(1000000));
-        var token = com.happyprogramming.entity.SecurityToken.createVerifyEmail(user.getId(), otp, now, 10);
+        if (operationalPolicy != null) operationalPolicy.requireReady(user.getId(), "VERIFY_EMAIL", now, policy().otpResendSeconds());
+        String otp = String.format("%06d", new java.security.SecureRandom().nextInt(1000000));
+        var config = policy();
+        var token = com.happyprogramming.entity.SecurityToken.createVerifyEmail(user.getId(), otp, now, config.otpExpiryMinutes());
         securityTokens.save(token);
 
-        emailService.sendOtpEmail(user.getEmail(), user.getFirstName(), otp);
+        emailService.sendOtpEmail(user.getEmail(), user.getFirstName(), otp, config.otpExpiryMinutes());
     }
 
     @Transactional
@@ -117,11 +125,13 @@ public class AuthService {
             return;
         }
         var now = LocalDateTime.now(clock);
-        String otp = String.format("%06d", java.util.concurrent.ThreadLocalRandom.current().nextInt(1000000));
-        var token = com.happyprogramming.entity.SecurityToken.createResetPassword(user.getId(), otp, now, 15);
+        String otp = String.format("%06d", new java.security.SecureRandom().nextInt(1000000));
+        var config = policy();
+        if (operationalPolicy != null && operationalPolicy.coolingDown(user.getId(), "RESET_PASSWORD", now, config.otpResendSeconds())) return;
+        var token = com.happyprogramming.entity.SecurityToken.createResetPassword(user.getId(), otp, now, config.otpExpiryMinutes());
         securityTokens.save(token);
 
-        emailService.sendPasswordResetOtpEmail(user.getEmail(), user.getFirstName(), otp);
+        emailService.sendPasswordResetOtpEmail(user.getEmail(), user.getFirstName(), otp, config.otpExpiryMinutes());
     }
 
     @Transactional

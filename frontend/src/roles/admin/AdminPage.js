@@ -1,4 +1,5 @@
 import { AdminLayout, adminSections } from './AdminLayout.js';
+import { OperationsView } from './OperationsView.js';
 import { Button } from '../../shared/Button.js';
 import { Dialog } from '../../shared/Dialog.js';
 import { Notice } from './AdminPrimitives.js';
@@ -55,6 +56,7 @@ export function mountAdmin(root, section = 'overview') {
     try {
       const currentSession = await service.session();
       const result = await service.workspace();
+      if (section === 'settings' && !service.demo) result.operations = await service.operations();
       const pendingPayouts = section === 'payouts' && !service.demo ? await service.payoutRequests() : [];
       if (!alive() || version !== requestVersion) return;
       session = currentSession; data = result; payoutRequests = pendingPayouts; render();
@@ -111,7 +113,8 @@ export function mountAdmin(root, section = 'overview') {
     root.querySelectorAll('[data-permissions]').forEach(button => button.addEventListener('click', () => accountDialog(Number(button.dataset.permissions), true)));
     root.querySelectorAll('[data-payout-paid]').forEach(button => button.addEventListener('click', () => {
       const id = Number(button.dataset.payoutPaid);
-      openDialog('Record mentor payout', '<p>Confirm that the bank transfer has already been completed. Enter its transaction reference to post the debit to the wallet ledger.</p><label class="admin-field mt-4">Bank transfer reference<input name="transferReference" maxlength="150" required></label>', form => {
+      const payout = payoutRequests.find(item => Number(item.id) === id);
+      openDialog('Record mentor payout', `<p>Net bank transfer: <strong>${e(payout?.netAmount ?? payout?.amount)} VND</strong>. Fee: ${e(payout?.feeAmount ?? 0)} VND.</p><p>Confirm that the bank transfer has already been completed. Enter its transaction reference to post the debit to the wallet ledger.</p><label class="admin-field mt-4">Bank transfer reference<input name="transferReference" maxlength="150" required></label>`, form => {
         const transferReference = form.elements.transferReference.value.trim();
         if (!transferReference) throw new Error('Enter the bank transfer reference.');
         return service.decidePayout(id, { decision: 'PAID', transferReference });
@@ -121,6 +124,17 @@ export function mountAdmin(root, section = 'overview') {
       const id = Number(button.dataset.payoutReject);
       openDialog('Reject payout request', '<p>The reserved amount will return to the mentor’s available balance.</p><label class="admin-field mt-4">Reason<textarea name="reason" rows="3" maxlength="500" required></textarea></label>', form => service.decidePayout(id, { decision: 'REJECTED', rejectionReason: form.elements.reason.value.trim() }));
     }));
+    if (section === 'settings' && data.operations) {
+      root.querySelector('#admin-content')?.insertAdjacentHTML('beforeend', OperationsView(data.operations));
+      on('#admin-operations', 'submit', event => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const values = Object.fromEntries(new FormData(form));
+        const settings = { maintenance: values.maintenance === 'on', announcement: values.announcement.trim() };
+        for (const key of ['otpResendSeconds','otpExpiryMinutes','withdrawalThreshold','withdrawalFee','earningsHoldDays']) settings[key] = Number(values[key]);
+        openDialog('Review operational changes', `<p>Maintenance: <strong>${settings.maintenance ? 'Enabled — members will be blocked' : 'Disabled'}</strong></p><p class="mt-3">Announcement: ${e(settings.announcement || 'Hidden')}</p><p class="mt-3">OTP: resend after ${settings.otpResendSeconds}s; valid for ${settings.otpExpiryMinutes} minutes.</p><p>Withdrawals above ${settings.withdrawalThreshold} VND; fee ${settings.withdrawalFee} VND deducted per request.</p><p>Hold for new payments: ${settings.earningsHoldDays} days.</p><p class="mt-3">${e(values.reason)}</p>`, () => service.updateOperations({ settings, reason: values.reason }));
+      });
+    }
     on('#admin-settings-reset', 'click', render);
     on('#admin-settings', 'submit', event => {
       event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget)); values.commissionRate = Number(values.commissionRate); values.supportEmail = values.supportEmail.trim();

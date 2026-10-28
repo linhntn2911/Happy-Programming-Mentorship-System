@@ -577,7 +577,7 @@ export function mountMentorApplication(root) {
     return `
       <div class="rounded-2xl border border-line bg-white p-6 sm:p-10 shadow-lg animate-fade-in max-w-lg mx-auto">
         ${OtpVerificationForm({ email: escapeHtml(state.email) })}
-        <p class="text-xs text-muted mt-4">Your code expires after 15 minutes. Verification sends your application to Staff for review.</p>
+        <p class="text-xs text-muted mt-4">Check your verification email for the code expiry. Verification sends your application to Staff for review.</p>
       </div>
     `;
   }

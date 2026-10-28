@@ -302,7 +302,9 @@ public class SepayPaymentService {
 
         db.update("""
                 UPDATE dbo.payments SET status='SUCCEEDED', gateway='SEPAY', gateway_transaction_id=?, paid_at=?,
-                    billing_period_start=?, billing_period_end=?, updated_at=?
+                    billing_period_start=?, billing_period_end=?, updated_at=?,
+                    earnings_hold_days=(SELECT CAST(JSON_VALUE(config_value,'$.value.earningsHoldDays') AS INT)
+                        FROM dbo.system_configs WHERE config_key='platform.operations')
                 WHERE id=?
                 """, transactionId, paidTimestamp, paidTimestamp, periodEnd, sqlUtcTimestamp(now), paymentId);
 

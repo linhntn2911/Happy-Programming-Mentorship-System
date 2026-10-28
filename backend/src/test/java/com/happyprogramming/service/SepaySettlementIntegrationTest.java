@@ -125,4 +125,28 @@ class SepaySettlementIntegrationTest {
   login(mentor,"MENTOR");assertEquals(0,wallet.wallet().availableAmount().signum());
   assertThrows(org.springframework.web.server.ResponseStatusException.class,()->wallet.requestPayout(new CreatePayoutRequest(BigDecimal.ONE,"Test Bank","Test Owner","123456789"),"127.0.0.1"));
  }
+ @Test void snapshotsConfiguredHoldAtSettlement(){
+  db.update("UPDATE dbo.system_configs SET config_value=JSON_MODIFY(config_value,'$.value.earningsHoldDays',14) WHERE config_key='platform.operations'");
+  settle();
+  assertEquals(14,db.queryForObject("SELECT earnings_hold_days FROM dbo.payments WHERE id=?",Integer.class,checkout.paymentId()));
+  db.update("UPDATE dbo.system_configs SET config_value=JSON_MODIFY(config_value,'$.value.earningsHoldDays',1) WHERE config_key='platform.operations'");
+  settle();
+  assertEquals(14,db.queryForObject("SELECT earnings_hold_days FROM dbo.payments WHERE id=?",Integer.class,checkout.paymentId()));
+ }
+ @Test void payoutFeeIsDisclosedSnapshottedAndGrossDebitedOnce(){
+  matureFixture();wallet.releaseMaturedPayments();login(mentor,"MENTOR");
+  db.update("UPDATE dbo.system_configs SET config_value=JSON_MODIFY(config_value,'$.value.withdrawalFee',1000) WHERE config_key='platform.operations'");
+  var amount=new BigDecimal("20000");var fee=new BigDecimal("1000");
+  assertThrows(org.springframework.web.server.ResponseStatusException.class,()->wallet.requestPayout(new CreatePayoutRequest(amount,"Test Bank","Test Owner","123456789"),"127.0.0.1"));
+  var before=wallet.wallet().availableAmount();
+  var payout=wallet.requestPayout(new CreatePayoutRequest(amount,"Test Bank","Test Owner","123456789",fee),"127.0.0.1");
+  assertEquals(0,fee.compareTo(payout.feeAmount()));assertEquals(0,new BigDecimal("19000").compareTo(payout.netAmount()));
+  db.update("UPDATE dbo.system_configs SET config_value=JSON_MODIFY(config_value,'$.value.withdrawalFee',2000) WHERE config_key='platform.operations'");
+  var saved=wallet.wallet().payoutRequests().stream().filter(p->p.id()==payout.id()).findFirst().orElseThrow();
+  assertEquals(0,fee.compareTo(saved.feeAmount()));assertEquals(0,new BigDecimal("19000").compareTo(saved.netAmount()));
+  login(admin,"ADMIN");
+  wallet.decidePayout(payout.id(),new PayoutDecisionRequest("PAID","TEST-NET-TRANSFER",null),"127.0.0.1");
+  assertThrows(org.springframework.web.server.ResponseStatusException.class,()->wallet.decidePayout(payout.id(),new PayoutDecisionRequest("PAID","TEST-NET-TRANSFER",null),"127.0.0.1"));
+  login(mentor,"MENTOR");assertEquals(0,before.subtract(amount).compareTo(wallet.wallet().availableAmount()));
+ }
 }
