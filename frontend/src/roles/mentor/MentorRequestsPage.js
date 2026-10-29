@@ -7,6 +7,8 @@ import {
 import { MentorLayout, bindMentorLayout } from './MentorLayout.js';
 import { authService } from '../auth/authService.js';
 
+const normalize = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLowerCase().trim();
+
 export function MentorRequestsPage() {
   return MentorLayout(`
 <section id="mentor-requests" aria-labelledby="mentor-requests-title">
@@ -27,30 +29,35 @@ export function MentorRequestsPage() {
   <button id="requests-retry" class="btn btn-outline mb-5" type="button" hidden>Try again</button>
 
   <div id="requests-content" class="admin-panel" hidden>
-    <div class="admin-toolbar justify-between">
-      <label for="request-status-filter" class="admin-field min-w-52">Status
-        <select id="request-status-filter">
-          <option value="ALL">All statuses</option>
-          <option value="WAITING_DECISION">Waiting for my decision</option>
-          <option value="AWAITING_PAYMENT">Awaiting payment</option>
-          <option value="UPCOMING">Upcoming</option>
-          <option value="CONFIRMED">Confirmed</option>
-          <option value="ACTIVE">Active</option>
-          <option value="COMPLETED">Completed</option>
-          <option value="REJECTED">Declined</option>
-          <option value="EXPIRED">Expired</option>
-          <option value="CANCELLED">Cancelled</option>
-          <option value="NO_SHOW">No-show</option>
-        </select>
-      </label>
-      <label for="request-type-filter" class="admin-field min-w-44">Type
-        <select id="request-type-filter">
-          <option value="ALL">All types</option>
-          <option value="MONTHLY">Monthly</option>
-          <option value="ONE_OFF">One-off session</option>
-        </select>
-      </label>
-      <p id="requests-count" class="text-xs text-muted" aria-live="polite"></p>
+    <div class="admin-toolbar flex-wrap items-end gap-3 justify-between">
+      <div class="flex flex-wrap items-end gap-3 grow">
+        <label for="request-search-input" class="admin-field admin-search">Search bookings
+          <input type="search" id="request-search-input" placeholder="Search by mentee name, package or goals..." maxlength="100">
+        </label>
+        <label for="request-status-filter" class="admin-field min-w-44">Status
+          <select id="request-status-filter">
+            <option value="ALL">All statuses</option>
+            <option value="WAITING_DECISION">Waiting for my decision</option>
+            <option value="AWAITING_PAYMENT">Awaiting payment</option>
+            <option value="UPCOMING">Upcoming</option>
+            <option value="CONFIRMED">Confirmed</option>
+            <option value="ACTIVE">Active</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="REJECTED">Declined</option>
+            <option value="EXPIRED">Expired</option>
+            <option value="CANCELLED">Cancelled</option>
+            <option value="NO_SHOW">No-show</option>
+          </select>
+        </label>
+        <label for="request-type-filter" class="admin-field min-w-36">Type
+          <select id="request-type-filter">
+            <option value="ALL">All types</option>
+            <option value="MONTHLY">Monthly</option>
+            <option value="ONE_OFF">One-off session</option>
+          </select>
+        </label>
+      </div>
+      <p id="requests-count" class="text-xs text-muted self-center" aria-live="polite"></p>
     </div>
     <div id="requests-empty" class="admin-panel-body text-sm text-muted" hidden>
       No bookings match these filters.
@@ -274,6 +281,7 @@ export function initializeMentorRequestsPage() {
   const error = root.querySelector('#requests-error');
   const retry = root.querySelector('#requests-retry');
   const actionStatus = root.querySelector('#action-status');
+  const searchInput = root.querySelector('#request-search-input');
   const statusFilter = root.querySelector('#request-status-filter');
   const typeFilter = root.querySelector('#request-type-filter');
   const requestCount = root.querySelector('#requests-count');
@@ -335,17 +343,30 @@ export function initializeMentorRequestsPage() {
     }
     renderRows(root, requests);
     requestCount.textContent = `${requests.length} booking${requests.length === 1 ? '' : 's'}`;
-    empty.textContent = statusFilter.value === 'ALL'
-      ? 'No bookings have been created yet.'
-      : `No ${REQUEST_STATUS_LABELS[statusFilter.value]?.toLowerCase() || 'matching'} bookings.`;
+    empty.textContent = (statusFilter.value === "ALL" && (!searchInput || !searchInput.value.trim()))
+      ? "No bookings have been created yet."
+      : "No bookings match these filters.";
     updateSlaTimers();
   }
 
   function applyStatusFilter() {
+    const query = normalize(searchInput?.value || "");
     const requests = allRequests.filter(request => {
       const status = request.lifecycleStatus || request.status;
-      return (statusFilter.value === 'ALL' || status === statusFilter.value)
-        && (typeFilter.value === 'ALL' || request.serviceType === typeFilter.value);
+      const statusMatch = statusFilter.value === "ALL" || status === statusFilter.value;
+      const typeMatch = typeFilter.value === "ALL" || request.serviceType === typeFilter.value;
+      if (!statusMatch || !typeMatch) return false;
+      if (!query) return true;
+      const text = normalize([
+        request.menteeName,
+        request.menteeEmail,
+        request.packageName,
+        request.learningGoals,
+        request.learningGoalsSummary,
+        "#" + request.id,
+        request.id
+      ].join(" "));
+      return text.includes(query);
     });
     applyRequests(requests);
   }
@@ -483,6 +504,7 @@ export function initializeMentorRequestsPage() {
     void loadRequests();
   };
   retry.addEventListener('click', handleRetry);
+  searchInput?.addEventListener('input', applyStatusFilter);
   statusFilter.addEventListener('change', applyStatusFilter);
   typeFilter.addEventListener('change', applyStatusFilter);
   root.addEventListener('click', handleClick);
@@ -499,6 +521,7 @@ export function initializeMentorRequestsPage() {
     window.clearTimeout(actionStatusTimer);
     window.removeEventListener('keydown', handleKeydown);
     retry.removeEventListener('click', handleRetry);
+    searchInput?.removeEventListener('input', applyStatusFilter);
     statusFilter.removeEventListener('change', applyStatusFilter);
     typeFilter.removeEventListener('change', applyStatusFilter);
     root.removeEventListener('click', handleClick);
