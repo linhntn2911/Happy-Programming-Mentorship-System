@@ -27,7 +27,7 @@ export function StaffPayoutsPage(requests = [], user = null, notice = null) {
     </div>`,
     e(dateTime(item.requestedAt)),
     `<div class="flex flex-wrap gap-2">
-      <button class="btn btn-primary btn-sm" data-payout-paid="${e(item.id)}" aria-label="Record transfer for ${e(item.mentorName)}">Record transfer</button>
+      <button class="btn btn-primary btn-sm" data-payout-approve="${e(item.id)}" aria-label="Approve withdrawal for ${e(item.mentorName)}">Approve</button>
       <button class="btn btn-outline btn-sm" data-payout-reject="${e(item.id)}" aria-label="Reject withdrawal for ${e(item.mentorName)}">Reject</button>
     </div>`
   ]);
@@ -45,7 +45,7 @@ export function StaffPayoutsPage(requests = [], user = null, notice = null) {
       <div>
         <p class="eyebrow mb-3">STAFF WORKSPACE</p>
         <h1>Mentor payouts</h1>
-        <p>Review withdrawal requests. Complete external bank transfers, then record references or reject.</p>
+        <p>Review mentor withdrawal requests. Verify banking information, then approve to send to Admin for payment or reject with a reason.</p>
       </div>
     </div>
 

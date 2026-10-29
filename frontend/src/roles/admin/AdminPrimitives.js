@@ -8,6 +8,8 @@ export function StatusBadge(status) {
   const tone = {
     ACTIVE: 'success',
     APPROVED: 'success',
+    PAID: 'success',
+    REQUESTED: 'warning',
     ACCEPTED: 'success',
     RESOLVED: 'success',
     SUCCEEDED: 'success',

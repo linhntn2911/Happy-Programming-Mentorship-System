@@ -77,7 +77,7 @@ class StaffControllerTest {
     void shouldReturnPayoutRequestsForStaff() throws Exception {
         AdminPayoutRequest sample = new AdminPayoutRequest(1L, 10L, "Mentor A", "mentor@test.com",
                 new BigDecimal("1500000"), "TPBank", "Nguyen Van A", "1234567890", "REQUESTED", Instant.now());
-        when(wallet.pendingPayouts()).thenReturn(List.of(sample));
+        when(wallet.staffPendingPayouts()).thenReturn(List.of(sample));
 
         mockMvc.perform(get("/api/staff/payout-requests").with(authentication(staffPrincipal())).accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
@@ -89,12 +89,12 @@ class StaffControllerTest {
     }
 
     @Test
-    void shouldDecidePayoutPaidForStaff() throws Exception {
+    void shouldDecidePayoutApprovedForStaff() throws Exception {
         mockMvc.perform(patch("/api/staff/payout-requests/1")
                         .with(authentication(staffPrincipal()))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"decision":"PAID","transferReference":"FT26101900123"}
+                                {"decision":"APPROVED"}
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))

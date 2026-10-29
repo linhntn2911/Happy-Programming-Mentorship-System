@@ -726,96 +726,58 @@ export async function mountStaffPayouts(root) {
       });
     }
 
-    root.querySelectorAll('[data-payout-paid]').forEach(btn => {
+    root.querySelectorAll('[data-payout-approve]').forEach(btn => {
       btn.addEventListener('click', () => {
-        const id = Number(btn.dataset.payoutPaid);
+        const id = Number(btn.dataset.payoutApprove);
         const item = requests.find(r => r.id === id);
         if (!item) return;
 
-        const qrUrl = buildVietQrUrl({
-          bankName: item.bankName,
-          accountNumber: item.accountNumber,
-          amount: item.amount,
-          memo: `HPMS PAYOUT ${item.id}`,
-          accountName: item.accountName
-        });
-
         openPayoutDialog({
-          title: 'Manual bank transfer & approval',
-          eyebrow: 'STAFF PAYOUT WORKFLOW',
+          title: 'Verify & approve payout request',
+          eyebrow: 'STAFF REVIEW WORKFLOW',
           prompt: `
             <div class="mb-4 rounded-xl border border-line bg-cream p-4">
               <div class="flex items-center justify-between mb-3 pb-2 border-b border-line">
                 <div>
-                  <span class="text-xs font-semibold uppercase tracking-wider text-brand">Step 1 · Transfer Funds</span>
-                  <p class="text-xs text-muted">Scan the VietQR code or copy beneficiary details to bank online manually.</p>
+                  <span class="text-xs font-semibold uppercase tracking-wider text-brand">Verification Summary</span>
+                  <p class="text-xs text-muted">Confirm mentor withdrawal information before approving for Admin payment.</p>
                 </div>
                 <span class="text-xs font-bold text-ink bg-lilac/70 px-2 py-0.5 rounded">Payout #${e(item.id)}</span>
               </div>
 
-              <div class="grid grid-cols-1 md:grid-cols-[150px_minmax(0,1fr)] gap-4 items-center">
-                <div class="flex flex-col items-center justify-center p-2.5 rounded-xl bg-white border border-line text-center">
-                  <img src="${e(qrUrl)}" alt="VietQR code for ${e(item.mentorName)}" class="w-32 h-32 object-contain rounded-lg shadow-sm" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'p-3 text-xs text-muted\\'>QR unavailable. Use bank details to transfer.</div>'" />
-                  <span class="mt-1.5 text-[11px] font-medium text-muted">VietQR (Napas247)</span>
+              <div class="space-y-2 text-xs">
+                <div class="flex items-center justify-between pb-1.5 border-b border-line/50">
+                  <span class="text-muted">Mentor:</span>
+                  <span class="font-semibold text-ink">${e(item.mentorName)} <span class="text-muted font-normal">(${e(item.mentorEmail)})</span></span>
                 </div>
-
-                <div class="space-y-2 text-xs">
-                  <div class="flex items-center justify-between pb-1.5 border-b border-line/50">
-                    <span class="text-muted">Mentor:</span>
-                    <span class="font-semibold text-ink">${e(item.mentorName)} <span class="text-muted font-normal">(${e(item.mentorEmail)})</span></span>
-                  </div>
-                  <div class="flex items-center justify-between pb-1.5 border-b border-line/50">
-                    <span class="text-muted">Bank name:</span>
-                    <div class="flex items-center gap-1.5">
-                      <strong class="text-ink">${e(item.bankName)}</strong>
-                      <button type="button" class="btn btn-ghost btn-xs copy-btn text-brand" data-copy="${e(item.bankName)}" title="Copy bank name">Copy</button>
-                    </div>
-                  </div>
-                  <div class="flex items-center justify-between pb-1.5 border-b border-line/50">
-                    <span class="text-muted">Account number (STK):</span>
-                    <div class="flex items-center gap-1.5">
-                      <strong class="font-mono text-ink text-sm bg-lilac/50 px-1.5 py-0.5 rounded">${e(item.accountNumber)}</strong>
-                      <button type="button" class="btn btn-outline btn-xs copy-btn" data-copy="${e(item.accountNumber)}" title="Copy account number">Copy STK</button>
-                    </div>
-                  </div>
-                  <div class="flex items-center justify-between pb-1.5 border-b border-line/50">
-                    <span class="text-muted">Account holder:</span>
-                    <div class="flex items-center gap-1.5">
-                      <span class="font-semibold text-ink">${e(item.accountName)}</span>
-                      <button type="button" class="btn btn-ghost btn-xs copy-btn text-brand" data-copy="${e(item.accountName)}" title="Copy holder name">Copy</button>
-                    </div>
-                  </div>
-                  <div class="flex items-center justify-between pb-1.5 border-b border-line/50">
-                    <span class="text-muted">Transfer amount:</span>
-                    <div class="flex items-center gap-1.5">
-                      <strong class="text-brand font-bold text-sm">${money(item.netAmount ?? item.amount)}</strong><small>Net transfer · Fee: ${money(item.feeAmount)} · Wallet debit: ${money(item.amount)}</small>
-                      <button type="button" class="btn btn-ghost btn-xs copy-btn text-brand" data-copy="${e(item.netAmount ?? item.amount)}" title="Copy amount">Copy</button>
-                    </div>
-                  </div>
-                  <div class="flex items-center justify-between">
-                    <span class="text-muted">Transfer memo:</span>
-                    <div class="flex items-center gap-1.5">
-                      <span class="font-mono text-muted">HPMS PAYOUT #${e(item.id)}</span>
-                      <button type="button" class="btn btn-ghost btn-xs copy-btn text-brand" data-copy="HPMS PAYOUT #${e(item.id)}" title="Copy memo">Copy</button>
-                    </div>
-                  </div>
+                <div class="flex items-center justify-between pb-1.5 border-b border-line/50">
+                  <span class="text-muted">Bank name:</span>
+                  <strong class="text-ink">${e(item.bankName)}</strong>
+                </div>
+                <div class="flex items-center justify-between pb-1.5 border-b border-line/50">
+                  <span class="text-muted">Account number (STK):</span>
+                  <strong class="font-mono text-ink text-sm bg-lilac/50 px-1.5 py-0.5 rounded">${e(item.accountNumber)}</strong>
+                </div>
+                <div class="flex items-center justify-between pb-1.5 border-b border-line/50">
+                  <span class="text-muted">Account holder:</span>
+                  <span class="font-semibold text-ink">${e(item.accountName)}</span>
+                </div>
+                <div class="flex items-center justify-between pb-1.5 border-b border-line/50">
+                  <span class="text-muted">Transfer amount:</span>
+                  <span class="text-brand font-bold text-sm">${money(item.netAmount ?? item.amount)}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-muted">Withdrawal fee:</span>
+                  <span class="text-ink">${money(item.feeAmount || 0)}</span>
                 </div>
               </div>
             </div>
-
-            <div class="mt-4">
-              <span class="text-xs font-semibold uppercase tracking-wider text-brand">Step 2 · Enter Transaction Reference</span>
-              <p class="text-xs text-muted mb-2">Once the transfer is completed in your banking app, enter its external reference code (mã tham chiếu / mã GD) to record payment and debit the wallet ledger.</p>
-              <label class="admin-field font-semibold text-ink">
-                Bank transfer reference <span class="text-rose-600">*</span>
-                <input name="transferReference" class="w-full font-mono mt-1" maxlength="150" required placeholder="e.g. FT26101900982312 or 892314" autocomplete="off">
-              </label>
+            <div class="rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-xs text-amber-900">
+              <p>Approving this request verifies the mentor's banking details and forwards it to <strong>Admin</strong> to execute the bank transfer. Funds remain reserved in the mentor's wallet until payment is completed.</p>
             </div>`,
-          action: async (form) => {
-            const transferReference = form.elements.transferReference.value.trim();
-            if (!transferReference) throw new Error('Enter the bank transfer reference.');
-            await staffService.decidePayout(id, { decision: 'PAID', transferReference });
-            notice = { message: `Payout #${id} of ${money(item?.amount || 0)} marked as PAID. Wallet ledger updated.`, type: 'info' };
+          action: async () => {
+            await staffService.decidePayout(id, { decision: 'APPROVED' });
+            notice = { message: `Payout #${id} approved and forwarded to Admin for bank transfer.`, type: 'info' };
             await loadData();
           }
         });

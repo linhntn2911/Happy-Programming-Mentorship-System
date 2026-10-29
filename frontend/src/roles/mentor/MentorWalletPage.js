@@ -3,6 +3,7 @@ import { MentorLayout, bindMentorLayout } from './MentorLayout.js';
 import { authService } from '../auth/authService.js';
 import { mentorWalletService } from './mentorWalletService.js';
 import { escapeHtml as e } from '../../shared/html.js';
+import { StatusBadge } from '../admin/AdminPrimitives.js';
 
 const money = value => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Number(value || 0)) + ' VND';
 const dateTime = value => value ? new Date(value).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }) + ' UTC' : '—';
@@ -101,7 +102,7 @@ function renderEntries(entries = []) {
 
 function renderPayouts(requests = []) {
   if (!requests.length) return '<p class="text-sm text-muted">No payout requests yet.</p>';
-  return `<div class="data-table-scroll"><table class="data-table"><thead><tr><th>Requested</th><th>Amount</th><th>Destination</th><th>Status</th><th>Transfer / note</th></tr></thead><tbody>${requests.map(item => `<tr><td>${e(dateTime(item.requestedAt))}</td><td>${money(item.amount)}<small class="block">Fee: ${money(item.feeAmount)} · Net: ${money(item.netAmount ?? item.amount)}</small></td><td>${e(item.bankName)} ···· ${e(item.accountLast4)}</td><td>${e(item.status)}</td><td>${e(item.transferReference || item.rejectionReason || '—')}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<div class="data-table-scroll"><table class="data-table"><thead><tr><th>Requested</th><th>Amount</th><th>Destination</th><th>Status</th><th>Transfer / note</th></tr></thead><tbody>${requests.map(item => `<tr><td>${e(dateTime(item.requestedAt))}</td><td>${money(item.amount)}<small class="block text-muted">Fee: ${money(item.feeAmount)} · Net: ${money(item.netAmount ?? item.amount)}</small></td><td>${e(item.bankName)} ···· ${e(item.accountLast4)}</td><td>${StatusBadge(item.status)}${item.status === 'REQUESTED' ? '<small class="block text-muted">Under review by staff</small>' : item.status === 'APPROVED' ? '<small class="block text-brand">Approved by staff · awaiting transfer</small>' : ''}</td><td>${e(item.transferReference || item.rejectionReason || '—')}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 export function MentorWalletPage() {

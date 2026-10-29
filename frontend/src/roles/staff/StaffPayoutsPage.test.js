@@ -16,7 +16,8 @@ test('Staff payouts page escapes untrusted fields and provides decision actions'
     requestedAt: '2026-10-15T10:00:00Z'
   }], { name: 'Staff User' });
 
-  assert.match(html, /data-payout-paid="42"/);
+  assert.match(html, /data-payout-approve="42"/);
+  assert.doesNotMatch(html, /data-payout-paid/);
   assert.match(html, /data-payout-reject="42"/);
   assert.match(html, /data-copy="999888777"/);
   assert.match(html, /data-copy="1500000"/);
