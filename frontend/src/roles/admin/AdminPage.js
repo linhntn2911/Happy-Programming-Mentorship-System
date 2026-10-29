@@ -61,7 +61,7 @@ export function mountAdmin(root, section = 'overview') {
       if (section === 'payouts' && !service.demo) {
         const history = await service.payoutHistory();
         const pending = new Map(pendingPayouts.map(item => [item.id, item]));
-        pendingPayouts = history.map(item => ({ ...item, ...(item.status === 'REQUESTED' ? pending.get(item.id) : {}) }));
+        pendingPayouts = history.map(item => ({ ...item, ...(item.status === 'APPROVED' ? pending.get(item.id) : {}) }));
       }
       if (!alive() || version !== requestVersion) return;
       session = currentSession; data = result; payoutRequests = pendingPayouts; render();

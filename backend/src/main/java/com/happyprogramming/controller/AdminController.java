@@ -50,7 +50,7 @@ public class AdminController {
         return ApiResponse.ok(service.payoutHistory(email(auth)));
     }
     @GetMapping("/payout-requests") public ApiResponse<List<AdminPayoutRequest>> payoutRequests(Authentication auth) {
-        service.requireAdmin(email(auth)); return ApiResponse.ok(wallet.pendingPayouts());
+        service.requireAdmin(email(auth)); return ApiResponse.ok(wallet.adminPendingPayouts());
     }
     @PatchMapping("/payout-requests/{id}") public ApiResponse<Boolean> decidePayout(@PathVariable long id,
             @Valid @RequestBody PayoutDecisionRequest decision, Authentication auth, HttpServletRequest request) {

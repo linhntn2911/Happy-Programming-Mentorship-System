@@ -83,7 +83,7 @@ public class MentorWalletService {
                 rs.getBigDecimal("amount"), rs.getString("merchant_reference"), rs.getTimestamp("created_at").toInstant()), mentorId);
         var requests = db.query("""
                 SELECT TOP (50) id,amount,fee_amount,bank_name,account_name,account_last4,status,transfer_reference,
-                    rejection_reason,requested_at,reviewed_at
+                    rejection_reason,requested_at,COALESCE(reviewed_at, approved_at) AS reviewed_at
                 FROM dbo.mentor_payout_requests WHERE mentor_id=? ORDER BY requested_at DESC,id DESC
                 """, (rs, n) -> new MentorWalletResponse.PayoutRequest(rs.getLong("id"), rs.getBigDecimal("amount"),
                 rs.getString("bank_name"), rs.getString("account_name"), rs.getString("account_last4"), rs.getString("status"),
@@ -248,59 +248,109 @@ public class MentorWalletService {
     }
 
     @Transactional(readOnly = true)
+    public List<AdminPayoutRequest> staffPendingPayouts() {
+        requireAnyRole("ADMIN", "STAFF");
+        return pendingPayoutsByStatus("REQUESTED");
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdminPayoutRequest> adminPendingPayouts() {
+        requireRole("ADMIN");
+        return pendingPayoutsByStatus("APPROVED");
+    }
+
+    @Transactional(readOnly = true)
     public List<AdminPayoutRequest> pendingPayouts() {
         requireAnyRole("ADMIN", "STAFF");
+        return pendingPayoutsByStatus("REQUESTED");
+    }
+
+    private List<AdminPayoutRequest> pendingPayoutsByStatus(String status) {
         return db().query("""
                 SELECT p.id,p.mentor_id,u.full_name,u.email,p.amount,p.fee_amount,p.bank_name,p.account_name,
                     p.account_number_ciphertext,p.status,p.requested_at
                 FROM dbo.mentor_payout_requests p JOIN dbo.users u ON u.id=p.mentor_id
-                WHERE p.status='REQUESTED' ORDER BY p.requested_at,p.id
+                WHERE p.status=? ORDER BY p.requested_at,p.id
                 """, (rs, n) -> new AdminPayoutRequest(rs.getLong("id"), rs.getLong("mentor_id"),
                 rs.getString("full_name"), rs.getString("email"), rs.getBigDecimal("amount"),
                 rs.getString("bank_name"), rs.getString("account_name"), decryptAccount(rs.getString("account_number_ciphertext")),
-                rs.getString("status"), rs.getTimestamp("requested_at").toInstant(), rs.getBigDecimal("fee_amount"), rs.getBigDecimal("amount").subtract(rs.getBigDecimal("fee_amount"))));
+                rs.getString("status"), rs.getTimestamp("requested_at").toInstant(), rs.getBigDecimal("fee_amount"), rs.getBigDecimal("amount").subtract(rs.getBigDecimal("fee_amount"))), status);
     }
 
     @Transactional
     public void decidePayout(long payoutId, PayoutDecisionRequest decision, String remoteAddress) {
         long reviewerId = requireAnyRole("ADMIN", "STAFF");
-        if (decision == null || !("PAID".equals(decision.decision()) || "REJECTED".equals(decision.decision())))
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose PAID or REJECTED.");
+        if (decision == null || decision.decision() == null)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose APPROVED, PAID or REJECTED.");
+        String action = decision.decision().trim();
+        if (!("APPROVED".equals(action) || "PAID".equals(action) || "REJECTED".equals(action)))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose APPROVED, PAID or REJECTED.");
+
+        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        boolean isAdmin = auth != null && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        boolean isStaff = auth != null && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_STAFF"));
+
         JdbcTemplate db = db();
         Map<String, Object> payout = db.query("""
                 SELECT id,mentor_id,amount,status FROM dbo.mentor_payout_requests WITH (UPDLOCK,HOLDLOCK) WHERE id=?
                 """, (rs, n) -> Map.<String,Object>of("id", rs.getLong("id"), "mentorId", rs.getLong("mentor_id"),
                 "amount", rs.getBigDecimal("amount"), "status", rs.getString("status")), payoutId)
                 .stream().findFirst().orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payout request not found."));
-        if (!"REQUESTED".equals(payout.get("status")))
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "This payout request has already been reviewed.");
+        String currentStatus = (String) payout.get("status");
         long mentorId = ((Number) payout.get("mentorId")).longValue();
-        lockMentor(db, mentorId);
+        BigDecimal amount = (BigDecimal) payout.get("amount");
         Instant now = Instant.now();
-        if ("REJECTED".equals(decision.decision())) {
+
+        if ("APPROVED".equals(action)) {
+            if (!"REQUESTED".equals(currentStatus))
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Only pending requests can be approved.");
+            db.update("""
+                    UPDATE dbo.mentor_payout_requests SET status='APPROVED',approved_by=?,approved_at=?
+                    WHERE id=? AND status='REQUESTED'
+                    """, reviewerId, Timestamp.from(now), payoutId);
+            audit(db, reviewerId, "MENTOR_PAYOUT_APPROVED", payoutId, "{\"status\":\"REQUESTED\"}",
+                    "{\"status\":\"APPROVED\"}", "Staff approved payout request for payment", remoteAddress);
+            return;
+        }
+
+        if ("PAID".equals(action)) {
+            if (isStaff && !isAdmin)
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Staff members cannot mark payouts as paid. Only admin can record payments.");
+            if (!"APPROVED".equals(currentStatus))
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Payout request must be approved by staff before payment.");
+
+            lockMentor(db, mentorId);
+            String transferReference = clean(decision.transferReference(), 150, "Enter the bank transfer reference before marking this payout paid.");
+            BigDecimal unreserved = releasedBalance(db, mentorId).subtract(paidBalance(db, mentorId))
+                    .subtract(reservedBalance(db, mentorId, payoutId));
+            if (unreserved.compareTo(amount) < 0)
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Released wallet balance is no longer sufficient for this payout.");
+            db.update("""
+                    UPDATE dbo.mentor_payout_requests SET status='PAID',transfer_reference=?,reviewed_by=?,reviewed_at=?
+                    WHERE id=? AND status='APPROVED'
+                    """, transferReference, reviewerId, Timestamp.from(now), payoutId);
+            allocatePayout(db, mentorId, payoutId, amount, reviewerId, now);
+            audit(db, reviewerId, "MENTOR_PAYOUT_PAID", payoutId, "{\"status\":\"APPROVED\"}",
+                    "{\"status\":\"PAID\",\"amount\":\"" + amount.toPlainString() + "\"}",
+                    "Bank transfer reference: " + transferReference, remoteAddress);
+            return;
+        }
+
+        if ("REJECTED".equals(action)) {
+            if (!("REQUESTED".equals(currentStatus) || "APPROVED".equals(currentStatus)))
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "This payout request has already been finalized.");
+            if (isStaff && !isAdmin && "APPROVED".equals(currentStatus))
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Staff cannot reject an already approved payout.");
+
+            lockMentor(db, mentorId);
             String reason = clean(decision.rejectionReason(), 500, "Provide a reason for rejecting this payout.");
             db.update("""
                     UPDATE dbo.mentor_payout_requests SET status='REJECTED',rejection_reason=?,reviewed_by=?,reviewed_at=?
-                    WHERE id=? AND status='REQUESTED'
-                    """, reason, reviewerId, Timestamp.from(now), payoutId);
-            audit(db, reviewerId, "MENTOR_PAYOUT_REJECTED", payoutId, "{\"status\":\"REQUESTED\"}",
+                    WHERE id=? AND status=?
+                    """, reason, reviewerId, Timestamp.from(now), payoutId, currentStatus);
+            audit(db, reviewerId, "MENTOR_PAYOUT_REJECTED", payoutId, "{\"status\":\"" + currentStatus + "\"}",
                     "{\"status\":\"REJECTED\"}", reason, remoteAddress);
-            return;
         }
-        String transferReference = clean(decision.transferReference(), 150, "Enter the bank transfer reference before marking this payout paid.");
-        BigDecimal amount = (BigDecimal) payout.get("amount");
-        BigDecimal unreserved = releasedBalance(db, mentorId).subtract(paidBalance(db, mentorId))
-                .subtract(reservedBalance(db, mentorId, payoutId));
-        if (unreserved.compareTo(amount) < 0)
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Released wallet balance is no longer sufficient for this payout.");
-        db.update("""
-                UPDATE dbo.mentor_payout_requests SET status='PAID',transfer_reference=?,reviewed_by=?,reviewed_at=?
-                WHERE id=? AND status='REQUESTED'
-                """, transferReference, reviewerId, Timestamp.from(now), payoutId);
-        allocatePayout(db, mentorId, payoutId, amount, reviewerId, now);
-        audit(db, reviewerId, "MENTOR_PAYOUT_PAID", payoutId, "{\"status\":\"REQUESTED\"}",
-                "{\"status\":\"PAID\",\"amount\":\"" + amount.toPlainString() + "\"}",
-                "Bank transfer reference: " + transferReference, remoteAddress);
     }
 
     @Transactional
@@ -369,7 +419,7 @@ public class MentorWalletService {
     private BigDecimal reservedBalance(JdbcTemplate db, long mentorId, Long exceptId) {
         BigDecimal value = db.queryForObject("""
                 SELECT COALESCE(SUM(amount),0) FROM dbo.mentor_payout_requests
-                WHERE mentor_id=? AND status='REQUESTED' AND (? IS NULL OR id<>?)
+                WHERE mentor_id=? AND status IN ('REQUESTED','APPROVED') AND (? IS NULL OR id<>?)
                 """, BigDecimal.class, mentorId, exceptId, exceptId);
         return value == null ? BigDecimal.ZERO : value;
     }

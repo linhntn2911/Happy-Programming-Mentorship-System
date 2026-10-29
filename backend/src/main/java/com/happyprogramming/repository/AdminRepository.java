@@ -86,9 +86,12 @@ public class AdminRepository {
         return jdbc.query("""
             SELECT p.id,p.mentor_id,u.full_name,u.email,p.amount,p.fee_amount,
                    p.bank_name,p.account_name,p.account_last4,p.status,p.requested_at,
-                   p.reviewed_at,reviewer.full_name AS reviewer_name,p.transfer_reference,p.rejection_reason
+                   COALESCE(p.reviewed_at, p.approved_at) AS reviewed_at,
+                   COALESCE(reviewer.full_name, approver.full_name) AS reviewer_name,
+                   p.transfer_reference,p.rejection_reason
             FROM dbo.mentor_payout_requests p JOIN dbo.users u ON u.id=p.mentor_id
             LEFT JOIN dbo.users reviewer ON reviewer.id=p.reviewed_by
+            LEFT JOIN dbo.users approver ON approver.id=p.approved_by
             ORDER BY p.requested_at DESC,p.id DESC
             """, (r,n) -> new com.happyprogramming.dto.AdminPayoutHistory(
                 r.getLong("id"),r.getLong("mentor_id"),r.getString("full_name"),r.getString("email"),
