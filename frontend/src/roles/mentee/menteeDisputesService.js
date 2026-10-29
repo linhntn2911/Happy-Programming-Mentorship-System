@@ -24,6 +24,9 @@ export const menteeDisputesService = {
     form.append('category', values.category);
     form.append('description', values.description);
     form.append('termsAccepted', String(values.termsAccepted));
+    if (values.bankName) form.append('bankName', values.bankName.trim());
+    if (values.accountNumber) form.append('accountNumber', values.accountNumber.trim());
+    if (values.accountName) form.append('accountName', values.accountName.trim());
     (values.evidence || []).forEach(file => form.append('evidence', file));
     const response = await fetch('/api/disputes', {
       method: 'POST', credentials: 'same-origin', headers: await csrfHeaders(), body: form,

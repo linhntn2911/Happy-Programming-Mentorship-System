@@ -106,6 +106,36 @@ export function PayoutsView(requests = [], demo = false, state = {}) {
   return heading('Mentor payouts', 'Review withdrawal requests and payment history. Complete bank transfers outside HappyProgramming before recording them.') +
     panel('Payout history', `${requests.length} total · ${requests.filter(item => item.status === 'APPROVED').length} approved (awaiting payment) · ${requests.filter(item => item.status === 'REQUESTED').length} awaiting staff review`, toolbar + DataTable({ caption: 'Mentor payout history', headings: ['Request / mentor', 'Bank transfer (net)', 'Bank destination', 'Status', 'Dates (UTC) / reviewer', 'Decision details', 'Actions'], rows, empty: empty('No payouts found', 'Try clearing the filters. New mentor requests will appear here.') }) + pagination(result));
 }
+
+export function filterRefunds(refunds, state = {}) {
+  const q = (state.query || '').trim().toLowerCase();
+  return refunds.filter(item => {
+    const date = (item.approvedAt || item.createdAt || '').slice(0, 10);
+    return (!state.status || item.status === state.status)
+      && (!state.from || date >= state.from) && (!state.to || date <= state.to)
+      && (!q || `${item.ticketCode} ${item.complainantName} ${item.complainantEmail} ${item.respondentName} ${item.transferReference || ''}`.toLowerCase().includes(q));
+  });
+}
+export function RefundsView(refunds = [], demo = false, state = {}) {
+  const result = pageItems(filterRefunds(refunds, state), state.page || 1);
+  const rows = result.items.map(item => [
+    `<span class="font-mono font-semibold text-xs text-brand">${e(item.ticketCode)}</span><small class="block text-muted mt-1">${e(item.targetType)} · ${e(item.resolutionType || 'REFUND')}</small>`,
+    `<div><span class="font-medium text-ink">${e(item.complainantName)}</span><small class="block text-muted text-[11px]">${e(item.complainantEmail)}</small></div>`,
+    `<div><span class="font-medium text-ink">${e(item.respondentName)}</span><small class="block text-muted text-[11px]">Respondent</small></div>`,
+    `<strong class="text-brand font-semibold text-sm">${money(item.refundAmount)}</strong><small class="block text-muted text-[11px]">Claim: ${money(item.disputedAmount)}</small>`,
+    `${e(item.bankName || '—')}<small class="block text-muted font-mono mt-0.5">${e(item.accountNumber || '—')}<br>${e(item.accountName || '—')}</small>`,
+    StatusBadge(item.status),
+    `${e(dateTime(item.approvedAt || item.createdAt))}<small class="block text-muted mt-1">Staff: ${e(item.approvedByName || '—')}<br>Admin: ${e(item.resolvedByName || '—')}</small>`,
+    `<span class="block whitespace-normal max-w-xs text-xs">Ref: ${e(item.transferReference || '—')}<br>Note: ${e(item.resolutionNote || '—')}</span>`,
+    demo ? 'Demo mode — no live refunds.' : item.status === 'APPROVED'
+      ? `<div class="flex flex-wrap gap-2"><button class="btn btn-primary btn-sm" data-refund-paid="${e(item.id)}">Record transfer</button><button class="btn btn-outline btn-sm" data-refund-reject="${e(item.id)}">Reject</button></div>`
+      : 'Completed · read only',
+  ]);
+  const toolbar = `<form id="admin-filters" class="admin-toolbar"><label class="admin-field admin-search" for="admin-query">Search refunds<input id="admin-query" name="query" type="search" maxlength="100" value="${e(state.query || '')}" placeholder="Ticket, mentee, email, mentor or transfer reference"></label>${select('status', 'Status', ['APPROVED', 'RESOLVED', 'REJECTED'], state.status, 'All statuses')}${Button({ label: 'Search', type: 'submit', variant: 'secondary' })}${Button({ id: 'admin-clear', label: 'Clear', variant: 'ghost' })}</form>
+    <form id="admin-dates" class="admin-toolbar"><label class="admin-field" for="from">Approved from (UTC)<input id="from" name="from" type="date" value="${e(state.from || '')}"></label><label class="admin-field" for="to">Approved to (UTC)<input id="to" name="to" type="date" value="${e(state.to || '')}"></label>${Button({ label: 'Apply dates', type: 'submit', variant: 'secondary' })}</form>`;
+  return heading('Mentee refunds', 'Review and process dispute refund requests approved by staff. Execute bank transfers to mentees and record transaction references.') +
+    panel('Refund queue', `${refunds.length} total · ${refunds.filter(item => item.status === 'APPROVED').length} approved (awaiting payment) · ${refunds.filter(item => item.status === 'RESOLVED').length} paid`, toolbar + DataTable({ caption: 'Mentee refund history', headings: ['Ticket', 'Mentee', 'Respondent', 'Refund amount', 'Receiving bank', 'Status', 'Reviewers', 'Details', 'Actions'], rows, empty: empty('No refunds found', 'No approved dispute refunds match the filters.') }) + pagination(result));
+}
 export function SettingsView(data) {
   return heading('System settings', 'Manage platform contact details and the commission for new payments.') + panel('Platform configuration', 'Changes require a reason and are recorded in the audit log.', `<form id="admin-settings" class="admin-panel-body admin-form"><div class="admin-form-grid"><label class="admin-field" for="commissionRate">Platform commission (%)<input id="commissionRate" name="commissionRate" type="number" min="0" max="100" step="0.01" value="${e(data.settings.commissionRate)}" required><span class="text-muted font-normal">Only applies to future payments. Existing rates stay unchanged.</span></label><label class="admin-field" for="supportEmail">Support email<input id="supportEmail" name="supportEmail" type="email" maxlength="254" value="${e(data.settings.supportEmail)}" placeholder="support@example.com"><span class="text-muted font-normal">Shown in the website footer. Leave blank to hide support contact.</span></label></div><label class="admin-field" for="settings-reason">Reason for change<textarea id="settings-reason" name="reason" rows="3" required maxlength="1000" placeholder="Explain why this update is needed"></textarea></label><div class="admin-actions">${Button({ id: 'admin-settings-reset', label: 'Discard changes', variant: 'outline' })}${Button({ label: 'Review changes', type: 'submit' })}</div></form>`);
 }

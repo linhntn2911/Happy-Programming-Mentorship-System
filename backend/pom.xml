@@ -96,6 +96,7 @@
                         <copy file="${project.basedir}/../docs/database/migration/030_20261019_add_mentee_disputes.sql" tofile="${project.build.outputDirectory}/db/migration/V21__add_mentee_disputes.sql" overwrite="true"/>
                         <copy file="${project.basedir}/../docs/database/migration/031_20261023_add_operational_settings.sql" tofile="${project.build.outputDirectory}/db/migration/V22__add_operational_settings.sql" overwrite="true"/>
                         <copy file="${project.basedir}/../docs/database/migration/032_20261028_add_payout_approval_step.sql" tofile="${project.build.outputDirectory}/db/migration/V23__add_payout_approval_step.sql" overwrite="true"/>
+                        <copy file="${project.basedir}/../docs/database/migration/033_20261029_add_dispute_refund_approval_step.sql" tofile="${project.build.outputDirectory}/db/migration/V24__add_dispute_refund_approval_step.sql" overwrite="true"/>
                     </target></configuration>
                 </execution></executions>
             </plugin>

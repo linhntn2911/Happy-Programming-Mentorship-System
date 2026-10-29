@@ -9,6 +9,7 @@ function disputeStatusBadge(status) {
     SUBMITTED: 'neutral',
     IN_MEDIATION: 'warning',
     AWAITING_EVIDENCE: 'warning',
+    APPROVED: 'success',
     RESOLVED: 'success',
     REJECTED: 'danger'
   }[status] || 'neutral';
@@ -131,6 +132,7 @@ export function StaffReportsPage(reports = [], filters = {}, user = null, notice
             <option value="SUBMITTED" ${activeStatus === 'SUBMITTED' ? 'selected' : ''}>Submitted (Needs Triage)</option>
             <option value="IN_MEDIATION" ${activeStatus === 'IN_MEDIATION' ? 'selected' : ''}>In Mediation</option>
             <option value="AWAITING_EVIDENCE" ${activeStatus === 'AWAITING_EVIDENCE' ? 'selected' : ''}>Awaiting Evidence</option>
+            <option value="APPROVED" ${activeStatus === 'APPROVED' ? 'selected' : ''}>Approved (Awaiting Admin Transfer)</option>
             <option value="RESOLVED" ${activeStatus === 'RESOLVED' ? 'selected' : ''}>Resolved</option>
             <option value="REJECTED" ${activeStatus === 'REJECTED' ? 'selected' : ''}>Rejected</option>
           </select>
