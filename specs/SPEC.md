@@ -92,7 +92,7 @@ sequenceDiagram
 3. The release job appends the mentor share and platform-fee entries once.
 4. Released and unreserved mentor earnings become available for withdrawal.
 5. A payout request reserves the requested available balance.
-6. An Admin performs the external bank transfer and records its reference before marking the request `PAID`, or rejects it with a reason and releases the reservation.
+6. Staff reviews the `REQUESTED` payout and marks it `APPROVED` or rejects it with a reason. Approval retains the reservation. An Admin other than the approver performs the external bank transfer for an `APPROVED` request and records its reference before marking it `PAID`, or rejects it before transfer and releases the reservation. Staff cannot record payment; Admin cannot bypass approval (feature 031).
 7. Financial corrections use append-only compensating entries; historical entries are never rewritten.
 
 ### 3.4 Mentor Onboarding and Approval

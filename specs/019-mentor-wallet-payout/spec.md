@@ -52,3 +52,6 @@ As an administrator, I can review a payout request, transfer funds outside the a
 
 ## Operational policy amendment (2026-10-23)
 Feature 029 supersedes the fixed seven-day hold for newly verified payments: snapshot the Admin-configured 1–90-day hold at settlement. Historical payments retain seven days. Withdrawals must exceed the configured threshold (at least 10,000 VND). A fixed fee is disclosed and snapshotted; the wallet debits gross, and the external transfer equals gross minus fee. Existing requests retain their fee.
+
+## Two-stage payout amendment (2026-10-28)
+Feature 031 supersedes prior single-step payout permissions: active Staff reviews REQUESTED and sets APPROVED or REJECTED; active Admin pays/rejects only APPROVED. Both open statuses reserve gross funds. Approval and final-decision metadata remain separate. Admin cannot approve or skip review; Staff cannot mark PAID; approver cannot settle the same request. External bank transfer goes directly from the platform account to mentor.

@@ -16,7 +16,7 @@ test('Staff payouts page escapes untrusted fields and provides decision actions'
     requestedAt: '2026-10-15T10:00:00Z'
   }], { name: 'Staff User' });
 
-  assert.match(html, /data-payout-paid="42"/);
+  assert.match(html, /data-payout-approve="42"/);
   assert.match(html, /data-payout-reject="42"/);
   assert.match(html, /data-copy="999888777"/);
   assert.match(html, /data-copy="1500000"/);
@@ -55,3 +55,10 @@ test('VietQR helper builds standard Napas247 QR code URL and normalizes bank nam
   assert.match(url, /accountName=Nguyen\+Van\+A/);
 });
 
+
+test('Staff can review payout but cannot record a transfer',()=>{
+ const html=StaffPayoutsPage([{id:1,mentorName:'<script>x</script>',amount:20000,feeAmount:1000,netAmount:19000,requestedAt:'2026-10-28T00:00:00Z'}]);
+ assert.match(html,/data-payout-approve="1"/);assert.match(html,/data-payout-reject="1"/);
+ assert.doesNotMatch(html,/data-payout-paid|Record transfer|<script>/);
+ assert.match(html,/Admin payment/);assert.match(html,/Fee:/);
+});

@@ -121,7 +121,7 @@ class SepaySettlementIntegrationTest {
   login(mentor,"MENTOR");BigDecimal net=wallet.wallet().availableAmount();assertTrue(net.signum()>0);
   var payout=wallet.requestPayout(new CreatePayoutRequest(net.setScale(0),"Test Bank","Test Owner","123456789"),"127.0.0.1");
   assertEquals(0,wallet.wallet().availableAmount().signum());
-  login(admin,"ADMIN");wallet.decidePayout(payout.id(),new PayoutDecisionRequest("PAID","TEST-TRANSFER",null),"127.0.0.1");
+  approveAsStaff(payout.id());wallet.decidePayout(payout.id(),new PayoutDecisionRequest("PAID","TEST-TRANSFER",null),"127.0.0.1");
   login(mentor,"MENTOR");assertEquals(0,wallet.wallet().availableAmount().signum());
   assertThrows(org.springframework.web.server.ResponseStatusException.class,()->wallet.requestPayout(new CreatePayoutRequest(BigDecimal.ONE,"Test Bank","Test Owner","123456789"),"127.0.0.1"));
  }
@@ -144,9 +144,55 @@ class SepaySettlementIntegrationTest {
   db.update("UPDATE dbo.system_configs SET config_value=JSON_MODIFY(config_value,'$.value.withdrawalFee',2000) WHERE config_key='platform.operations'");
   var saved=wallet.wallet().payoutRequests().stream().filter(p->p.id()==payout.id()).findFirst().orElseThrow();
   assertEquals(0,fee.compareTo(saved.feeAmount()));assertEquals(0,new BigDecimal("19000").compareTo(saved.netAmount()));
-  login(admin,"ADMIN");
+  approveAsStaff(payout.id());
   wallet.decidePayout(payout.id(),new PayoutDecisionRequest("PAID","TEST-NET-TRANSFER",null),"127.0.0.1");
   assertThrows(org.springframework.web.server.ResponseStatusException.class,()->wallet.decidePayout(payout.id(),new PayoutDecisionRequest("PAID","TEST-NET-TRANSFER",null),"127.0.0.1"));
   login(mentor,"MENTOR");assertEquals(0,before.subtract(amount).compareTo(wallet.wallet().availableAmount()));
+ }
+ @Test void staffRejectionReleasesReservationWithoutApprovalOrDebit() {
+  matureFixture();wallet.releaseMaturedPayments();login(mentor,"MENTOR");
+  var before=wallet.wallet().availableAmount();
+  var payout=wallet.requestPayout(new CreatePayoutRequest(new BigDecimal("20000"),"Bank","Owner","123456789"),"local");
+  login(user("STAFF"),"STAFF");
+  wallet.reviewStaffPayout(payout.id(),new PayoutDecisionRequest("REJECTED",null,"Invalid destination"),"local");
+  login(mentor,"MENTOR");assertEquals(0,before.compareTo(wallet.wallet().availableAmount()));
+  assertNull(db.queryForObject("SELECT approved_by FROM dbo.mentor_payout_requests WHERE id=?",Long.class,payout.id()));
+  assertEquals(0,db.queryForObject("SELECT COUNT(*) FROM dbo.escrow_ledger_entries WHERE payout_request_id=?",Integer.class,payout.id()));
+ }
+ @Test void lockedStaffCannotApproveAndApproverCannotPayAfterBecomingAdmin() {
+  matureFixture();wallet.releaseMaturedPayments();login(mentor,"MENTOR");
+  var payout=wallet.requestPayout(new CreatePayoutRequest(new BigDecimal("20000"),"Bank","Owner","123456789"),"local");
+  long staff=user("STAFF");login(staff,"STAFF");
+  db.update("UPDATE dbo.users SET locked_until=DATEADD(HOUR,1,SYSUTCDATETIME()) WHERE id=?",staff);
+  var denied=assertThrows(org.springframework.web.server.ResponseStatusException.class,()->wallet.reviewStaffPayout(payout.id(),new PayoutDecisionRequest("APPROVED",null,null),"local"));
+  assertEquals(403,denied.getStatusCode().value());
+  db.update("UPDATE dbo.users SET locked_until=NULL WHERE id=?",staff);
+  wallet.reviewStaffPayout(payout.id(),new PayoutDecisionRequest("APPROVED",null,null),"local");
+  db.update("UPDATE dbo.users SET role_code='ADMIN' WHERE id=?",staff);login(staff,"ADMIN");
+  var self=assertThrows(org.springframework.web.server.ResponseStatusException.class,()->wallet.decidePayout(payout.id(),new PayoutDecisionRequest("PAID","SELF",null),"local"));
+  assertEquals(409,self.getStatusCode().value());
+  assertEquals("APPROVED",db.queryForObject("SELECT status FROM dbo.mentor_payout_requests WHERE id=?",String.class,payout.id()));
+ }
+ void approveAsStaff(long payoutId) {
+  long staff=user("STAFF");login(staff,"STAFF");
+  wallet.decidePayout(payoutId,new PayoutDecisionRequest("APPROVED",null,null),"127.0.0.1");
+  login(admin,"ADMIN");
+ }
+ @Test void staffApprovalRetainsReservationAndAdminCannotSkipIt() {
+  matureFixture();wallet.releaseMaturedPayments();login(mentor,"MENTOR");
+  var payout=wallet.requestPayout(new CreatePayoutRequest(new BigDecimal("20000"),"Bank","Owner","123456789"),"local");
+  var available=wallet.wallet().availableAmount();
+  login(admin,"ADMIN");
+  assertThrows(org.springframework.web.server.ResponseStatusException.class,()->wallet.decidePayout(payout.id(),new PayoutDecisionRequest("PAID","REF",null),"local"));
+  assertThrows(org.springframework.web.server.ResponseStatusException.class,()->wallet.decidePayout(payout.id(),new PayoutDecisionRequest("APPROVED",null,null),"local"));
+  long staff=user("STAFF");login(staff,"STAFF");
+  assertThrows(org.springframework.web.server.ResponseStatusException.class,()->wallet.decidePayout(payout.id(),new PayoutDecisionRequest("PAID","REF",null),"local"));
+  wallet.decidePayout(payout.id(),new PayoutDecisionRequest("APPROVED",null,null),"local");
+  assertThrows(org.springframework.web.server.ResponseStatusException.class,()->wallet.decidePayout(payout.id(),new PayoutDecisionRequest("APPROVED",null,null),"local"));
+  login(mentor,"MENTOR");assertEquals(0,available.compareTo(wallet.wallet().availableAmount()));
+  assertEquals(staff,db.queryForObject("SELECT approved_by FROM dbo.mentor_payout_requests WHERE id=?",Long.class,payout.id()));
+  assertEquals(0,db.queryForObject("SELECT COUNT(*) FROM dbo.escrow_ledger_entries WHERE payout_request_id=?",Integer.class,payout.id()));
+  login(admin,"ADMIN");wallet.decidePayout(payout.id(),new PayoutDecisionRequest("REJECTED",null,"Destination requires correction"),"local");
+  login(mentor,"MENTOR");assertEquals(0,available.add(new BigDecimal("20000")).compareTo(wallet.wallet().availableAmount()));
  }
 }

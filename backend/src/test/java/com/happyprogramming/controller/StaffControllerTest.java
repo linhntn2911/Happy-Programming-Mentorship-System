@@ -89,18 +89,18 @@ class StaffControllerTest {
     }
 
     @Test
-    void shouldDecidePayoutPaidForStaff() throws Exception {
+    void shouldApprovePayoutForAdminPayment() throws Exception {
         mockMvc.perform(patch("/api/staff/payout-requests/1")
                         .with(authentication(staffPrincipal()))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"decision":"PAID","transferReference":"FT26101900123"}
+                                {"decision":"APPROVED"}
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data").value(true));
 
-        verify(wallet).decidePayout(eq(1L), any(PayoutDecisionRequest.class), any());
+        verify(wallet).reviewStaffPayout(eq(1L), any(PayoutDecisionRequest.class), any());
     }
 
     @Test
@@ -115,7 +115,7 @@ class StaffControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data").value(true));
 
-        verify(wallet).decidePayout(eq(1L), any(PayoutDecisionRequest.class), any());
+        verify(wallet).reviewStaffPayout(eq(1L), any(PayoutDecisionRequest.class), any());
     }
 
     @Test

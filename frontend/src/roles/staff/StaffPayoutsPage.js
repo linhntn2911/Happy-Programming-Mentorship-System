@@ -11,7 +11,7 @@ export function StaffPayoutsPage(requests = [], user = null, notice = null) {
   const rows = requests.map(item => [
     `${e(item.mentorName)}<small class="block text-muted mt-1">${e(item.mentorEmail)} · ID ${e(item.mentorId)}</small>`,
     `<div class="flex items-center gap-1.5">
-      <span class="font-semibold text-ink">${money(item.amount)}</span>
+      <span class="font-semibold text-ink">${money(item.amount)}<small class="block">Fee: ${money(item.feeAmount)} · Net: ${money(item.netAmount ?? item.amount)}</small></span>
       <button type="button" class="btn btn-ghost btn-xs copy-btn text-brand" data-copy="${e(item.amount)}" title="Copy amount" aria-label="Copy amount for ${e(item.mentorName)}">
         <svg class="icon w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
       </button>
@@ -27,7 +27,7 @@ export function StaffPayoutsPage(requests = [], user = null, notice = null) {
     </div>`,
     e(dateTime(item.requestedAt)),
     `<div class="flex flex-wrap gap-2">
-      <button class="btn btn-primary btn-sm" data-payout-paid="${e(item.id)}" aria-label="Record transfer for ${e(item.mentorName)}">Record transfer</button>
+      <button class="btn btn-primary btn-sm" data-payout-approve="${e(item.id)}" aria-label="Approve for payment for ${e(item.mentorName)}">Approve for payment</button>
       <button class="btn btn-outline btn-sm" data-payout-reject="${e(item.id)}" aria-label="Reject withdrawal for ${e(item.mentorName)}">Reject</button>
     </div>`
   ]);
@@ -45,7 +45,7 @@ export function StaffPayoutsPage(requests = [], user = null, notice = null) {
       <div>
         <p class="eyebrow mb-3">STAFF WORKSPACE</p>
         <h1>Mentor payouts</h1>
-        <p>Review withdrawal requests. Complete external bank transfers, then record references or reject.</p>
+        <p>Check withdrawal requests and bank details. Approve for Admin payment or reject with a reason.</p>
       </div>
     </div>
 
@@ -61,13 +61,13 @@ export function StaffPayoutsPage(requests = [], user = null, notice = null) {
       ${StatCard({
         label: 'Total withdrawal amount',
         value: money(totalAmount),
-        note: 'Net amount to transfer · VND',
+        note: 'Gross amount reserved · VND',
         icon: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>'
       })}
       ${StatCard({
         label: 'Operational SLA',
         value: '48h',
-        note: 'Process verified transfers timely',
+        note: 'Review requests before Admin payment',
         icon: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
       })}
     </div>

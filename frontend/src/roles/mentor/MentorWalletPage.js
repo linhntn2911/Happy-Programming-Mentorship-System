@@ -44,7 +44,7 @@ function walletContent() {
             </div>
           </section>
           <section class="admin-panel" aria-labelledby="payout-form-title">
-            <div class="admin-panel-heading"><div><p class="eyebrow mb-2">WITHDRAWAL</p><h2 id="payout-form-title">Request a payout</h2><p>Requests reserve available balance until the admin records payment or rejection.</p></div></div>
+            <div class="admin-panel-heading"><div><p class="eyebrow mb-2">WITHDRAWAL</p><h2 id="payout-form-title">Request a payout</h2><p>Staff reviews your request first; Admin then pays it. Funds stay reserved during both stages.</p></div></div>
             <div class="admin-panel-body">
               <p id="payout-message" class="mb-4 text-sm" role="status" aria-live="polite"></p>
               <form id="payout-form" class="space-y-4" novalidate>
@@ -114,7 +114,7 @@ function renderEntries(entries = []) {
 
 function renderPayouts(requests = []) {
   if (!requests.length) return '<p class="text-sm text-muted">No payout requests yet.</p>';
-  return `<div class="data-table-scroll"><table class="data-table"><thead><tr><th>Requested</th><th>Amount</th><th>Destination</th><th>Status</th><th>Transfer / note</th></tr></thead><tbody>${requests.map(item => `<tr><td>${e(dateTime(item.requestedAt))}</td><td>${money(item.amount)}<small class="block">Fee: ${money(item.feeAmount)} · Net: ${money(item.netAmount ?? item.amount)}</small></td><td>${e(item.bankName)} ···· ${e(item.accountLast4)}</td><td>${e(item.status)}</td><td>${e(item.transferReference || item.rejectionReason || '—')}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<div class="data-table-scroll"><table class="data-table"><thead><tr><th>Requested</th><th>Amount</th><th>Destination</th><th>Status</th><th>Transfer / note</th></tr></thead><tbody>${requests.map(item => `<tr><td>${e(dateTime(item.requestedAt))}</td><td>${money(item.amount)}<small class="block">Fee: ${money(item.feeAmount)} · Net: ${money(item.netAmount ?? item.amount)}</small></td><td>${e(item.bankName)} ···· ${e(item.accountLast4)}</td><td>${e(({REQUESTED:'Awaiting Staff review',APPROVED:'Approved - awaiting Admin payment',PAID:'Paid',REJECTED:'Rejected'})[item.status] || item.status)}</td><td>${e(item.transferReference || item.rejectionReason || '—')}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 function reviewStars(rating) {

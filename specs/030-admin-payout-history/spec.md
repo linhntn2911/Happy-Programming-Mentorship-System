@@ -12,3 +12,6 @@ Admins need to track pending, paid and rejected mentor withdrawals in one screen
 - No transfer, ledger, OTP, reservation, schema or Staff authorization changes.
 ## Clarifications
 Scope is payout history, not every unrelated Admin enhancement. Existing Staff payout access conflicts with spec 019 admin-only wording; this bounded read-only feature neither expands nor resolves that pre-existing authorization discrepancy.
+
+## Two-stage payout amendment (2026-10-28)
+Feature 031 supersedes prior single-step payout permissions: active Staff reviews REQUESTED and sets APPROVED or REJECTED; active Admin pays/rejects only APPROVED. Both open statuses reserve gross funds. Approval and final-decision metadata remain separate. Admin cannot approve or skip review; Staff cannot mark PAID; approver cannot settle the same request. External bank transfer goes directly from the platform account to mentor.

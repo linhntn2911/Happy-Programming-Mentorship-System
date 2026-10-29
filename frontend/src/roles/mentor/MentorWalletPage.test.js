@@ -7,7 +7,7 @@ test('mentor wallet page explains the hold, available funds and payout flow', ()
   assert.match(html, /MENTOR EARNINGS &amp; FEEDBACK/);
   assert.match(html, /Earnings and feedback/);
   assert.match(html, /Verified earnings become available after the hold period recorded when payment is confirmed\./);
-  assert.match(html, /Requests reserve available balance until the admin records payment or rejection\./);
+  assert.match(html, /Staff reviews your request first; Admin then pays it. Funds stay reserved during both stages\./);
   assert.match(html, /Request a payout/);
   assert.match(html, /Account number/);
   assert.match(html, /encrypted before storage/);

@@ -76,7 +76,7 @@ public class StaffController {
     @PatchMapping("/payout-requests/{id}")
     public ApiResponse<Boolean> decidePayout(@PathVariable long id,
             @Valid @RequestBody PayoutDecisionRequest decision, HttpServletRequest request) {
-        wallet.decidePayout(id, decision, request.getRemoteAddr());
+        wallet.reviewStaffPayout(id, decision, request.getRemoteAddr());
         return ApiResponse.ok(true);
     }
 
