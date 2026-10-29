@@ -5,6 +5,10 @@ BEGIN TRANSACTION;
 IF COL_LENGTH('dbo.mentor_payout_requests', 'approved_by') IS NULL
 BEGIN
     ALTER TABLE dbo.mentor_payout_requests ADD approved_by BIGINT NULL;
+END;
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_mentor_payout_requests_approver')
+BEGIN
     ALTER TABLE dbo.mentor_payout_requests ADD CONSTRAINT FK_mentor_payout_requests_approver
         FOREIGN KEY (approved_by) REFERENCES dbo.users(id);
 END;
@@ -21,16 +25,17 @@ IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_mentor_payout_re
 ALTER TABLE dbo.mentor_payout_requests ADD CONSTRAINT CK_mentor_payout_requests_status
     CHECK (status IN ('REQUESTED', 'APPROVED', 'PAID', 'REJECTED'));
 
--- Update review check constraint
+-- Update review check constraint using dynamic SQL so SQL Server's query compiler
+-- does not throw Msg 207 ("Invalid column name") for newly added columns in the same batch.
 IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_mentor_payout_requests_review')
     ALTER TABLE dbo.mentor_payout_requests DROP CONSTRAINT CK_mentor_payout_requests_review;
 
-ALTER TABLE dbo.mentor_payout_requests ADD CONSTRAINT CK_mentor_payout_requests_review CHECK (
-    (status = 'REQUESTED' AND reviewed_by IS NULL AND reviewed_at IS NULL AND transfer_reference IS NULL AND rejection_reason IS NULL AND approved_by IS NULL AND approved_at IS NULL)
-    OR (status = 'APPROVED' AND approved_by IS NOT NULL AND approved_at IS NOT NULL AND reviewed_by IS NULL AND reviewed_at IS NULL AND transfer_reference IS NULL AND rejection_reason IS NULL)
-    OR (status = 'PAID' AND reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL AND NULLIF(LTRIM(RTRIM(transfer_reference)), '') IS NOT NULL AND rejection_reason IS NULL)
-    OR (status = 'REJECTED' AND reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL AND NULLIF(LTRIM(RTRIM(rejection_reason)), '') IS NOT NULL AND transfer_reference IS NULL)
-);
+EXEC(N'ALTER TABLE dbo.mentor_payout_requests ADD CONSTRAINT CK_mentor_payout_requests_review CHECK (
+    (status = ''REQUESTED'' AND reviewed_by IS NULL AND reviewed_at IS NULL AND transfer_reference IS NULL AND rejection_reason IS NULL AND approved_by IS NULL AND approved_at IS NULL)
+    OR (status = ''APPROVED'' AND approved_by IS NOT NULL AND approved_at IS NOT NULL AND reviewed_by IS NULL AND reviewed_at IS NULL AND transfer_reference IS NULL AND rejection_reason IS NULL)
+    OR (status = ''PAID'' AND reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL AND NULLIF(LTRIM(RTRIM(transfer_reference)), '''') IS NOT NULL AND rejection_reason IS NULL)
+    OR (status = ''REJECTED'' AND reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL AND NULLIF(LTRIM(RTRIM(rejection_reason)), '''') IS NOT NULL AND transfer_reference IS NULL)
+)');
 
 -- Update lifecycle trigger to allow REQUESTED -> APPROVED -> PAID / REJECTED
 EXEC(N'CREATE OR ALTER TRIGGER dbo.trg_mentor_payout_request_lifecycle
@@ -55,4 +60,3 @@ BEGIN
 END');
 
 COMMIT TRANSACTION;
-
