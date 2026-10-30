@@ -14,10 +14,10 @@ export function normalizeBankCode(name = '') {
     .replace(/[^a-z0-9]/g, '');
 
   if (normalized.includes('tpbank') || normalized.includes('tpb') || normalized.includes('tienphong')) return 'TPB';
-  if (normalized.includes('vietcom') || normalized.includes('vcb')) return 'VCB';
-  if (normalized.includes('techcom') || normalized.includes('tcb')) return 'TCB';
+  if (normalized.includes('vietcom') || normalized.includes('vcb') || normalized.includes('ngoaithuong')) return 'VCB';
+  if (normalized.includes('techcom') || normalized.includes('tcb') || normalized.includes('kythuong')) return 'TCB';
   if (normalized.includes('sacom') || normalized.includes('stb')) return 'STB';
-  if (normalized.includes('vietin') || normalized.includes('icb') || normalized.includes('ctg') || normalized.includes('congthuong')) return 'ICB';
+  if (normalized.includes('vietin') || normalized.includes('viettin') || normalized.includes('icb') || normalized.includes('ctg') || normalized.includes('congthuong')) return 'ICB';
   if (normalized.includes('bidv')) return 'BIDV';
   if (normalized.includes('agri') || normalized.includes('vba') || normalized.includes('nongnghiep')) return 'VBA';
   if (normalized.includes('vpbank') || normalized.includes('vpb') || normalized.includes('thinhvuong')) return 'VPB';
@@ -79,7 +79,8 @@ export function TransferQrPanel({
   accountName = '',
   referenceCode = '',
   memoPrefix = 'REFUND',
-  contextNote = ''
+  contextNote = '',
+  showReceiptUpload = false
 }) {
   const rawTransferAmount = Math.max(0, Math.round(Number(netAmount !== null ? netAmount : amount) || 0));
   const amountFormatted = rawTransferAmount.toLocaleString('vi-VN');
@@ -159,6 +160,19 @@ export function TransferQrPanel({
       </div>
 
       ${contextNote ? `<p class="text-xs text-muted mb-3">${e(contextNote)}</p>` : ''}
+
+      ${showReceiptUpload ? `
+      <label class="admin-field mt-3">Upload transfer receipt / proof (evidence for mentee)
+        <input type="file" id="admin-receipt-file" name="receiptFile" accept="image/png,image/jpeg,image/webp" class="mt-1 block w-full text-xs text-muted file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-lilac file:text-brand hover:file:bg-brand hover:file:text-white cursor-pointer">
+        <span class="text-[11px] text-muted">Supports PNG, JPG, WEBP up to 5 MB. Verified receipt sent to mentee and mediation chat.</span>
+      </label>
+      <div id="receipt-preview-container" class="mt-2 hidden">
+        <div class="relative inline-block border border-line rounded-lg overflow-hidden bg-white p-1">
+          <img id="receipt-preview-img" src="" alt="Receipt Preview" class="max-h-36 max-w-full rounded object-contain" />
+          <button type="button" id="receipt-remove-btn" class="absolute top-1 right-1 bg-rose-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow hover:bg-rose-700 leading-none" title="Remove image">&times;</button>
+        </div>
+      </div>
+      ` : ''}
 
       <label class="admin-field mt-3">Bank transfer reference
         <input name="transferReference" maxlength="150" required placeholder="e.g. MBVCB.123456789">

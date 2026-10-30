@@ -78,4 +78,17 @@ public class DisputeController {
                 .contentLength(file.sizeBytes())
                 .body(file.content());
     }
+
+    @GetMapping("/{id}/receipt")
+    public ResponseEntity<byte[]> receipt(@PathVariable long id) {
+        var file = service.downloadReceipt(id);
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .header("X-Content-Type-Options", "nosniff")
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.inline().filename(file.fileName(), StandardCharsets.UTF_8).build().toString())
+                .contentType(MediaType.parseMediaType(file.mimeType()))
+                .contentLength(file.sizeBytes())
+                .body(file.content());
+    }
 }

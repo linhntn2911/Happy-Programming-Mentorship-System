@@ -164,12 +164,19 @@ export function mountAdmin(root, section = 'overview') {
         accountName: refund?.accountName || refund?.complainantName || refund?.menteeName || '',
         referenceCode: refund?.ticketCode || String(id),
         memoPrefix: 'REFUND',
-        contextNote: 'Confirm that the bank transfer has been made to the mentee. Enter the external bank transfer reference to complete the refund and record the escrow release debit.'
+        contextNote: 'Confirm that the bank transfer has been made to the mentee. Enter the external bank transfer reference to complete the refund and record the escrow release debit.',
+        showReceiptUpload: true
       });
       openDialog('Process mentee refund', content, form => {
         const transferReference = form.elements.transferReference.value.trim();
         if (!transferReference) throw new Error('Enter the bank transfer reference.');
-        return service.decideRefund(id, { decision: 'PAID', transferReference });
+        return service.decideRefund(id, {
+          decision: 'PAID',
+          transferReference,
+          receiptFileName: form.__receiptFileName || null,
+          receiptBase64: form.__receiptBase64 || null,
+          receiptMimeType: form.__receiptMimeType || null
+        });
       });
     }));
     root.querySelectorAll('[data-refund-reject]').forEach(button => button.addEventListener('click', () => {
@@ -214,6 +221,42 @@ export function mountAdmin(root, section = 'overview') {
     host.innerHTML = Dialog({ id: 'admin-dialog', title: e(title), eyebrow: 'ADMINISTRATION', content: `<form id="admin-change-form">${content}<div id="admin-dialog-error" class="mt-4"></div><div class="admin-actions">${Button({ label: action ? 'Cancel' : 'Close', variant: 'outline', id: 'admin-cancel' })}${action ? Button({ label: 'Confirm changes', type: 'submit', id: 'admin-confirm' }) : ''}</div></form>` });
     root.append(host); const dialog = host.querySelector('dialog'); activeDialog = dialog;
     host.querySelectorAll('[data-close], #admin-cancel').forEach(button => button.addEventListener('click', () => dialog.close()));
+    const formElement = host.querySelector('form');
+    const receiptInput = host.querySelector('#admin-receipt-file');
+    const previewContainer = host.querySelector('#receipt-preview-container');
+    const previewImg = host.querySelector('#receipt-preview-img');
+    const removeBtn = host.querySelector('#receipt-remove-btn');
+    if (receiptInput) {
+      receiptInput.addEventListener('change', () => {
+        const file = receiptInput.files?.[0];
+        if (!file) {
+          if (formElement) { formElement.__receiptBase64 = null; formElement.__receiptFileName = null; formElement.__receiptMimeType = null; }
+          previewContainer?.classList.add('hidden');
+          return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+          window.alert('Receipt image must be 5 MB or smaller.');
+          receiptInput.value = '';
+          return;
+        }
+        if (formElement) { formElement.__receiptFileName = file.name; formElement.__receiptMimeType = file.type; }
+        const reader = new FileReader();
+        reader.onload = ev => {
+          if (formElement) formElement.__receiptBase64 = ev.target.result;
+          if (previewImg) previewImg.src = ev.target.result;
+          previewContainer?.classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+    if (removeBtn) {
+      removeBtn.addEventListener('click', () => {
+        if (receiptInput) receiptInput.value = '';
+        if (formElement) { formElement.__receiptBase64 = null; formElement.__receiptFileName = null; formElement.__receiptMimeType = null; }
+        previewContainer?.classList.add('hidden');
+        if (previewImg) previewImg.src = '';
+      });
+    }
     host.querySelectorAll('[data-copy-text]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const text = btn.getAttribute('data-copy-text');

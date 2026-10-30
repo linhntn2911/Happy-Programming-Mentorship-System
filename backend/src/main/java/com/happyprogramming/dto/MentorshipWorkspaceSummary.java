@@ -39,4 +39,8 @@ public record MentorshipWorkspaceSummary(
                 callsPerPeriod, sessionDurationMinutes, hasMonthly, oneOffSessionCount, upcomingSessionCount,
                 nextSessionAt, unreadCount, false, null, null);
     }
+
+    public String currentUserRole() {
+        return partnerRole;
+    }
 }
