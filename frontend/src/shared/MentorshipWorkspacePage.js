@@ -30,8 +30,8 @@ function emptyState(isStaff = false) {
     </div>`;
   }
   return `<div class="rounded-2xl border border-line bg-white p-10 text-center shadow-sm">
-    <h2 class="font-display text-2xl text-ink">No active mentorship workspace</h2>
-    <p class="mt-3 text-sm text-muted">A workspace opens after a mentor accepts your application and SePay verifies the payment.</p>
+    <h2 class="font-display text-2xl text-ink">No mentorship conversations yet</h2>
+    <p class="mt-3 text-sm text-muted">A workspace opens after a mentor accepts your application and SePay verifies the payment. Previous learning conversations stay here.</p>
     <a href="#/applications" class="btn btn-primary mt-6">View applications</a>
   </div>`;
 }
@@ -95,7 +95,12 @@ export function workspaceMessages(messages = [], workspaceId = '', { query = '',
         ${unread ? '<span class="h-1.5 w-1.5 rounded-full bg-brand" aria-label="Unread message"></span>' : ''}
         ${message.messageType === 'CODE' ? `<span class="rounded-full border border-line bg-cream px-2 py-0.5 font-mono">${esc(message.codeLanguage || 'code')}</span>` : ''}
       </div>
-      ${message.messageType === 'FILE'
+      ${message.messageType === 'FILE' && String(message.fileMimeType || '').startsWith('image/')
+        ? `<a class="block overflow-hidden rounded-xl border border-line bg-white hover:border-brand" href="${mentorshipWorkspaceService.downloadUrl(workspaceId, message.id)}" target="_blank" rel="noopener">
+            <img class="max-h-80 w-full object-contain bg-cream" src="${mentorshipWorkspaceService.downloadUrl(workspaceId, message.id)}" alt="${esc(message.fileName || 'Shared image')}">
+            <span class="flex items-center justify-between gap-3 px-3 py-2 text-[10px] text-muted"><span class="truncate">${esc(message.fileName || 'Image')}</span><span class="shrink-0">${esc(fileSizeLabel(message.fileSizeBytes))}</span></span>
+          </a>`
+        : message.messageType === 'FILE'
         ? `<a class="flex min-w-[220px] items-center gap-3 rounded-xl border border-line bg-white p-3 text-left hover:border-brand" href="${mentorshipWorkspaceService.downloadUrl(workspaceId, message.id)}">
             <span class="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-lilac text-lg text-brand" aria-hidden="true">↧</span>
             <span class="min-w-0"><strong class="block truncate text-sm text-ink">${esc(message.fileName || message.body || 'Attachment')}</strong><small class="text-muted">${esc(fileSizeLabel(message.fileSizeBytes))} · Download</small></span>
@@ -125,12 +130,14 @@ function workspaceListItems(workspaces, selectedId = null) {
     const workspaceId = workspaceIdOf(item);
     const selected = workspaceId === Number(selectedId);
     const unread = Number(item.unreadCount || 0);
-    const isMediation = Boolean(item.isMediation || item.disputeTicketCode);
+    const isMediation = Boolean(item.isMediation);
     const context = isMediation
       ? `Dispute #${item.disputeTicketCode || 'MEDIATION'} · In mediation`
-      : item.hasMonthly
-        ? `${item.packageName} · ${item.subscriptionStatus}`
-        : `${item.oneOffSessionCount || 0} one-off session${Number(item.oneOffSessionCount) === 1 ? '' : 's'}`;
+      : item.hasMonthly && Number(item.oneOffSessionCount) > 0
+        ? `${item.packageName} · Monthly + sessions`
+        : item.hasMonthly
+          ? `${item.packageName} · Monthly mentorship`
+          : `${item.oneOffSessionCount || 0} one-off session${Number(item.oneOffSessionCount) === 1 ? '' : 's'}`;
     const timing = isMediation
       ? '⚖ 3-Party Mediation with Staff'
       : Number(item.upcomingSessionCount) > 0
@@ -156,10 +163,10 @@ export function filterWorkspaceList(workspaces = [], status = 'ALL', query = '')
 
 function workspaceListPanelMarkup(workspaces, isMentor, selectedId = null, status = 'ALL', query = '', isStaff = false) {
   const visible = filterWorkspaceList(workspaces, status, query);
-  return `<aside class="border-r border-line" aria-label="Mentorship conversations" data-workspace-list-panel>
+  return `<aside class="h-full overflow-y-auto border-r border-line" aria-label="Mentorship conversations" data-workspace-list-panel>
     <div class="border-b border-line px-4 py-4">
       <div class="flex items-center justify-between gap-3">
-        <div><p class="text-xs font-semibold text-ink">${isStaff ? 'Disputed Mentorships' : (isMentor ? 'Your mentees' : 'Your mentors')}</p><p class="mt-1 text-[10px] text-muted"><span data-workspace-visible-count>${visible.length}</span> of ${workspaces.length} ${isStaff ? 'dispute' : 'active'} mentorship${workspaces.length === 1 ? '' : 's'}</p></div>
+        <div><p class="text-xs font-semibold text-ink">${isStaff ? 'Disputed Mentorships' : (isMentor ? 'Your mentees' : 'Your mentors')}</p><p class="mt-1 text-[10px] text-muted"><span data-workspace-visible-count>${visible.length}</span> of ${workspaces.length} ${isStaff ? 'dispute' : 'mentorship'} conversation${workspaces.length === 1 ? '' : 's'}</p></div>
         <div class="flex items-center gap-1.5">
           <label class="relative"><span class="sr-only">Filter mentorships</span><select id="workspace-list-filter" class="h-9 w-auto min-w-[68px] appearance-none rounded-lg border border-line bg-white px-2.5 pr-6 text-[11px] font-semibold text-ink focus:border-brand focus:outline-none"><option value="ALL" ${status === 'ALL' ? 'selected' : ''}>All</option><option value="ACTIVE" ${status === 'ACTIVE' ? 'selected' : ''}>Active</option><option value="TRIALING" ${status === 'TRIALING' ? 'selected' : ''}>Trialing</option><option value="ONE_OFF" ${status === 'ONE_OFF' ? 'selected' : ''}>One-off</option></select><span class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted" aria-hidden="true">⌄</span></label>
           <button type="button" data-toggle-workspace-search class="grid h-9 w-9 place-items-center rounded-full text-muted hover:bg-lilac hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" aria-label="Search mentorships" aria-expanded="${query ? 'true' : 'false'}" aria-controls="workspace-list-search"><svg viewBox="0 0 24 24" class="h-5 w-5 fill-none stroke-current" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/></svg></button>
@@ -172,7 +179,7 @@ function workspaceListPanelMarkup(workspaces, isMentor, selectedId = null, statu
 }
 
 export function workspaceListMarkup(workspaces, isMentor, status = 'ALL', query = '', isStaff = false) {
-  return `<section aria-labelledby="workspace-list-heading"><div class="mb-5"><p class="eyebrow">ACTIVE MENTORSHIPS</p><h2 id="workspace-list-heading" class="mt-2 font-display text-3xl text-ink">Messages</h2><p class="mt-2 text-sm text-muted">Choose ${isStaff ? 'a dispute mediation conversation' : (isMentor ? 'a mentee' : 'a mentor')} to open.</p></div>
+  return `<section aria-labelledby="workspace-list-heading"><div class="mb-5"><p class="eyebrow">${isStaff ? 'DISPUTE MEDIATION' : 'MENTORSHIP CONVERSATIONS'}</p><h2 id="workspace-list-heading" class="mt-2 font-display text-3xl text-ink">Messages</h2><p class="mt-2 text-sm text-muted">Choose ${isStaff ? 'a dispute mediation conversation' : (isMentor ? 'a mentee' : 'a mentor')} to open. Learning chat history remains available after a service ends.</p></div>
     <div class="grid min-h-[620px] overflow-hidden rounded-2xl border border-line bg-white shadow-sm lg:grid-cols-[300px_minmax(0,1fr)]" data-workspace-messenger>
       ${workspaceListPanelMarkup(workspaces, isMentor, null, status, query, isStaff)}
       <div class="hidden place-items-center bg-cream px-8 text-center lg:grid"><div><span class="mx-auto grid h-16 w-16 place-items-center rounded-full border border-line bg-white text-brand shadow-sm" aria-hidden="true"><svg viewBox="0 0 24 24" class="h-7 w-7 fill-none stroke-current" stroke-width="1.7"><path d="M7 9h10M7 13h6"/><path d="M5 19l2.4-2.4A8 8 0 1 1 20 10a8 8 0 0 1-8 8H5Z"/></svg></span><h3 class="mt-5 font-display text-2xl text-ink">Select a conversation</h3><p class="mx-auto mt-2 max-w-sm text-xs leading-5 text-muted">Open a mentorship to read messages, share files, and review the learning context.</p></div></div>
@@ -211,7 +218,9 @@ function oneOffSessionCard(session, displayStatus = session.status, isMentor = f
 }
 
 export function workspaceEngagementsMarkup(detail, now = new Date(), isMentor = false, isStaff = false) {
-  const monthly = detail.hasMonthly ? `<section class="rounded-xl border border-line bg-cream p-4"><div class="flex items-center justify-between gap-2"><h4 class="text-xs font-semibold text-ink">${esc(detail.packageName || 'Monthly mentorship')}</h4><span class="status-badge status-success"><span aria-hidden="true">●</span>${esc(detail.subscriptionStatus)}</span></div><dl class="mt-3 space-y-2 text-[11px]"><div><dt class="text-muted">Current period</dt><dd class="mt-0.5 font-semibold text-ink">${esc(dateLabel(detail.currentPeriodStart))} – ${esc(dateLabel(detail.currentPeriodEnd))}</dd></div><div class="grid grid-cols-2 gap-3"><div><dt class="text-muted">Sessions</dt><dd class="mt-0.5 font-semibold text-ink">${esc(detail.callsPerPeriod ?? '—')} / month</dd></div><div><dt class="text-muted">Length</dt><dd class="mt-0.5 font-semibold text-ink">${esc(detail.sessionDurationMinutes ?? '—')} min</dd></div></div></dl></section>` : '';
+  const monthlyStatus = detail.subscriptionStatus === 'DISPUTED' ? 'On hold' : detail.subscriptionStatus;
+  const monthlyStatusStyle = detail.subscriptionStatus === 'DISPUTED' ? 'status-neutral' : 'status-success';
+  const monthly = detail.hasMonthly ? `<section class="rounded-xl border border-line bg-cream p-4"><div class="flex items-center justify-between gap-2"><h4 class="text-xs font-semibold text-ink">${esc(detail.packageName || 'Monthly mentorship')}</h4><span class="status-badge ${monthlyStatusStyle}"><span aria-hidden="true">●</span>${esc(monthlyStatus)}</span></div><dl class="mt-3 space-y-2 text-[11px]"><div><dt class="text-muted">Current period</dt><dd class="mt-0.5 font-semibold text-ink">${esc(dateLabel(detail.currentPeriodStart))} – ${esc(dateLabel(detail.currentPeriodEnd))}</dd></div><div class="grid grid-cols-2 gap-3"><div><dt class="text-muted">Sessions</dt><dd class="mt-0.5 font-semibold text-ink">${esc(detail.callsPerPeriod ?? '—')} / month</dd></div><div><dt class="text-muted">Length</dt><dd class="mt-0.5 font-semibold text-ink">${esc(detail.sessionDurationMinutes ?? '—')} min</dd></div></div></dl></section>` : '';
   const nowTime = now instanceof Date ? now.getTime() : new Date(now).getTime();
   const sessions = detail.oneOffSessions || [];
   const upcoming = sessions.filter(session => session.status === 'CONFIRMED' && new Date(session.endAt).getTime() > nowTime);
@@ -233,7 +242,7 @@ export function workspaceConversationMarkup(detail, workspaces, isMentor, status
   const detailWorkspaceId = workspaceIdOf(detail);
   const selectedSummary = workspaces.find(item => workspaceIdOf(item) === detailWorkspaceId);
   const initialUnreadCount = Number(selectedSummary?.unreadCount || 0);
-  const isMediation = Boolean(detail.isMediation || selectedSummary?.isMediation || detail.subscriptionStatus === 'DISPUTED');
+  const isMediation = Boolean(detail.isMediation || selectedSummary?.isMediation);
   const ticketCode = detail.disputeTicketCode || selectedSummary?.disputeTicketCode || '';
   const staffModeratorName = detail.assignedStaffName || selectedSummary?.assignedStaffName || 'Nhân viên hòa giải';
 
@@ -278,19 +287,24 @@ export function workspaceConversationMarkup(detail, workspaces, isMentor, status
         <span class="ml-1 text-ink">Operational Staff monitors this dispute mediation room and does not send direct chat messages. Mentee and Mentor can communicate and exchange messages below.</span>
       </div>`
     : `<form id="workspace-message-form" class="border-t border-line bg-white p-4" novalidate>
+        <div class="mb-2 flex flex-wrap items-center gap-2">
+          <label class="sr-only" for="workspace-message-type">Message type</label>
+          <select id="workspace-message-type" class="h-8 rounded-lg border border-line bg-white px-2 text-[11px] font-semibold text-ink focus:border-brand focus:outline-none"><option value="TEXT">Text message</option><option value="CODE">Code snippet</option></select>
+          <label id="workspace-code-language-wrap" class="hidden"><span class="sr-only">Code language</span><select id="workspace-code-language" class="h-8 rounded-lg border border-line bg-white px-2 text-[11px] text-ink focus:border-brand focus:outline-none"><option value="">Language</option><option>Java</option><option>JavaScript</option><option>TypeScript</option><option>Python</option><option>C#</option><option>C++</option><option>SQL</option><option>HTML</option><option>CSS</option><option>Other</option></select></label>
+        </div>
         <label class="sr-only" for="workspace-message-body">Message</label>
-        <div class="relative rounded-xl border border-line bg-cream focus-within:border-brand focus-within:bg-white"><textarea id="workspace-message-body" rows="1" maxlength="10000" required class="no-scrollbar block min-h-11 w-full resize-none border-0 bg-transparent px-4 py-3 pr-14 text-sm text-ink focus:outline-none" style="overflow-y: hidden; resize: none; scrollbar-width: none; -ms-overflow-style: none;" placeholder="${esc(placeholderText)}"></textarea><button id="workspace-send" type="submit" class="absolute bottom-1.5 right-1.5 grid h-8 w-8 place-items-center rounded-full bg-brand text-white transition hover:bg-brand-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" aria-label="Send message" title="Send message"><svg viewBox="0 0 24 24" class="h-4 w-4 fill-none stroke-current" stroke-width="2" aria-hidden="true"><path d="m21 3-7.2 18-3.6-7.2L3 10.2 21 3Z"/><path d="M10.2 13.8 21 3"/></svg></button></div>
+        <div id="workspace-message-editor" class="relative rounded-xl border border-line bg-cream focus-within:border-brand focus-within:bg-white"><textarea id="workspace-message-body" rows="1" maxlength="10000" required class="no-scrollbar block min-h-11 w-full resize-none border-0 bg-transparent px-4 py-3 pr-14 text-sm text-ink focus:outline-none" style="overflow-y: hidden; resize: none; scrollbar-width: none; -ms-overflow-style: none;" placeholder="${esc(placeholderText)}"></textarea><button id="workspace-send" type="submit" class="absolute bottom-1.5 right-1.5 grid h-8 w-8 place-items-center rounded-full bg-brand text-white transition hover:bg-brand-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" aria-label="Send message" title="Send message"><svg viewBox="0 0 24 24" class="h-4 w-4 fill-none stroke-current" stroke-width="2" aria-hidden="true"><path d="m21 3-7.2 18-3.6-7.2L3 10.2 21 3Z"/><path d="M10.2 13.8 21 3"/></svg></button></div>
         <input id="workspace-file-input" type="file" class="sr-only" accept=".pdf,.zip,.txt,.csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.gif,.webp">
-        <div class="mt-2 flex flex-wrap items-center gap-3"><label for="workspace-file-input" class="btn btn-outline btn-sm cursor-pointer">Attach file</label><p id="workspace-send-status" class="truncate text-[10px] text-muted" role="status">Enter to send · Shift + Enter for a new line · Files up to 10 MB.</p></div>
+        <div class="mt-2 flex flex-wrap items-center gap-3"><label for="workspace-file-input" class="btn btn-outline btn-sm cursor-pointer">Attach image or file</label><p id="workspace-send-status" class="truncate text-[10px] text-muted" role="status">Text supports emoji and links · Enter to send · Shift + Enter for a new line · Files up to 10 MB.</p></div>
       </form>`;
 
   return `<section aria-labelledby="conversation-heading"><button type="button" class="mb-4 inline-flex items-center gap-2 text-xs font-semibold text-brand hover:underline lg:hidden" data-workspace-back>← All mentorships</button>
-    <div class="grid min-h-[680px] overflow-hidden rounded-2xl border border-line bg-white shadow-sm lg:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)_260px]" data-workspace-messenger>
+    <div class="grid h-[680px] overflow-hidden rounded-2xl border border-line bg-white shadow-sm lg:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)_260px]" data-workspace-messenger>
       <div class="hidden lg:block">${workspaceListPanelMarkup(workspaces, isMentor, detailWorkspaceId, status, query, isStaff)}</div>
-      <section class="flex min-w-0 flex-col bg-cream" aria-labelledby="conversation-heading">
+      <section class="flex min-h-0 min-w-0 flex-col bg-cream" aria-labelledby="conversation-heading">
         <header class="flex items-center gap-3 border-b border-line bg-white px-5 py-4"><span class="grid h-11 w-11 shrink-0 place-items-center rounded-full ${isMediation ? 'bg-amber-100 text-amber-800' : 'bg-lilac text-brand'} text-xs font-semibold">${isMediation ? '⚖' : esc(partnerInitials(detail.partnerName))}</span><div class="min-w-0 flex-1"><h2 id="conversation-heading" class="truncate text-sm font-semibold text-ink">${esc(detail.partnerName)}</h2><p class="mt-1 truncate text-[10px] text-muted">${subtitle}</p></div>${badgeMarkup}<div class="relative"><button id="workspace-conversation-actions" type="button" class="grid h-10 w-10 place-items-center rounded-full border border-line bg-white text-muted transition hover:border-brand hover:bg-lilac hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" aria-label="Conversation actions" aria-haspopup="menu" aria-expanded="false" aria-controls="workspace-conversation-menu"><svg viewBox="0 0 24 24" class="h-5 w-5 fill-current" aria-hidden="true"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button><div id="workspace-conversation-menu" class="absolute right-0 top-12 z-20 min-w-48 overflow-hidden rounded-xl border border-line bg-white p-1.5 shadow-lg" role="menu" hidden><button type="button" class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-medium text-ink hover:bg-lilac hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" role="menuitem" data-open-message-search><svg viewBox="0 0 24 24" class="h-4 w-4 fill-none stroke-current" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/></svg>Search messages</button></div></div></header>
         <div id="workspace-search-panel" class="border-b border-line bg-white px-5 py-3" hidden><div class="flex items-center gap-2"><label class="relative min-w-0 flex-1"><span class="sr-only">Search loaded messages</span><svg viewBox="0 0 24 24" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 fill-none stroke-muted" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/></svg><input id="workspace-message-search" type="search" class="h-10 w-full rounded-lg border border-line bg-cream pl-9 pr-3 text-xs text-ink focus:border-brand focus:bg-white focus:outline-none" placeholder="Search loaded messages" aria-controls="workspace-messages"></label><button type="button" class="grid h-10 w-10 shrink-0 place-items-center rounded-full text-lg text-muted hover:bg-lilac hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" data-close-message-search aria-label="Close message search">×</button></div><p id="workspace-search-status" class="mt-2 text-right text-[10px] text-muted" aria-live="polite" hidden></p></div>
-        <div id="workspace-messages" class="flex-1 space-y-4 overflow-y-auto p-5" aria-live="polite">${mediationBanner}${workspaceMessages(detail.messages, detailWorkspaceId, { unreadCount: initialUnreadCount })}</div>
+        <div id="workspace-messages" class="min-h-0 flex-1 space-y-4 overflow-y-auto p-5" aria-live="polite">${mediationBanner}${workspaceMessages(detail.messages, detailWorkspaceId, { unreadCount: initialUnreadCount })}</div>
         ${inputFormMarkup}
       </section>
       <aside class="hidden overflow-y-auto border-l border-line bg-white p-5 xl:block" aria-label="Mentorship details"><p class="eyebrow">ENGAGEMENTS</p><div class="mt-4 space-y-4" data-engagements-container>${workspaceEngagementsMarkup(detail, new Date(), isMentor, isStaff)}</div>${detail.learningGoals ? `<div class="mt-5 border-t border-line pt-5"><h3 class="text-xs font-semibold text-ink">Learning goals</h3><p class="mt-2 whitespace-pre-wrap text-[11px] leading-5 text-muted">${esc(detail.learningGoals)}</p></div>` : ''}</aside>
@@ -439,6 +453,10 @@ export async function mountMentorshipWorkspace(root) {
     const form = container.querySelector('#workspace-message-form');
     const body = container.querySelector('#workspace-message-body');
     const fileInput = container.querySelector('#workspace-file-input');
+    const messageType = container.querySelector('#workspace-message-type');
+    const codeLanguage = container.querySelector('#workspace-code-language');
+    const codeLanguageWrap = container.querySelector('#workspace-code-language-wrap');
+    const editor = container.querySelector('#workspace-message-editor');
     const status = container.querySelector('#workspace-send-status');
     const send = container.querySelector('#workspace-send');
     const search = container.querySelector('#workspace-message-search');
@@ -447,6 +465,18 @@ export async function mountMentorshipWorkspace(root) {
     const actionsMenu = container.querySelector('#workspace-conversation-menu');
     const openSearchButton = container.querySelector('[data-open-message-search]');
     const closeSearchButton = container.querySelector('[data-close-message-search]');
+    const updateComposer = () => {
+      const code = messageType?.value === 'CODE';
+      codeLanguageWrap?.classList.toggle('hidden', !code);
+      editor?.classList.toggle('bg-ink', code);
+      body?.classList.toggle('font-mono', code);
+      body?.classList.toggle('text-white', code);
+      if (body) body.placeholder = code
+        ? 'Paste a code snippet…'
+        : 'Write a message…';
+    };
+    messageType?.addEventListener('change', updateComposer);
+    updateComposer();
     search?.addEventListener('input', () => renderMessages(currentDetail));
     if (body) {
       body.addEventListener('input', () => {
@@ -530,7 +560,8 @@ export async function mountMentorshipWorkspace(root) {
       status.textContent = 'Sending…';
       try {
         const created = await mentorshipWorkspaceService.send(workspaceIdOf(detail), {
-          clientMessageKey: messageKey(), messageType: 'TEXT', body: messageBody, codeLanguage: null,
+          clientMessageKey: messageKey(), messageType: messageType?.value || 'TEXT', body: messageBody,
+          codeLanguage: messageType?.value === 'CODE' ? (codeLanguage?.value || null) : null,
         });
         body.value = '';
         currentDetail = { ...currentDetail, messages: [...(currentDetail.messages || []), created] };

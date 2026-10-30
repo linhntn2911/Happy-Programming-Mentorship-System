@@ -182,7 +182,7 @@ public class MentorshipWorkspaceService {
         long userId = user.id();
         boolean staff = isStaffOrAdmin(user);
         if (staff) {
-            if (row.disputeStatus() == null && !"DISPUTED".equalsIgnoreCase(row.subscriptionStatus())) {
+            if (!"MEDIATION".equalsIgnoreCase(row.conversationType())) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                         "Staff is only authorized to access conversations involved in dispute mediation.");
             }
@@ -211,7 +211,7 @@ public class MentorshipWorkspaceService {
         Long partnerId = mentor ? row.menteeId() : row.mentorId();
         long unread = staff && !mentor && !mentee ? 0L : repository.countUnread(row.conversationId(), userId);
 
-        boolean isMediation = "IN_MEDIATION".equalsIgnoreCase(row.disputeStatus()) || "DISPUTED".equalsIgnoreCase(row.subscriptionStatus());
+        boolean isMediation = "MEDIATION".equalsIgnoreCase(row.conversationType());
 
         return new MentorshipWorkspaceSummary(
                 row.conversationId(), row.conversationId(), row.subscriptionId(), row.requestId(),
@@ -233,7 +233,7 @@ public class MentorshipWorkspaceService {
         String partnerRole = mentor ? "MENTOR" : (mentee ? "MENTEE" : "STAFF");
         Long partnerId = mentor ? row.menteeId() : row.mentorId();
 
-        boolean isMediation = "IN_MEDIATION".equalsIgnoreCase(row.disputeStatus()) || "DISPUTED".equalsIgnoreCase(row.subscriptionStatus());
+        boolean isMediation = "MEDIATION".equalsIgnoreCase(row.conversationType());
 
         return new MentorshipWorkspaceDetail(
                 row.conversationId(), row.conversationId(), row.subscriptionId(), row.requestId(),

@@ -67,12 +67,15 @@ public class MentorshipWorkspaceController {
             @PathVariable long conversationId,
             @PathVariable long messageId) {
         var file = service.download(conversationId, messageId);
+        MediaType contentType = MediaType.parseMediaType(file.mimeType());
+        ContentDisposition disposition = file.mimeType().toLowerCase().startsWith("image/")
+                ? ContentDisposition.inline().filename(file.fileName(), StandardCharsets.UTF_8).build()
+                : ContentDisposition.attachment().filename(file.fileName(), StandardCharsets.UTF_8).build();
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .header("X-Content-Type-Options", "nosniff")
-                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
-                        .filename(file.fileName(), StandardCharsets.UTF_8).build().toString())
-                .contentType(MediaType.parseMediaType(file.mimeType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .contentType(contentType)
                 .contentLength(file.sizeBytes())
                 .body(file.content());
     }

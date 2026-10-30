@@ -22,6 +22,23 @@ test('workspace file messages render an authorized download link', () => {
   assert.match(markup, /2\.0 KB/);
 });
 
+test('workspace renders shared images inline and offers a code composer', () => {
+  const imageMarkup = workspaceMessages([
+    { id: 10, senderName: 'Mentor', messageType: 'FILE', fileName: 'diagram.png', fileMimeType: 'image/png', fileSizeBytes: 2048, mine: false },
+  ], 30);
+  assert.match(imageMarkup, /<img/);
+  assert.match(imageMarkup, /diagram\.png/);
+
+  const markup = workspaceConversationMarkup({
+    workspaceId: 40, conversationId: 40, partnerName: 'A Mentor', partnerRole: 'MENTOR',
+    packageName: 'Lite', subscriptionStatus: 'ACTIVE', hasMonthly: true, messages: [], oneOffSessions: [],
+  }, [], false);
+  assert.match(markup, /id="workspace-message-type"/);
+  assert.match(markup, />Code snippet</);
+  assert.match(markup, /id="workspace-code-language"/);
+  assert.match(markup, /Attach image or file/);
+});
+
 test('workspace messages filter loaded history and mark the unread boundary', () => {
   const messages = [
     { id: 1, senderName: 'Mentee', messageType: 'TEXT', body: 'Old Java question', mine: false },

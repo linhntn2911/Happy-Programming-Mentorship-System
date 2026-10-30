@@ -14,7 +14,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class MentorshipWorkspaceRepository {
     private static final String WORKSPACE_SELECT = """
-            SELECT c.id AS conversation_id,
+            SELECT c.id AS conversation_id, c.conversation_type,
                    monthly.subscription_id, monthly.request_id,
                    c.mentor_id, mentor.full_name AS mentor_name,
                    c.mentee_id, mentee.full_name AS mentee_name,
@@ -46,8 +46,11 @@ public class MentorshipWorkspaceRepository {
                 FROM dbo.subscriptions s
                 JOIN dbo.mentorship_requests r ON r.id = s.request_id
                 WHERE s.mentor_id = c.mentor_id AND s.mentee_id = c.mentee_id
-                  AND s.status IN ('TRIALING','ACTIVE','DISPUTED')
-                ORDER BY s.activated_at DESC, s.id DESC
+                /* A conversation remains available after a paid monthly period ends.
+                   Prefer a live subscription when one exists; otherwise show the latest
+                   historical plan as its context. */
+                ORDER BY CASE WHEN s.status IN ('TRIALING','ACTIVE','PAST_DUE','DISPUTED') THEN 0 ELSE 1 END,
+                         s.activated_at DESC, s.id DESC
             ) monthly
             OUTER APPLY (
                 SELECT COUNT_BIG(*) AS session_count,
@@ -64,12 +67,12 @@ public class MentorshipWorkspaceRepository {
                        COALESCE(staff.full_name, N'Operational Staff') AS staff_name
                 FROM dbo.disputes d
                 LEFT JOIN dbo.users staff ON staff.id = d.assigned_staff_id
-                WHERE (d.complainant_id = c.mentee_id AND d.respondent_id = c.mentor_id)
-                   OR (d.subscription_id = monthly.subscription_id)
+                WHERE d.id = c.dispute_id
                 ORDER BY d.id DESC
             ) disp
+            /* The paid service provisions this conversation.  Do not hide its learning
+               history merely because a monthly plan ended or all one-off sessions finished. */
             WHERE c.inquiry_status = 'APPROVED'
-              AND (monthly.subscription_id IS NOT NULL OR sessions.session_count > 0)
             """;
     private static final String MESSAGE_SELECT = """
             SELECT m.id, m.sender_id, sender.full_name AS sender_name, sender.role_code AS sender_role,
@@ -89,17 +92,17 @@ public class MentorshipWorkspaceRepository {
     }
 
     public List<WorkspaceRow> findForUser(long userId) {
-        return jdbc.query(WORKSPACE_SELECT + " AND (c.mentor_id = ? OR c.mentee_id = ?) ORDER BY COALESCE(sessions.next_session_at, monthly.current_period_start) DESC, c.id DESC",
+        return jdbc.query(WORKSPACE_SELECT + " AND (c.mentor_id = ? OR c.mentee_id = ?) ORDER BY COALESCE(c.last_message_at, sessions.next_session_at, monthly.current_period_start, c.created_at) DESC, c.id DESC",
                 MentorshipWorkspaceRepository::mapWorkspace, userId, userId);
     }
 
     public List<WorkspaceRow> findAllWorkspaces() {
-        return jdbc.query(WORKSPACE_SELECT + " ORDER BY COALESCE(sessions.next_session_at, monthly.current_period_start) DESC, c.id DESC",
+        return jdbc.query(WORKSPACE_SELECT + " ORDER BY COALESCE(c.last_message_at, sessions.next_session_at, monthly.current_period_start, c.created_at) DESC, c.id DESC",
                 MentorshipWorkspaceRepository::mapWorkspace);
     }
 
     public List<WorkspaceRow> findDisputedWorkspaces() {
-        return jdbc.query(WORKSPACE_SELECT + " AND disp.dispute_status IS NOT NULL ORDER BY COALESCE(sessions.next_session_at, monthly.current_period_start) DESC, c.id DESC",
+        return jdbc.query(WORKSPACE_SELECT + " AND c.conversation_type = 'MEDIATION' ORDER BY COALESCE(c.last_message_at, sessions.next_session_at, monthly.current_period_start, c.created_at) DESC, c.id DESC",
                 MentorshipWorkspaceRepository::mapWorkspace);
     }
 
@@ -308,7 +311,7 @@ public class MentorshipWorkspaceRepository {
                 instant(rs.getTimestamp("current_period_end")),
                 calls == null ? null : calls.intValue(),
                 duration == null ? null : duration.intValue(),
-                rs.getString("learning_goals"), rs.getString("inquiry_status"),
+                rs.getString("learning_goals"), rs.getString("inquiry_status"), rs.getString("conversation_type"),
                 rs.getBoolean("has_monthly"), rs.getInt("one_off_session_count"),
                 rs.getInt("upcoming_session_count"), instant(rs.getTimestamp("next_session_at")),
                 dispStatus, ticketCode, staffName);
@@ -329,7 +332,7 @@ public class MentorshipWorkspaceRepository {
             String packageName, String subscriptionStatus,
             Instant currentPeriodStart, Instant currentPeriodEnd,
             Integer callsPerPeriod, Integer sessionDurationMinutes,
-            String learningGoals, String conversationStatus,
+            String learningGoals, String conversationStatus, String conversationType,
             boolean hasMonthly, int oneOffSessionCount, int upcomingSessionCount,
             Instant nextSessionAt,
             String disputeStatus, String disputeTicketCode, String assignedStaffName
@@ -346,7 +349,7 @@ public class MentorshipWorkspaceRepository {
         ) {
             this(conversationId, subscriptionId, requestId, mentorId, mentorName, menteeId, menteeName,
                     packageName, subscriptionStatus, currentPeriodStart, currentPeriodEnd,
-                    callsPerPeriod, sessionDurationMinutes, learningGoals, conversationStatus,
+                    callsPerPeriod, sessionDurationMinutes, learningGoals, conversationStatus, "MENTORSHIP",
                     hasMonthly, oneOffSessionCount, upcomingSessionCount, nextSessionAt,
                     null, null, null);
         }

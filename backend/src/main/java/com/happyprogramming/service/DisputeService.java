@@ -545,8 +545,8 @@ public class DisputeService {
                 long mentorId = ((Number) disp.get("respondent_id")).longValue();
 
                 List<Long> convRows = jdbc.queryForList("""
-                        SELECT id FROM dbo.conversations WHERE mentor_id = ? AND mentee_id = ?
-                        """, Long.class, mentorId, menteeId);
+                        SELECT id FROM dbo.conversations WHERE dispute_id = ? AND conversation_type = 'MEDIATION'
+                        """, Long.class, disputeId);
                 Long convId = null;
                 if (!convRows.isEmpty()) {
                     convId = convRows.get(0);
@@ -554,11 +554,12 @@ public class DisputeService {
                     KeyHolder kh = new GeneratedKeyHolder();
                     jdbc.update(con -> {
                         PreparedStatement ps = con.prepareStatement("""
-                                INSERT INTO dbo.conversations (mentor_id, mentee_id, inquiry_status, created_at, updated_at)
-                                VALUES (?, ?, 'APPROVED', SYSUTCDATETIME(), SYSUTCDATETIME())
+                                INSERT INTO dbo.conversations (mentor_id, mentee_id, conversation_type, dispute_id, inquiry_status, created_at, updated_at)
+                                VALUES (?, ?, 'MEDIATION', ?, 'APPROVED', SYSUTCDATETIME(), SYSUTCDATETIME())
                                 """, new String[]{"id"});
                         ps.setLong(1, mentorId);
                         ps.setLong(2, menteeId);
+                        ps.setLong(3, disputeId);
                         return ps;
                     }, kh);
                     convId = kh.getKey() != null ? kh.getKey().longValue() : null;
