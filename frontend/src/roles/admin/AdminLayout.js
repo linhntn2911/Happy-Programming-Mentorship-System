@@ -5,12 +5,23 @@ const paths = {
   users: '<circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3m1-17a3 3 0 0 1 0 6m3 11v-3a6 6 0 0 0-3-5"/>',
   staff: '<path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z"/><path d="m8 12 3 3 5-6"/>',
   revenue: '<path d="M4 3v18h17M8 16l4-5 4 2 5-7"/>',
+  payouts: '<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>',
+  refunds: '<path d="M3 10h10a5 5 0 0 1 5 5v2M3 10l6 6M3 10l6-6"/>',
   settings: '<path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="16" cy="17" r="3"/>',
   audit: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 7h6M9 12h6M9 17h4"/>',
   arrow: '<path d="M19 12H5m5-5-5 5 5 5"/>',
 };
-export const adminSections = { overview: 'Overview', users: 'User management', staff: 'Staff & permissions', revenue: 'Revenue reports', payouts: 'Mentor payouts', settings: 'System settings', audit: 'Audit logs' };
-export function adminIcon(name) { return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${paths[name] || paths.overview}</svg>`; }
+export const adminSections = {
+  overview: 'Overview',
+  users: 'User management',
+  staff: 'Staff & permissions',
+  revenue: 'Revenue reports',
+  payouts: 'Mentor payouts',
+  refunds: 'Mentee refunds',
+  settings: 'System settings',
+  audit: 'Audit logs'
+};
+export function adminIcon(name) { return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths[name] || paths.overview}</svg>`; }
 
 export function AdminLayout(section, content, { name = 'Administrator', demo = false } = {}) {
   const initials = name.split(/\s+/).map(p => p[0]).slice(0, 2).join('');

@@ -10,6 +10,8 @@ export const adminService = {
   workspace: () => apiClient('/api/admin/workspace'),
   payoutHistory: () => apiClient('/api/admin/payout-history'),
   payoutRequests: () => apiClient('/api/admin/payout-requests'),
+  refundHistory: () => apiClient('/api/admin/refund-history'),
+  refundRequests: () => apiClient('/api/admin/refund-requests'),
   login: body => authService.login({ ...body, role: 'ADMIN' }),
   logout: () => authService.logout(),
   status: (id, change) => mutate(`/users/${id}/status`, change, 'PATCH'),
@@ -18,4 +20,5 @@ export const adminService = {
   operations: () => apiClient('/api/admin/operations'),
   updateOperations: change => mutate('/operations', change, 'PUT'),
   decidePayout: (id, change) => mutate(`/payout-requests/${id}`, change, 'PATCH'),
+  decideRefund: (id, change) => mutate(`/refund-requests/${id}`, change, 'PATCH'),
 };

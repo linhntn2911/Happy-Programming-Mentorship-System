@@ -1,6 +1,7 @@
 package com.happyprogramming.service;
 
 import com.happyprogramming.dto.AuthenticatedUser;
+import com.happyprogramming.dto.RefundDecisionRequest;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -64,6 +65,24 @@ class DisputeServiceTest {
         authenticate("MENTOR");
         ResponseStatusException error = assertThrows(ResponseStatusException.class, () -> service.targetByRequestId(99L));
         assertEquals(403, error.getStatusCode().value());
+    }
+
+    @Test
+    void adminDecideRefund_refusesNonAdminUser() {
+        var staffUser = new AuthenticatedUser(2L, "Staff", "staff@example.test", "STAFF");
+        var req = new RefundDecisionRequest("PAID", "REF123", null, null, null, null);
+        ResponseStatusException error = assertThrows(ResponseStatusException.class, () ->
+                service.adminDecideRefund(1L, req, staffUser, "127.0.0.1"));
+        assertEquals(403, error.getStatusCode().value());
+    }
+
+    @Test
+    void adminDecideRefund_requiresTransferReferenceForPaid() {
+        var adminUser = new AuthenticatedUser(1L, "Admin", "admin@example.test", "ADMIN");
+        var req = new RefundDecisionRequest("PAID", "   ", null, null, null, null);
+        ResponseStatusException error = assertThrows(ResponseStatusException.class, () ->
+                service.adminDecideRefund(1L, req, adminUser, "127.0.0.1"));
+        assertEquals(400, error.getStatusCode().value());
     }
 
     private void authenticate(String role) {
