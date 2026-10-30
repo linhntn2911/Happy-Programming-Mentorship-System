@@ -1129,10 +1129,14 @@ export async function mountStaffReports(root) {
         <p class="eyebrow !pr-8">DISPUTE MEDIATION · TICKET #${e(detail.ticketCode)}</p>
         <h2 id="report-dialog-title" class="mt-2 font-display text-2xl text-ink">${e(detail.title || 'Mentorship Complaint')}</h2>
         
-        <div class="flex items-center gap-2 mt-1">
+        <div class="flex items-center gap-2 mt-1 flex-wrap">
           <span class="badge !text-[10px]">${e(detail.targetType)}</span>
           <span class="badge !text-[10px]">${e(detail.category ? detail.category.replaceAll('_', ' ') : 'GENERAL')}</span>
           <span class="text-xs text-muted">Amount: <strong class="text-ink">${money(detail.disputedAmount)}</strong></span>
+          <a href="#/workspace" class="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-lilac/70 text-brand hover:bg-lilac transition">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            Open Messages
+          </a>
         </div>
 
         <div class="mt-4 grid grid-cols-2 gap-4 p-3 rounded-xl bg-cream border border-line text-xs">

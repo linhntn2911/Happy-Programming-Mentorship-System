@@ -29,7 +29,8 @@ public class MentorshipWorkspaceRepository {
                    CASE WHEN monthly.subscription_id IS NULL THEN CAST(0 AS bit) ELSE CAST(1 AS bit) END AS has_monthly,
                    COALESCE(sessions.session_count, 0) AS one_off_session_count,
                    COALESCE(sessions.upcoming_count, 0) AS upcoming_session_count,
-                   sessions.next_session_at
+                   sessions.next_session_at,
+                   disp.dispute_status, disp.ticket_code, disp.staff_name
             FROM dbo.conversations c
             JOIN dbo.users mentor ON mentor.id = c.mentor_id
             JOIN dbo.users mentee ON mentee.id = c.mentee_id
@@ -57,11 +58,21 @@ public class MentorshipWorkspaceRepository {
                   AND b.service_type = 'ONE_OFF'
                   AND b.status IN ('CONFIRMED','COMPLETED','NO_SHOW_REVIEW','NO_SHOW','DISPUTED')
             ) sessions
+            OUTER APPLY (
+                SELECT TOP (1)
+                       d.status AS dispute_status, d.ticket_code,
+                       COALESCE(staff.full_name, N'Operational Staff') AS staff_name
+                FROM dbo.disputes d
+                LEFT JOIN dbo.users staff ON staff.id = d.assigned_staff_id
+                WHERE (d.complainant_id = c.mentee_id AND d.respondent_id = c.mentor_id)
+                   OR (d.subscription_id = monthly.subscription_id)
+                ORDER BY d.id DESC
+            ) disp
             WHERE c.inquiry_status = 'APPROVED'
               AND (monthly.subscription_id IS NOT NULL OR sessions.session_count > 0)
             """;
     private static final String MESSAGE_SELECT = """
-            SELECT m.id, m.sender_id, sender.full_name AS sender_name,
+            SELECT m.id, m.sender_id, sender.full_name AS sender_name, sender.role_code AS sender_role,
                    m.message_type, m.body, m.code_language, m.sent_at, m.client_message_key,
                    f.id AS file_id, f.original_name AS file_name, f.mime_type AS file_mime_type,
                    f.size_bytes AS file_size_bytes
@@ -80,6 +91,16 @@ public class MentorshipWorkspaceRepository {
     public List<WorkspaceRow> findForUser(long userId) {
         return jdbc.query(WORKSPACE_SELECT + " AND (c.mentor_id = ? OR c.mentee_id = ?) ORDER BY COALESCE(sessions.next_session_at, monthly.current_period_start) DESC, c.id DESC",
                 MentorshipWorkspaceRepository::mapWorkspace, userId, userId);
+    }
+
+    public List<WorkspaceRow> findAllWorkspaces() {
+        return jdbc.query(WORKSPACE_SELECT + " ORDER BY COALESCE(sessions.next_session_at, monthly.current_period_start) DESC, c.id DESC",
+                MentorshipWorkspaceRepository::mapWorkspace);
+    }
+
+    public List<WorkspaceRow> findDisputedWorkspaces() {
+        return jdbc.query(WORKSPACE_SELECT + " AND disp.dispute_status IS NOT NULL ORDER BY COALESCE(sessions.next_session_at, monthly.current_period_start) DESC, c.id DESC",
+                MentorshipWorkspaceRepository::mapWorkspace);
     }
 
     public Optional<WorkspaceRow> findAccessibleByConversationId(long conversationId) {
@@ -120,7 +141,7 @@ public class MentorshipWorkspaceRepository {
 
     public List<MessageRow> findLatestMessages(long conversationId, int limit) {
         return jdbc.query("""
-                SELECT recent.id, recent.sender_id, sender.full_name AS sender_name,
+                SELECT recent.id, recent.sender_id, sender.full_name AS sender_name, sender.role_code AS sender_role,
                        recent.message_type, recent.body, recent.code_language, recent.sent_at,
                        recent.client_message_key, f.id AS file_id, f.original_name AS file_name,
                        f.mime_type AS file_mime_type, f.size_bytes AS file_size_bytes
@@ -153,6 +174,7 @@ public class MentorshipWorkspaceRepository {
                         rs.getLong("id"),
                         rs.getLong("sender_id"),
                         rs.getString("sender_name"),
+                        rs.getString("sender_role"),
                         rs.getString("message_type"),
                         rs.getString("body"),
                         rs.getString("code_language"),
@@ -267,6 +289,14 @@ public class MentorshipWorkspaceRepository {
         Number duration = (Number) rs.getObject("session_duration_minutes");
         Number subscription = (Number) rs.getObject("subscription_id");
         Number request = (Number) rs.getObject("request_id");
+        String dispStatus = null;
+        String ticketCode = null;
+        String staffName = null;
+        try {
+            dispStatus = rs.getString("dispute_status");
+            ticketCode = rs.getString("ticket_code");
+            staffName = rs.getString("staff_name");
+        } catch (Exception ignored) {}
         return new WorkspaceRow(
                 conversation.longValue(),
                 subscription == null ? null : subscription.longValue(),
@@ -280,7 +310,8 @@ public class MentorshipWorkspaceRepository {
                 duration == null ? null : duration.intValue(),
                 rs.getString("learning_goals"), rs.getString("inquiry_status"),
                 rs.getBoolean("has_monthly"), rs.getInt("one_off_session_count"),
-                rs.getInt("upcoming_session_count"), instant(rs.getTimestamp("next_session_at")));
+                rs.getInt("upcoming_session_count"), instant(rs.getTimestamp("next_session_at")),
+                dispStatus, ticketCode, staffName);
     }
 
     private static Instant instant(Timestamp value) {
@@ -300,8 +331,26 @@ public class MentorshipWorkspaceRepository {
             Integer callsPerPeriod, Integer sessionDurationMinutes,
             String learningGoals, String conversationStatus,
             boolean hasMonthly, int oneOffSessionCount, int upcomingSessionCount,
-            Instant nextSessionAt
-    ) {}
+            Instant nextSessionAt,
+            String disputeStatus, String disputeTicketCode, String assignedStaffName
+    ) {
+        public WorkspaceRow(
+                long conversationId, Long subscriptionId, Long requestId,
+                long mentorId, String mentorName, long menteeId, String menteeName,
+                String packageName, String subscriptionStatus,
+                Instant currentPeriodStart, Instant currentPeriodEnd,
+                Integer callsPerPeriod, Integer sessionDurationMinutes,
+                String learningGoals, String conversationStatus,
+                boolean hasMonthly, int oneOffSessionCount, int upcomingSessionCount,
+                Instant nextSessionAt
+        ) {
+            this(conversationId, subscriptionId, requestId, mentorId, mentorName, menteeId, menteeName,
+                    packageName, subscriptionStatus, currentPeriodStart, currentPeriodEnd,
+                    callsPerPeriod, sessionDurationMinutes, learningGoals, conversationStatus,
+                    hasMonthly, oneOffSessionCount, upcomingSessionCount, nextSessionAt,
+                    null, null, null);
+        }
+    }
 
     public record OneOffBookingRow(
             long id, String bookingCode, long serviceId, String sessionName, String agenda,
@@ -319,10 +368,18 @@ public class MentorshipWorkspaceRepository {
     }
 
     public record MessageRow(
-            long id, long senderId, String senderName, String messageType,
+            long id, long senderId, String senderName, String senderRole, String messageType,
             String body, String codeLanguage, Instant sentAt, String clientMessageKey,
             Long fileId, String fileName, String fileMimeType, Long fileSizeBytes
-    ) {}
+    ) {
+        public MessageRow(
+                long id, long senderId, String senderName, String messageType,
+                String body, String codeLanguage, Instant sentAt, String clientMessageKey,
+                Long fileId, String fileName, String fileMimeType, Long fileSizeBytes
+        ) {
+            this(id, senderId, senderName, null, messageType, body, codeLanguage, sentAt, clientMessageKey, fileId, fileName, fileMimeType, fileSizeBytes);
+        }
+    }
 
     public record FileRow(long id, String fileName, String mimeType, long sizeBytes, byte[] content) {}
 }

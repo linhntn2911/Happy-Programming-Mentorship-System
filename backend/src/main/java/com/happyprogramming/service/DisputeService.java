@@ -43,15 +43,17 @@ public class DisputeService {
 
     private final JdbcTemplate jdbc;
     private final AdminRepository adminRepository;
+    private final EmailService emailService;
 
     public DisputeService(JdbcTemplate jdbc) {
-        this(jdbc, null);
+        this(jdbc, null, null);
     }
 
     @Autowired
-    public DisputeService(JdbcTemplate jdbc, AdminRepository adminRepository) {
+    public DisputeService(JdbcTemplate jdbc, AdminRepository adminRepository, @Autowired(required = false) EmailService emailService) {
         this.jdbc = jdbc;
         this.adminRepository = adminRepository;
+        this.emailService = emailService;
     }
 
     @Transactional(readOnly = true)
@@ -512,6 +514,7 @@ public class DisputeService {
     @Transactional
     public StaffDisputeDtos.StaffDetail staffIntake(long disputeId, AuthenticatedUser staffUser) {
         long staffId = staffUser != null && staffUser.id() != null ? staffUser.id() : 1L;
+        String staffName = staffUser != null && staffUser.name() != null ? staffUser.name() : "Operational Staff";
         int updated = jdbc.update("""
                 UPDATE dbo.disputes
                 SET status = 'IN_MEDIATION', assigned_staff_id = ?,
@@ -528,6 +531,99 @@ public class DisputeService {
             adminRepository.audit(staffId, "DISPUTE_INTAKE", "DISPUTE", String.valueOf(disputeId),
                     Map.of("status", "SUBMITTED"), Map.of("status", "IN_MEDIATION"), "Staff assigned and opened mediation room", "127.0.0.1");
         }
+
+        // Post official mediation notice to 3-party conversation and notify parties
+        try {
+            List<Map<String, Object>> rows = jdbc.queryForList("""
+                    SELECT ticket_code, complainant_id, respondent_id
+                    FROM dbo.disputes WHERE id = ?
+                    """, disputeId);
+            if (!rows.isEmpty()) {
+                Map<String, Object> disp = rows.get(0);
+                String ticketCode = (String) disp.get("ticket_code");
+                long menteeId = ((Number) disp.get("complainant_id")).longValue();
+                long mentorId = ((Number) disp.get("respondent_id")).longValue();
+
+                List<Long> convRows = jdbc.queryForList("""
+                        SELECT id FROM dbo.conversations WHERE mentor_id = ? AND mentee_id = ?
+                        """, Long.class, mentorId, menteeId);
+                Long convId = null;
+                if (!convRows.isEmpty()) {
+                    convId = convRows.get(0);
+                } else {
+                    KeyHolder kh = new GeneratedKeyHolder();
+                    jdbc.update(con -> {
+                        PreparedStatement ps = con.prepareStatement("""
+                                INSERT INTO dbo.conversations (mentor_id, mentee_id, inquiry_status, created_at, updated_at)
+                                VALUES (?, ?, 'APPROVED', SYSUTCDATETIME(), SYSUTCDATETIME())
+                                """, new String[]{"id"});
+                        ps.setLong(1, mentorId);
+                        ps.setLong(2, menteeId);
+                        return ps;
+                    }, kh);
+                    convId = kh.getKey() != null ? kh.getKey().longValue() : null;
+                }
+
+                if (convId != null) {
+                    String noticeText = String.format(
+                            "⚖ [OFFICIAL DISPUTE MEDIATION NOTICE - CASE #%s]\n" +
+                            "This conversation is now in 3-party dispute mediation overseen by Operational Staff (%s).\n" +
+                            "Staff participates in monitoring mode to record facts and assist in fair resolution.\n" +
+                            "Mentee and Mentor may directly exchange messages below to clarify and resolve the matter.",
+                            ticketCode, staffName);
+
+                    String clientKey = "MEDIATION_NOTICE_" + ticketCode + "_" + System.currentTimeMillis();
+                    jdbc.update("""
+                            INSERT INTO dbo.messages (conversation_id, sender_id, client_message_key, message_type, body, moderation_status, sent_at, delivered_at)
+                            VALUES (?, ?, ?, 'TEXT', ?, 'ALLOWED', SYSUTCDATETIME(), SYSUTCDATETIME())
+                            """, convId, staffId, clientKey, noticeText);
+
+                    jdbc.update("""
+                            UPDATE dbo.conversations
+                            SET last_message_at = SYSUTCDATETIME(), updated_at = SYSUTCDATETIME()
+                            WHERE id = ?
+                            """, convId);
+
+                    // Insert in-app notifications for both Mentee and Mentor
+                    try {
+                        jdbc.update("""
+                                INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
+                                VALUES (?, 'Dispute Mediation Opened', ?, 'DISPUTE', '#/workspace', 0, SYSUTCDATETIME())
+                                """, menteeId, "Dispute case #" + ticketCode + " has been opened for 3-party mediation.");
+
+                        jdbc.update("""
+                                INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
+                                VALUES (?, 'Dispute Mediation Opened', ?, 'DISPUTE', '#/workspace', 0, SYSUTCDATETIME())
+                                """, mentorId, "Dispute case #" + ticketCode + " has been opened for 3-party mediation.");
+                    } catch (Exception notifEx) {
+                        // ignore if notification table schema mismatch
+                    }
+                }
+
+                if (emailService != null) {
+                    List<Map<String, Object>> users = jdbc.queryForList("""
+                            SELECT id, email, full_name FROM dbo.users WHERE id IN (?, ?)
+                            """, menteeId, mentorId);
+                    for (Map<String, Object> u : users) {
+                        String email = (String) u.get("email");
+                        String fullName = (String) u.get("full_name");
+                        String subject = "[HappyProgramming] Dispute Mediation Room Opened #" + ticketCode;
+                        String emailBody = "Hello " + fullName + ",\n\n"
+                                + "Dispute case #" + ticketCode + " has been assigned to HappyProgramming Staff (" + staffName + ").\n"
+                                + "A 3-party mediation conversation is now active in your Mentorship Messages workspace.\n"
+                                + "The mediator will monitor the conversation to help both parties achieve a fair resolution.\n\n"
+                                + "Please sign in to HappyProgramming to participate in the discussion.\n\n"
+                                + "Best regards,\nHappyProgramming Support Team";
+                        try {
+                            emailService.sendNotification(email, subject, emailBody);
+                        } catch (Exception ignored) {}
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            // Log notice error without breaking intake transaction
+        }
+
         return staffDisputeDetail(disputeId);
     }
 
