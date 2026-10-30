@@ -8,6 +8,7 @@ import { createDemoService } from './adminDemo.js';
 import { escapeHtml as e } from '../../shared/html.js';
 import { PERMISSIONS, paymentCommission, revenue } from './admin.js';
 import { OverviewView, UsersView, RevenueView, PayoutsView, RefundsView, SettingsView, AuditView } from './AdminViews.js';
+import { TransferQrPanel } from './TransferQrPanel.js';
 
 let service = adminService;
 function enterDemo() {
@@ -126,7 +127,21 @@ export function mountAdmin(root, section = 'overview') {
     root.querySelectorAll('[data-payout-paid]').forEach(button => button.addEventListener('click', () => {
       const id = Number(button.dataset.payoutPaid);
       const payout = payoutRequests.find(item => Number(item.id) === id);
-      openDialog('Record mentor payout', `<p>Net bank transfer: <strong>${e(payout?.netAmount ?? payout?.amount)} VND</strong>. Fee: ${e(payout?.feeAmount ?? 0)} VND.</p><p>Confirm that the bank transfer has already been completed. Enter its transaction reference to post the debit to the wallet ledger.</p><label class="admin-field mt-4">Bank transfer reference<input name="transferReference" maxlength="150" required></label>`, form => {
+      const content = TransferQrPanel({
+        recipientLabel: 'Mentor',
+        recipientName: payout?.mentorName || 'Mentor',
+        recipientEmail: payout?.mentorEmail || '',
+        amount: payout?.amount || 0,
+        feeAmount: payout?.feeAmount || 0,
+        netAmount: payout?.netAmount ?? payout?.amount ?? 0,
+        bankName: payout?.bankName || '',
+        accountNumber: payout?.accountNumber || '',
+        accountName: payout?.accountName || payout?.mentorName || '',
+        referenceCode: `#${payout?.id || id}`,
+        memoPrefix: 'PAYOUT',
+        contextNote: 'Confirm that the bank transfer has already been completed. Enter its transaction reference to post the debit to the wallet ledger.'
+      });
+      openDialog('Record mentor payout', content, form => {
         const transferReference = form.elements.transferReference.value.trim();
         if (!transferReference) throw new Error('Enter the bank transfer reference.');
         return service.decidePayout(id, { decision: 'PAID', transferReference });
@@ -139,10 +154,30 @@ export function mountAdmin(root, section = 'overview') {
     root.querySelectorAll('[data-refund-paid]').forEach(button => button.addEventListener('click', () => {
       const id = Number(button.dataset.refundPaid);
       const refund = refundRequests.find(item => Number(item.id) === id);
-      openDialog('Process mentee refund', `<p>Mentee: <strong>${e(refund?.menteeName || 'Mentee')}</strong></p><p>Refund amount: <strong>${Number(refund?.refundAmount || 0).toLocaleString()} VND</strong></p><p class="text-sm text-muted mt-2">Bank: <strong>${e(refund?.bankName || 'N/A')}</strong> Â· Account: <strong>${e(refund?.accountNumber || 'N/A')}</strong> (${e(refund?.accountName || 'N/A')})</p><p class="mt-3">Confirm that the bank transfer has been made to the mentee. Enter the external bank transfer reference to complete the refund and record the escrow release debit.</p><label class="admin-field mt-4">Bank transfer reference<input name="transferReference" maxlength="100" required placeholder="e.g. MBVCB.123456789"></label>`, form => {
+      const content = TransferQrPanel({
+        recipientLabel: 'Mentee',
+        recipientName: refund?.complainantName || refund?.menteeName || 'Mentee',
+        recipientEmail: refund?.complainantEmail || '',
+        amount: refund?.refundAmount || 0,
+        bankName: refund?.bankName || '',
+        accountNumber: refund?.accountNumber || '',
+        accountName: refund?.accountName || refund?.complainantName || refund?.menteeName || '',
+        referenceCode: refund?.ticketCode || String(id),
+        memoPrefix: 'REFUND',
+        contextNote: 'Confirm that the bank transfer has been made to the mentee. Enter the external bank transfer reference to complete the refund and record the escrow release debit.',
+        showReceiptUpload: true,
+        transferReferenceMaxLength: 100
+      });
+      openDialog('Process mentee refund', content, form => {
         const transferReference = form.elements.transferReference.value.trim();
         if (!transferReference) throw new Error('Enter the bank transfer reference.');
-        return service.decideRefund(id, { decision: 'PAID', transferReference });
+        return service.decideRefund(id, {
+          decision: 'PAID',
+          transferReference,
+          receiptFileName: form.__receiptFileName || null,
+          receiptBase64: form.__receiptBase64 || null,
+          receiptMimeType: form.__receiptMimeType || null
+        });
       });
     }));
     root.querySelectorAll('[data-refund-reject]').forEach(button => button.addEventListener('click', () => {
@@ -187,6 +222,65 @@ export function mountAdmin(root, section = 'overview') {
     host.innerHTML = Dialog({ id: 'admin-dialog', title: e(title), eyebrow: 'ADMINISTRATION', content: `<form id="admin-change-form">${content}<div id="admin-dialog-error" class="mt-4"></div><div class="admin-actions">${Button({ label: action ? 'Cancel' : 'Close', variant: 'outline', id: 'admin-cancel' })}${action ? Button({ label: 'Confirm changes', type: 'submit', id: 'admin-confirm' }) : ''}</div></form>` });
     root.append(host); const dialog = host.querySelector('dialog'); activeDialog = dialog;
     host.querySelectorAll('[data-close], #admin-cancel').forEach(button => button.addEventListener('click', () => dialog.close()));
+    const formElement = host.querySelector('form');
+    const receiptInput = host.querySelector('#admin-receipt-file');
+    const previewContainer = host.querySelector('#receipt-preview-container');
+    const previewImg = host.querySelector('#receipt-preview-img');
+    const removeBtn = host.querySelector('#receipt-remove-btn');
+    if (receiptInput) {
+      receiptInput.addEventListener('change', () => {
+        const file = receiptInput.files?.[0];
+        if (!file) {
+          if (formElement) { formElement.__receiptBase64 = null; formElement.__receiptFileName = null; formElement.__receiptMimeType = null; }
+          previewContainer?.classList.add('hidden');
+          return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+          window.alert('Receipt image must be 5 MB or smaller.');
+          receiptInput.value = '';
+          return;
+        }
+        if (formElement) { formElement.__receiptFileName = file.name; formElement.__receiptMimeType = file.type; }
+        const reader = new FileReader();
+        reader.onload = ev => {
+          if (formElement) formElement.__receiptBase64 = ev.target.result;
+          if (previewImg) previewImg.src = ev.target.result;
+          previewContainer?.classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+    if (removeBtn) {
+      removeBtn.addEventListener('click', () => {
+        if (receiptInput) receiptInput.value = '';
+        if (formElement) { formElement.__receiptBase64 = null; formElement.__receiptFileName = null; formElement.__receiptMimeType = null; }
+        previewContainer?.classList.add('hidden');
+        if (previewImg) previewImg.src = '';
+      });
+    }
+    host.querySelectorAll('[data-copy-text]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const text = btn.getAttribute('data-copy-text');
+        if (!text) return;
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch {
+          const temp = document.createElement('textarea');
+          temp.value = text;
+          document.body.appendChild(temp);
+          temp.select();
+          document.execCommand('copy');
+          temp.remove();
+        }
+        const originalText = btn.textContent;
+        btn.textContent = 'Copied!';
+        btn.classList.add('text-brand', 'font-bold');
+        setTimeout(() => {
+          btn.textContent = originalText;
+          btn.classList.remove('text-brand', 'font-bold');
+        }, 1500);
+      });
+    });
     dialog.addEventListener('close', () => { host.remove(); activeDialog = undefined; if (trigger?.isConnected) trigger.focus(); else if (alive()) root.querySelector(triggerUser ? `[data-user="${triggerUser}"]` : triggerStaff ? `[data-permissions="${triggerStaff}"]` : '#admin-content')?.focus(); });
     dialog.showModal();
     let busy = false;

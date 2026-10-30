@@ -199,14 +199,22 @@ class SepaySettlementIntegrationTest {
   assertEquals("APPROVED",db.queryForObject("SELECT status FROM dbo.disputes WHERE id=?",String.class,dispute));
   wallet.releaseMaturedPayments();
   assertEquals(0,db.queryForObject("SELECT COUNT(*) FROM dbo.escrow_ledger_entries WHERE payment_id=? AND entry_type='MENTOR_RELEASE'",Integer.class,checkout.paymentId()));
-  var decision=new RefundDecisionRequest("PAID","MERGE-REFUND-TEST",null,null,null,null);
+  String receipt="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1kAAAAASUVORK5CYII=";
+  var decision=new RefundDecisionRequest("PAID","MERGE-REFUND-TEST",null,null,null,null,"receipt.png",receipt,"image/png");
   assertThrows(org.springframework.web.server.ResponseStatusException.class,()->disputes.adminDecideRefund(dispute,decision,actor,"local"));
   login(admin,"ADMIN");var adminActor=new AuthenticatedUser(admin,"Admin","admin@example.invalid","ADMIN");
   var tooLong=new RefundDecisionRequest("PAID","R".repeat(101),null,null,null,null);
   assertEquals(400,assertThrows(org.springframework.web.server.ResponseStatusException.class,
     ()->disputes.adminDecideRefund(dispute,tooLong,adminActor,"local")).getStatusCode().value());
   assertEquals("APPROVED",db.queryForObject("SELECT status FROM dbo.disputes WHERE id=?",String.class,dispute));
+  var invalidReceipt=new RefundDecisionRequest("PAID","BAD-RECEIPT",null,null,null,null,"fake.png",Base64.getEncoder().encodeToString("not an image".getBytes()),"image/png");
+  assertEquals(400,assertThrows(org.springframework.web.server.ResponseStatusException.class,()->disputes.adminDecideRefund(dispute,invalidReceipt,adminActor,"local")).getStatusCode().value());
   disputes.adminDecideRefund(dispute,decision,adminActor,"local");
+  login(mentee,"MENTEE");
+  assertArrayEquals(Base64.getDecoder().decode(receipt),disputes.downloadReceipt(dispute).content());
+  login(user("MENTEE"),"MENTEE");
+  assertThrows(org.springframework.web.server.ResponseStatusException.class,()->disputes.downloadReceipt(dispute));
+  login(admin,"ADMIN");
   assertEquals("RESOLVED",db.queryForObject("SELECT status FROM dbo.disputes WHERE id=?",String.class,dispute));
   assertEquals(1,db.queryForObject("SELECT COUNT(*) FROM dbo.escrow_ledger_entries WHERE payment_id=? AND entry_type='REFUND_OUT'",Integer.class,checkout.paymentId()));
   assertThrows(org.springframework.web.server.ResponseStatusException.class,()->disputes.adminDecideRefund(dispute,decision,adminActor,"local"));

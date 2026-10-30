@@ -38,11 +38,11 @@ function detailMarkup(item) {
   <div class="mt-6 rounded-xl border border-amber-200 bg-amber-50/80 p-4">
     <div class="flex items-center gap-2">
       <span class="w-2 h-2 rounded-full bg-amber-500"></span>
-      <strong class="text-sm font-semibold text-amber-900">Refund Approved Â· Awaiting Admin Bank Transfer</strong>
+      <strong class="text-sm font-semibold text-amber-900">Refund Approved · Awaiting Admin Bank Transfer</strong>
     </div>
     <p class="mt-2 text-xs leading-5 text-amber-800">${esc(item.resolutionNote || 'Staff has reviewed and approved your refund request. The administrator will execute the bank transfer shortly.')}</p>
     ${item.refundAmount != null ? `<p class="mt-3 text-sm font-semibold text-amber-950">Refund Amount: ${esc(money(item.refundAmount, item.currency))}</p>` : ''}
-    ${item.bankName ? `<div class="mt-2 p-2.5 rounded-lg bg-white/80 border border-amber-200 text-xs text-amber-900">Receiving Bank: <strong>${esc(item.bankName)}</strong> Â· Account: <strong>${esc(item.accountNumber)}</strong> (${esc(item.accountName)})</div>` : ''}
+    ${item.bankName ? `<div class="mt-2 p-2.5 rounded-lg bg-white/80 border border-amber-200 text-xs text-amber-900">Receiving Bank: <strong>${esc(item.bankName)}</strong> · Account: <strong>${esc(item.accountNumber)}</strong> (${esc(item.accountName)})</div>` : ''}
     <p class="mt-2 text-[11px] text-amber-700 italic">Dispute is in the payout queue. You will see the bank transfer reference once processed.</p>
   </div>
 ` : (item.resolutionType || item.status === 'RESOLVED' || item.status === 'REJECTED') ? `
@@ -50,8 +50,19 @@ function detailMarkup(item) {
     <strong class="text-sm text-ink">${esc(item.resolutionType || item.status)}</strong>
     <p class="mt-2 text-xs leading-5 text-muted">${esc(item.resolutionNote || '')}</p>
     ${item.refundAmount != null ? `<p class="mt-3 text-sm font-semibold text-brand">Refund: ${esc(money(item.refundAmount, item.currency))}</p>` : ''}
-    ${item.bankName ? `<div class="mt-2 text-xs text-ink">Bank: <strong>${esc(item.bankName)}</strong> Â· Account: <strong>${esc(item.accountNumber)}</strong> (${esc(item.accountName)})</div>` : ''}
+    ${item.bankName ? `<div class="mt-2 text-xs text-ink">Bank: <strong>${esc(item.bankName)}</strong> · Account: <strong>${esc(item.accountNumber)}</strong> (${esc(item.accountName)})</div>` : ''}
     ${item.transferReference ? `<div class="mt-1 text-xs text-muted">Bank Transfer Reference: <strong class="font-mono text-ink">${esc(item.transferReference)}</strong></div>` : ''}
+    ${item.receiptFileId ? `
+      <div class="mt-3.5 pt-3 border-t border-line">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-semibold text-ink">Transfer Receipt / Evidence:</span>
+          <a class="text-xs text-brand hover:underline font-medium" href="${menteeDisputesService.receiptUrl(item.id)}" target="_blank" rel="noopener">Open full size ↗</a>
+        </div>
+        <a href="${menteeDisputesService.receiptUrl(item.id)}" target="_blank" rel="noopener" class="inline-block border border-line rounded-lg overflow-hidden bg-white p-1 hover:border-brand transition">
+          <img src="${menteeDisputesService.receiptUrl(item.id)}" alt="Transfer Receipt" class="max-h-48 rounded object-contain" />
+        </a>
+      </div>
+    ` : ''}
   </div>
 ` : '<p class="mt-6 rounded-xl border border-line bg-cream p-4 text-xs leading-5 text-muted">Staff has not issued a decision yet. You can track status here while the complaint is reviewed.</p>'}`;
 }

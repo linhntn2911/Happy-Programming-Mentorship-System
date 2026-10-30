@@ -15,6 +15,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
@@ -235,7 +236,7 @@ public class DisputeService {
                        mentor.full_name mentor_name,COALESCE(b.start_at,s.activated_at) scheduled_at,
                        d.disputed_amount,d.currency,d.category,d.description,d.status,d.created_at,
                        d.resolution_type,d.resolution_note,d.refund_amount,d.resolved_at,
-                       d.transfer_reference,d.bank_name,d.account_number,d.account_name,d.approved_at
+                       d.transfer_reference,d.bank_name,d.account_number,d.account_name,d.approved_at,d.receipt_file_id
                 FROM dbo.disputes d
                 JOIN dbo.users mentor ON mentor.id=d.respondent_id
                 LEFT JOIN dbo.bookings b ON b.id=d.booking_id
@@ -250,18 +251,43 @@ public class DisputeService {
                 rs.getString("resolution_type"), rs.getString("resolution_note"), rs.getBigDecimal("refund_amount"),
                 instant(rs.getTimestamp("resolved_at")), List.of(),
                 rs.getString("transfer_reference"), rs.getString("bank_name"), rs.getString("account_number"),
-                rs.getString("account_name"), instant(rs.getTimestamp("approved_at"))), disputeId, menteeId);
+                rs.getString("account_name"), instant(rs.getTimestamp("approved_at")),
+                rs.getObject("receipt_file_id") != null ? rs.getLong("receipt_file_id") : null), disputeId, menteeId);
         if (!rows.isEmpty()) {
             DisputeDtos.Detail item = rows.get(0);
             return new DisputeDtos.Detail(item.id(), item.ticketCode(), item.targetType(), item.targetId(),
                     item.title(), item.mentorName(), item.scheduledAt(), item.disputedAmount(), item.currency(),
                     item.category(), item.description(), item.status(), item.createdAt(), item.resolutionType(),
                     item.resolutionNote(), item.refundAmount(), item.resolvedAt(), evidence(disputeId, menteeId),
-                    item.transferReference(), item.bankName(), item.accountNumber(), item.accountName(), item.approvedAt());
+                    item.transferReference(), item.bankName(), item.accountNumber(), item.accountName(), item.approvedAt(),
+                    item.receiptFileId());
         }
         Integer exists = jdbc.queryForObject("SELECT COUNT(1) FROM dbo.disputes WHERE id=?", Integer.class, disputeId);
         if (exists != null && exists > 0) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You cannot access this dispute.");
         throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Dispute was not found.");
+    }
+
+    @Transactional(readOnly = true)
+    public DisputeFileDownload downloadReceipt(long disputeId) {
+        long userId = requireUserId();
+        List<DisputeFileDownload> rows = jdbc.query("""
+                SELECT f.original_name, f.mime_type, f.size_bytes, f.file_content
+                FROM dbo.disputes d
+                JOIN dbo.files f ON f.id = d.receipt_file_id
+                WHERE d.id = ? AND (d.complainant_id = ? OR d.respondent_id = ? OR EXISTS (
+                    SELECT 1 FROM dbo.user_roles ur WHERE ur.user_id = ? AND ur.role_code IN ('ADMIN', 'STAFF')
+                ))
+                """, (rs, row) -> new DisputeFileDownload(rs.getString("original_name"), rs.getString("mime_type"),
+                rs.getLong("size_bytes"), rs.getBytes("file_content")), disputeId, userId, userId, userId);
+        if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Receipt file was not found.");
+        return rows.get(0);
+    }
+
+    private long requireUserId() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !(auth.getPrincipal() instanceof AuthenticatedUser user) || user.id() == null)
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Please log in.");
+        return user.id();
     }
 
     @Transactional(readOnly = true)
@@ -802,7 +828,8 @@ public class DisputeService {
 
         List<Map<String, Object>> rows = jdbc.queryForList("""
                 SELECT id, ticket_code, status, disputed_amount, refund_amount, resolution_type, resolution_note,
-                       previous_target_status, target_type, booking_id, subscription_id, payment_id, complainant_id
+                       previous_target_status, target_type, booking_id, subscription_id, payment_id, complainant_id,
+                       respondent_id, bank_name, account_number, account_name
                 FROM dbo.disputes WITH (UPDLOCK, HOLDLOCK) WHERE id = ?
                 """, disputeId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Dispute was not found.");
@@ -825,6 +852,71 @@ public class DisputeService {
 
         if ("PAID".equals(action)) {
             String transferReference = decision.transferReference().trim();
+
+            // Process receipt image if uploaded
+            Long receiptFileId = null;
+            if (decision.receiptBase64() != null && !decision.receiptBase64().isBlank()) {
+                String base64Data = decision.receiptBase64().trim();
+                if (base64Data.contains(",")) {
+                    base64Data = base64Data.substring(base64Data.indexOf(",") + 1);
+                }
+                try {
+                    byte[] receiptBytes = Base64.getDecoder().decode(base64Data);
+                    if (receiptBytes.length == 0 || receiptBytes.length > MAX_FILE_SIZE) {
+                        throw badRequest("Receipt image must be 5 MB or smaller.");
+                    }
+                    String fileName = decision.receiptFileName() != null && !decision.receiptFileName().isBlank()
+                            ? decision.receiptFileName().trim().replace('\\', '/')
+                            : "refund_receipt.png";
+                    fileName = fileName.substring(fileName.lastIndexOf('/') + 1);
+                    String lower = fileName.toLowerCase(Locale.ROOT);
+                    String mime;
+                    if (isPng(receiptBytes) && lower.endsWith(".png")) mime = "image/png";
+                    else if (isJpeg(receiptBytes) && (lower.endsWith(".jpg") || lower.endsWith(".jpeg"))) mime = "image/jpeg";
+                    else if (isWebp(receiptBytes) && lower.endsWith(".webp")) mime = "image/webp";
+                    else throw badRequest("Receipt must be a valid PNG, JPG, JPEG, or WEBP image.");
+
+                    String checksum = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(receiptBytes));
+
+                    KeyHolder receiptKey = new GeneratedKeyHolder();
+                    byte[] finalReceiptBytes = receiptBytes;
+                    String finalFileName = fileName;
+                    String finalMime = mime;
+                    jdbc.update(con -> {
+                        PreparedStatement ps = con.prepareStatement("""
+                                INSERT INTO dbo.files(uploaded_by, original_name, storage_key, mime_type, size_bytes, checksum,
+                                                      file_content, visibility, status, created_at, updated_at)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, 'AUTHORIZED', 'READY', SYSUTCDATETIME(), SYSUTCDATETIME())
+                                """, new String[]{"id"});
+                        ps.setLong(1, adminId);
+                        ps.setString(2, finalFileName);
+                        ps.setString(3, "disputes/" + disputeId + "/receipt-" + UUID.randomUUID());
+                        ps.setString(4, finalMime);
+                        ps.setLong(5, finalReceiptBytes.length);
+                        ps.setString(6, checksum);
+                        ps.setBytes(7, finalReceiptBytes);
+                        return ps;
+                    }, receiptKey);
+
+                    if (receiptKey.getKey() != null) {
+                        receiptFileId = receiptKey.getKey().longValue();
+
+                        // Add to dispute_evidence if under limit 5
+                        Integer maxOrder = jdbc.queryForObject(
+                                "SELECT COALESCE(MAX(display_order), 0) FROM dbo.dispute_evidence WHERE dispute_id = ?",
+                                Integer.class, disputeId);
+                        int nextOrder = (maxOrder != null ? maxOrder : 0) + 1;
+                        if (nextOrder <= 5) {
+                            jdbc.update("INSERT INTO dbo.dispute_evidence(dispute_id, file_id, uploaded_by, display_order, created_at) VALUES (?, ?, ?, ?, SYSUTCDATETIME())",
+                                    disputeId, receiptFileId, adminId, nextOrder);
+                        }
+                    }
+                } catch (ResponseStatusException ex) {
+                    throw ex;
+                } catch (Exception ex) {
+                    throw badRequest("Receipt image could not be processed: " + ex.getMessage());
+                }
+            }
 
             // Create refund record in dbo.refunds
             String refundRef = "REFUND-" + ticketCode;
@@ -862,17 +954,117 @@ public class DisputeService {
                 jdbc.update("UPDATE dbo.subscriptions SET status = 'CANCELLED', updated_at = SYSUTCDATETIME() WHERE id = ? AND status = 'DISPUTED'", subscriptionId);
             }
 
-            // Update dispute status
+            // Update dispute status with receipt_file_id
             jdbc.update("""
                     UPDATE dbo.disputes
-                    SET status = 'RESOLVED', reviewed_by = ?, transfer_reference = ?,
+                    SET status = 'RESOLVED', reviewed_by = ?, transfer_reference = ?, receipt_file_id = ?,
                         resolved_at = SYSUTCDATETIME(), updated_at = SYSUTCDATETIME()
                     WHERE id = ? AND status = 'APPROVED'
-                    """, adminId, transferReference, disputeId);
+                    """, adminId, transferReference, receiptFileId, disputeId);
 
             if (adminRepository != null) {
                 adminRepository.audit(adminId, "DISPUTE_REFUND_PAID", "DISPUTE", String.valueOf(disputeId),
                         Map.of("status", "APPROVED"), Map.of("status", "RESOLVED"), "Bank transfer reference: " + transferReference, ip != null ? ip : "127.0.0.1");
+            }
+
+            // Post official resolution message & receipt into 3-party mediation conversation if exists
+            List<Long> convRows = jdbc.queryForList("""
+                    SELECT id FROM dbo.conversations WHERE dispute_id = ? AND conversation_type = 'MEDIATION'
+                    """, Long.class, disputeId);
+            if (!convRows.isEmpty()) {
+                long convId = convRows.get(0);
+                String bank = (String) dispute.get("bank_name");
+                String accNum = (String) dispute.get("account_number");
+                String accName = (String) dispute.get("account_name");
+                String formattedAmt = refundAmount != null ? refundAmount.toPlainString() : "0";
+
+                String resolutionNotice = String.format(
+                        "💰 [OFFICIAL DISPUTE RESOLUTION - CASE #%s]\n" +
+                        "HappyProgramming Administration has completed the bank transfer refund of %s VND to Mentee.\n" +
+                        "Receiving Bank: %s | Account: %s (%s)\n" +
+                        "Bank Transfer Reference: %s\n" +
+                        "The refund has been executed and verified. This dispute case is now officially RESOLVED.",
+                        ticketCode, formattedAmt, bank != null ? bank : "N/A",
+                        accNum != null ? accNum : "N/A", accName != null ? accName : "N/A",
+                        transferReference);
+
+                String clientKey = "REFUND_RESOLVED_" + ticketCode + "_" + System.currentTimeMillis();
+
+                if (receiptFileId != null) {
+                    // Insert message as FILE attachment
+                    KeyHolder msgKey = new GeneratedKeyHolder();
+                    jdbc.update(con -> {
+                        PreparedStatement ps = con.prepareStatement("""
+                                INSERT INTO dbo.messages (conversation_id, sender_id, client_message_key, message_type, body, moderation_status, sent_at, delivered_at)
+                                VALUES (?, ?, ?, 'FILE', ?, 'ALLOWED', SYSUTCDATETIME(), SYSUTCDATETIME())
+                                """, new String[]{"id"});
+                        ps.setLong(1, convId);
+                        ps.setLong(2, adminId);
+                        ps.setString(3, clientKey);
+                        ps.setString(4, "Refund Transfer Receipt (" + transferReference + ")");
+                        return ps;
+                    }, msgKey);
+
+                    if (msgKey.getKey() != null) {
+                        long msgId = msgKey.getKey().longValue();
+                        jdbc.update("INSERT INTO dbo.attachments (file_id, message_id, created_at) VALUES (?, ?, SYSUTCDATETIME())",
+                                receiptFileId, msgId);
+                    }
+
+                    // Also insert accompanying text notice
+                    String textKey = "REFUND_TEXT_" + ticketCode + "_" + System.currentTimeMillis();
+                    jdbc.update("""
+                            INSERT INTO dbo.messages (conversation_id, sender_id, client_message_key, message_type, body, moderation_status, sent_at, delivered_at)
+                            VALUES (?, ?, ?, 'TEXT', ?, 'ALLOWED', SYSUTCDATETIME(), SYSUTCDATETIME())
+                            """, convId, adminId, textKey, resolutionNotice);
+                } else {
+                    jdbc.update("""
+                            INSERT INTO dbo.messages (conversation_id, sender_id, client_message_key, message_type, body, moderation_status, sent_at, delivered_at)
+                            VALUES (?, ?, ?, 'TEXT', ?, 'ALLOWED', SYSUTCDATETIME(), SYSUTCDATETIME())
+                            """, convId, adminId, clientKey, resolutionNotice);
+                }
+
+                jdbc.update("UPDATE dbo.conversations SET last_message_at = SYSUTCDATETIME(), updated_at = SYSUTCDATETIME() WHERE id = ?", convId);
+            }
+
+            // Insert in-app notifications
+            try {
+                String formattedAmt = refundAmount != null ? refundAmount.toPlainString() : "0";
+                jdbc.update("""
+                        INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
+                        VALUES (?, 'Refund Completed', ?, 'DISPUTE', '#/disputes', 0, SYSUTCDATETIME())
+                        """, complainantId, "Your refund of " + formattedAmt + " VND for case #" + ticketCode + " has been transferred by Administrator. Reference: " + transferReference + ".");
+
+                Long mentorId = dispute.get("respondent_id") != null ? ((Number) dispute.get("respondent_id")).longValue() : null;
+                if (mentorId != null) {
+                    jdbc.update("""
+                            INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
+                            VALUES (?, 'Dispute Resolved', ?, 'DISPUTE', '#/workspace', 0, SYSUTCDATETIME())
+                            """, mentorId, "Dispute case #" + ticketCode + " has been resolved with refund completed.");
+                }
+            } catch (Exception notifEx) {
+                // ignore
+            }
+
+            // Send email notification to Mentee
+            if (emailService != null) {
+                try {
+                    List<Map<String, Object>> users = jdbc.queryForList("SELECT email, full_name FROM dbo.users WHERE id = ?", complainantId);
+                    if (!users.isEmpty()) {
+                        String email = (String) users.get(0).get("email");
+                        String fullName = (String) users.get(0).get("full_name");
+                        String formattedAmt = refundAmount != null ? refundAmount.toPlainString() : "0";
+                        String subject = "[HappyProgramming] Refund Completed for Dispute #" + ticketCode;
+                        String body = "Hello " + (fullName != null ? fullName : "Mentee") + ",\n\n"
+                                + "Your refund for dispute case #" + ticketCode + " has been processed by HappyProgramming Administration.\n\n"
+                                + "• Refund Amount: " + formattedAmt + " VND\n"
+                                + "• Bank Reference: " + transferReference + "\n"
+                                + (receiptFileId != null ? "• Transfer receipt evidence has been attached to your dispute details and mediation chat.\n\n" : "\n")
+                                + "Please check your bank account. You can view the full dispute resolution and receipt on your HappyProgramming portal at: #/disputes\n\n"
+                                + "Best regards,\nHappyProgramming Support Team";
+                        emailService.sendNotification(email, subject, body);
+                    }
+                } catch (Exception ignored) {}
             }
         } else if ("REJECTED".equals(action)) {
             String reason = decision.rejectionReason() == null ? "" : decision.rejectionReason().trim();

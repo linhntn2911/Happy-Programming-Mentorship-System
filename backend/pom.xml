@@ -101,6 +101,7 @@
                         <copy file="${project.basedir}/../docs/database/migration/035_20261030_split_dispute_mediation_conversations.sql" tofile="${project.build.outputDirectory}/db/migration/V26__split_dispute_mediation_conversations.sql" overwrite="true"/>
                         <copy file="${project.basedir}/../docs/database/migration/036_20261030_backfill_open_dispute_mediation_rooms.sql" tofile="${project.build.outputDirectory}/db/migration/V27__backfill_open_dispute_mediation_rooms.sql" overwrite="true"/>
                         <copy file="${project.basedir}/../docs/database/migration/037_20261030_move_legacy_mediation_notices.sql" tofile="${project.build.outputDirectory}/db/migration/V28__move_legacy_mediation_notices.sql" overwrite="true"/>
+                        <copy file="${project.basedir}/../docs/database/migration/038_20261030_add_dispute_refund_receipt_file.sql" tofile="${project.build.outputDirectory}/db/migration/V29__add_dispute_refund_receipt_file.sql" overwrite="true"/>
                     </target></configuration>
                 </execution></executions>
             </plugin>
