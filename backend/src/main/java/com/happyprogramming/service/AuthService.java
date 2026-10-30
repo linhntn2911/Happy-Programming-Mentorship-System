@@ -6,6 +6,7 @@ import com.happyprogramming.dto.MenteeSignupRequest;
 import com.happyprogramming.dto.SignupResponse;
 import com.happyprogramming.entity.SecurityToken;
 import com.happyprogramming.entity.User;
+import com.happyprogramming.entity.AuthIdentity;
 import com.happyprogramming.repository.AuthIdentityRepository;
 import com.happyprogramming.repository.SecurityTokenRepository;
 import com.happyprogramming.repository.UserRepository;
@@ -244,8 +245,27 @@ public class AuthService {
         var identity = identities.findByProviderAndProviderSubject("GOOGLE", subject).orElse(null);
         var now = LocalDateTime.now(clock);
 
-        if (identity == null) return Optional.empty();
-        var user = users.findForLoginById(identity.getUserId()).orElse(null);
+        User user = null;
+        if (identity == null) {
+            if (email != null && !email.isBlank()) {
+                String normalized = email.trim().toLowerCase(Locale.ROOT);
+                user = users.findForLogin(normalized).orElse(null);
+                if (user != null) {
+                    if ("INACTIVE".equals(user.getStatus())) {
+                        user.activateEmail(now);
+                    }
+                } else {
+                    user = User.createGoogleUser(email, fullName, firstName, lastName, effectiveRole, now);
+                    user = users.save(user);
+                }
+                identity = AuthIdentity.create(user.getId(), "GOOGLE", subject, email.trim(), now);
+                identity = identities.save(identity);
+            } else {
+                return Optional.empty();
+            }
+        } else {
+            user = users.findForLoginById(identity.getUserId()).orElse(null);
+        }
         if (user == null || !eligible(user, effectiveRole, now)) return Optional.empty();
         user.recordLogin(now);
         identity.markUsed(now);

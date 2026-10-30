@@ -70,7 +70,7 @@ public class StaffController {
 
     @GetMapping("/payout-requests")
     public ApiResponse<List<AdminPayoutRequest>> payoutRequests() {
-        return ApiResponse.ok(wallet.pendingPayouts());
+        return ApiResponse.ok(wallet.staffPendingPayouts());
     }
 
     @PatchMapping("/payout-requests/{id}")

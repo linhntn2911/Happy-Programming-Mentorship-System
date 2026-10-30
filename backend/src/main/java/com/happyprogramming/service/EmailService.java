@@ -82,7 +82,7 @@ public class EmailService {
             + "Best regards,\nHappyProgramming Mentorship Team");
     }
 
-    private void sendNotification(String email, String subject, String body) {
+    public void sendNotification(String email, String subject, String body) {
         if (from == null || from.isBlank()) return;
         try {
             var message = sender.createMimeMessage();

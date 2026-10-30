@@ -4,11 +4,13 @@ import com.happyprogramming.dto.AdminDtos;
 import com.happyprogramming.dto.ApiResponse;
 import com.happyprogramming.dto.AuthenticatedUser;
 import com.happyprogramming.dto.AdminPayoutRequest;
+import com.happyprogramming.dto.AdminRefundRequest;
 import com.happyprogramming.dto.PayoutDecisionRequest;
+import com.happyprogramming.dto.RefundDecisionRequest;
 import com.happyprogramming.repository.AdminRepository;
 import com.happyprogramming.service.AdminService;
-
-
+import com.happyprogramming.service.DisputeService;
+import com.happyprogramming.service.MentorWalletService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -23,16 +25,31 @@ import static com.happyprogramming.dto.AdminDtos.*;
 @RequestMapping("/api/admin")
 public class AdminController {
     private String email(Authentication auth) {
-        if (auth.getPrincipal() instanceof com.happyprogramming.dto.AuthenticatedUser user) return user.email();
+        if (auth.getPrincipal() instanceof AuthenticatedUser user) return user.email();
         throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.UNAUTHORIZED);
     }
-    private final AdminService service;
-    private final com.happyprogramming.service.MentorWalletService wallet;
-    public AdminController(AdminService service) { this.service = service; this.wallet = null; }
-    @org.springframework.beans.factory.annotation.Autowired
-    public AdminController(AdminService service, com.happyprogramming.service.MentorWalletService wallet) {
-        this.service = service; this.wallet = wallet;
+    private AuthenticatedUser user(Authentication auth) {
+        if (auth.getPrincipal() instanceof AuthenticatedUser user) return user;
+        throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.UNAUTHORIZED);
     }
+
+    private final AdminService service;
+    private final MentorWalletService wallet;
+    private final DisputeService disputeService;
+
+    public AdminController(AdminService service) {
+        this.service = service;
+        this.wallet = null;
+        this.disputeService = null;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public AdminController(AdminService service, MentorWalletService wallet, DisputeService disputeService) {
+        this.service = service;
+        this.wallet = wallet;
+        this.disputeService = disputeService;
+    }
+
     @GetMapping("/csrf") public ApiResponse<?> csrf(CsrfToken token) { return ApiResponse.ok(Map.of("token", token.getToken(), "headerName", token.getHeaderName())); }
     @GetMapping("/session") public ApiResponse<Session> session(Authentication auth) { return ApiResponse.ok(service.requireAdmin(email(auth))); }
     @GetMapping("/workspace") public ApiResponse<Workspace> workspace(Authentication auth) { service.requireAdmin(email(auth)); return ApiResponse.ok(service.workspace()); }
@@ -50,11 +67,28 @@ public class AdminController {
         return ApiResponse.ok(service.payoutHistory(email(auth)));
     }
     @GetMapping("/payout-requests") public ApiResponse<List<AdminPayoutRequest>> payoutRequests(Authentication auth) {
-        service.requireAdmin(email(auth)); return ApiResponse.ok(wallet.pendingPayouts());
+        service.requireAdmin(email(auth)); return ApiResponse.ok(wallet.adminPendingPayouts());
     }
     @PatchMapping("/payout-requests/{id}") public ApiResponse<Boolean> decidePayout(@PathVariable long id,
             @Valid @RequestBody PayoutDecisionRequest decision, Authentication auth, HttpServletRequest request) {
         service.requireAdmin(email(auth)); wallet.decidePayout(id, decision, request.getRemoteAddr()); return ApiResponse.ok(true);
     }
 
+    @GetMapping("/refund-history")
+    public ApiResponse<List<AdminRefundRequest>> refundHistory(Authentication auth) {
+        service.requireAdmin(email(auth));
+        return ApiResponse.ok(disputeService.adminRefundHistory());
+    }
+    @GetMapping("/refund-requests")
+    public ApiResponse<List<AdminRefundRequest>> refundRequests(Authentication auth) {
+        service.requireAdmin(email(auth));
+        return ApiResponse.ok(disputeService.adminPendingRefunds());
+    }
+    @PatchMapping("/refund-requests/{id}")
+    public ApiResponse<Boolean> decideRefund(@PathVariable long id,
+            @Valid @RequestBody RefundDecisionRequest decision, Authentication auth, HttpServletRequest request) {
+        service.requireAdmin(email(auth));
+        disputeService.adminDecideRefund(id, decision, user(auth), request.getRemoteAddr());
+        return ApiResponse.ok(true);
+    }
 }

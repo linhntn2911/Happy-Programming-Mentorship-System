@@ -4,9 +4,9 @@ import { MentorWalletPage } from './MentorWalletPage.js';
 
 test('mentor wallet page explains the hold, available funds and payout flow', () => {
   const html = MentorWalletPage();
-  assert.match(html, /MENTOR EARNINGS &amp; FEEDBACK/);
-  assert.match(html, /Earnings and feedback/);
-  assert.match(html, /Verified earnings become available after the hold period recorded when payment is confirmed\./);
+  assert.match(html, /MENTOR WALLET &amp; EARNINGS/);
+  assert.match(html, /Wallet and earnings/);
+  assert.match(html, /Verified earnings become available after the hold period recorded when payment is confirmed/);
   assert.match(html, /Staff reviews your request first; Admin then pays it. Funds stay reserved during both stages\./);
   assert.match(html, /Request a payout/);
   assert.match(html, /Account number/);
@@ -26,15 +26,12 @@ test('mentor wallet page exposes saved bank account management and OTP verificat
   assert.match(html, /Resend code/);
 });
 
-test('mentor wallet page renders the read-only mentee feedback section', () => {
+test('mentor wallet page no longer embeds the mentee feedback section', () => {
   const html = MentorWalletPage();
-  assert.match(html, /MENTEE FEEDBACK/);
-  assert.match(html, /id="feedback-summary"/);
-  assert.match(html, /id="feedback-list"/);
-  assert.match(html, /id="feedback-loading"/);
-  assert.match(html, /id="feedback-empty"/);
-  assert.match(html, /id="feedback-error"/);
-  assert.match(html, /id="feedback-pagination"/);
-  assert.match(html, /Reviews cannot be edited or deleted\./);
+  assert.doesNotMatch(html, /MENTEE FEEDBACK/);
+  assert.doesNotMatch(html, /id="feedback-summary"/);
+  assert.doesNotMatch(html, /id="feedback-list"/);
+  assert.match(html, /id="wallet-stats"/);
+  assert.match(html, /id="wallet-entries"/);
+  assert.match(html, /id="payout-history"/);
 });
-

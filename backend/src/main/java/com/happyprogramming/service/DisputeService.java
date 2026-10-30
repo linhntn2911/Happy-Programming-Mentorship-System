@@ -1,8 +1,10 @@
 package com.happyprogramming.service;
 
+import com.happyprogramming.dto.AdminRefundRequest;
 import com.happyprogramming.dto.AuthenticatedUser;
 import com.happyprogramming.dto.DisputeDtos;
 import com.happyprogramming.dto.DisputeFileDownload;
+import com.happyprogramming.dto.RefundDecisionRequest;
 import com.happyprogramming.dto.StaffDisputeDtos;
 import com.happyprogramming.repository.AdminRepository;
 import java.math.BigDecimal;
@@ -41,15 +43,17 @@ public class DisputeService {
 
     private final JdbcTemplate jdbc;
     private final AdminRepository adminRepository;
+    private final EmailService emailService;
 
     public DisputeService(JdbcTemplate jdbc) {
-        this(jdbc, null);
+        this(jdbc, null, null);
     }
 
     @Autowired
-    public DisputeService(JdbcTemplate jdbc, AdminRepository adminRepository) {
+    public DisputeService(JdbcTemplate jdbc, AdminRepository adminRepository, @Autowired(required = false) EmailService emailService) {
         this.jdbc = jdbc;
         this.adminRepository = adminRepository;
+        this.emailService = emailService;
     }
 
     @Transactional(readOnly = true)
@@ -70,7 +74,7 @@ public class DisputeService {
                     AND b.status IN ('CONFIRMED','COMPLETED')
                     AND b.start_at<=SYSUTCDATETIME() AND SYSUTCDATETIME()<=DATEADD(HOUR,48,b.end_at)
                     AND NOT EXISTS (SELECT 1 FROM dbo.disputes d WHERE d.booking_id=b.id
-                                    AND d.status IN ('SUBMITTED','IN_MEDIATION','AWAITING_EVIDENCE'))
+                                    AND d.status IN ('SUBMITTED','IN_MEDIATION','AWAITING_EVIDENCE','APPROVED'))
                   UNION ALL
                   SELECT 'MONTHLY',s.id,
                          COALESCE(JSON_VALUE(s.plan_snapshot,'$.name'),N'Monthly mentorship'),u.full_name,
@@ -81,7 +85,7 @@ public class DisputeService {
                   WHERE s.mentee_id=? AND s.status='TRIALING'
                     AND SYSUTCDATETIME()<=s.trial_ends_at
                     AND NOT EXISTS (SELECT 1 FROM dbo.disputes d WHERE d.subscription_id=s.id
-                                    AND d.status IN ('SUBMITTED','IN_MEDIATION','AWAITING_EVIDENCE'))
+                                    AND d.status IN ('SUBMITTED','IN_MEDIATION','AWAITING_EVIDENCE','APPROVED'))
                 ) targets ORDER BY scheduled_at DESC,target_id DESC
                 """, (rs, row) -> new DisputeDtos.EligibleTarget(
                 rs.getString("target_type"), rs.getLong("target_id"), rs.getString("title"),
@@ -104,7 +108,11 @@ public class DisputeService {
                   JOIN dbo.payments p ON p.request_id=TRY_CONVERT(BIGINT,JSON_VALUE(b.terms_snapshot,'$.requestId'))
                                      AND p.status='SUCCEEDED'
                   WHERE b.mentee_id=? AND b.service_type='ONE_OFF'
+                    AND b.status IN ('CONFIRMED','COMPLETED')
+                    AND b.start_at<=SYSUTCDATETIME() AND SYSUTCDATETIME()<=DATEADD(HOUR,48,b.end_at)
                     AND TRY_CONVERT(BIGINT,JSON_VALUE(b.terms_snapshot,'$.requestId'))=?
+                    AND NOT EXISTS (SELECT 1 FROM dbo.disputes d WHERE d.booking_id=b.id
+                                    AND d.status IN ('SUBMITTED','IN_MEDIATION','AWAITING_EVIDENCE','APPROVED'))
                   UNION ALL
                   SELECT 'MONTHLY',s.id,
                          COALESCE(JSON_VALUE(s.plan_snapshot,'$.name'),N'Monthly mentorship'),u.full_name,
@@ -112,15 +120,17 @@ public class DisputeService {
                   FROM dbo.subscriptions s
                   JOIN dbo.users u ON u.id=s.mentor_id
                   JOIN dbo.payments p ON p.request_id=s.request_id AND p.status='SUCCEEDED'
-                  WHERE s.mentee_id=? AND s.request_id=?
+                  WHERE s.mentee_id=? AND s.status='TRIALING'
+                    AND SYSUTCDATETIME()<=s.trial_ends_at
+                    AND s.request_id=?
+                    AND NOT EXISTS (SELECT 1 FROM dbo.disputes d WHERE d.subscription_id=s.id
+                                    AND d.status IN ('SUBMITTED','IN_MEDIATION','AWAITING_EVIDENCE','APPROVED'))
                 ) targets
                 """, (rs, row) -> new DisputeDtos.EligibleTarget(
                 rs.getString("target_type"), rs.getLong("target_id"), rs.getString("title"),
                 rs.getString("mentor_name"), instant(rs.getTimestamp("scheduled_at")),
                 rs.getBigDecimal("amount"), rs.getString("currency")), menteeId, requestId, menteeId, requestId);
-        if (targets.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No paid booking or mentorship found for this request.");
-        }
+        if (targets.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No eligible target found for request.");
         return targets.get(0);
     }
 
@@ -128,13 +138,21 @@ public class DisputeService {
     public DisputeDtos.Detail submit(String targetType, long targetId, String category,
                                      String description, boolean termsAccepted,
                                      List<MultipartFile> evidenceFiles) {
-        return submit(targetType, targetId, null, category, description, termsAccepted, evidenceFiles);
+        return submit(targetType, targetId, null, category, description, termsAccepted, evidenceFiles, null, null, null);
     }
 
     @Transactional
     public DisputeDtos.Detail submit(String targetType, Long targetId, Long requestId, String category,
                                      String description, boolean termsAccepted,
                                      List<MultipartFile> evidenceFiles) {
+        return submit(targetType, targetId, requestId, category, description, termsAccepted, evidenceFiles, null, null, null);
+    }
+
+    @Transactional
+    public DisputeDtos.Detail submit(String targetType, Long targetId, Long requestId, String category,
+                                     String description, boolean termsAccepted,
+                                     List<MultipartFile> evidenceFiles,
+                                     String bankName, String accountNumber, String accountName) {
         long resolvedId = targetId != null ? targetId : 0L;
         String resolvedType = targetType;
         if ((targetType == null || targetId == null || targetId <= 0) && requestId != null) {
@@ -168,7 +186,7 @@ public class DisputeService {
         Integer duplicate = jdbc.queryForObject("""
                 SELECT COUNT(1) FROM dbo.disputes
                 WHERE ((?='ONE_OFF' AND booking_id=?) OR (?='MONTHLY' AND subscription_id=?))
-                  AND status IN ('SUBMITTED','IN_MEDIATION','AWAITING_EVIDENCE')
+                  AND status IN ('SUBMITTED','IN_MEDIATION','AWAITING_EVIDENCE','APPROVED')
                 """, Integer.class, finalType, finalTargetId, finalType, finalTargetId);
         if (duplicate != null && duplicate > 0)
             throw new ResponseStatusException(HttpStatus.CONFLICT, "An active dispute already exists for this service.");
@@ -180,8 +198,8 @@ public class DisputeService {
             PreparedStatement ps = connection.prepareStatement("""
                     INSERT INTO dbo.disputes(ticket_code,complainant_id,respondent_id,booking_id,subscription_id,
                         payment_id,target_type,previous_target_status,category,description,disputed_amount,currency,
-                        status,terms_accepted_at,created_at,updated_at)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'SUBMITTED',SYSUTCDATETIME(),SYSUTCDATETIME(),SYSUTCDATETIME())
+                        status,terms_accepted_at,bank_name,account_number,account_name,created_at,updated_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'SUBMITTED',SYSUTCDATETIME(),?,?,?,SYSUTCDATETIME(),SYSUTCDATETIME())
                     """, new String[] {"id"});
             ps.setString(1, ticket); ps.setLong(2, menteeId); ps.setLong(3, target.mentorId());
             if ("ONE_OFF".equals(finalType)) { ps.setLong(4, finalTargetId); ps.setNull(5, java.sql.Types.BIGINT); }
@@ -189,6 +207,7 @@ public class DisputeService {
             ps.setLong(6, target.paymentId()); ps.setString(7, finalType); ps.setString(8, target.status());
             ps.setString(9, normalizedCategory); ps.setString(10, body);
             ps.setBigDecimal(11, target.amount()); ps.setString(12, target.currency());
+            ps.setString(13, bankName); ps.setString(14, accountNumber); ps.setString(15, accountName);
             return ps;
         }, keys);
         Number createdId = keys.getKey();
@@ -204,8 +223,7 @@ public class DisputeService {
     @Transactional(readOnly = true)
     public List<DisputeDtos.Summary> mine() {
         long menteeId = requireMentee();
-        return jdbc.query(summarySql() + " WHERE d.complainant_id=? ORDER BY d.created_at DESC,d.id DESC",
-                (rs, row) -> summary(rs), menteeId);
+        return jdbc.query(summarySql() + " WHERE d.complainant_id=? ORDER BY d.created_at DESC", (rs, row) -> summary(rs), menteeId);
     }
 
     @Transactional(readOnly = true)
@@ -216,7 +234,8 @@ public class DisputeService {
                        COALESCE(o.name,JSON_VALUE(s.plan_snapshot,'$.name'),N'Mentorship') title,
                        mentor.full_name mentor_name,COALESCE(b.start_at,s.activated_at) scheduled_at,
                        d.disputed_amount,d.currency,d.category,d.description,d.status,d.created_at,
-                       d.resolution_type,d.resolution_note,d.refund_amount,d.resolved_at
+                       d.resolution_type,d.resolution_note,d.refund_amount,d.resolved_at,
+                       d.transfer_reference,d.bank_name,d.account_number,d.account_name,d.approved_at
                 FROM dbo.disputes d
                 JOIN dbo.users mentor ON mentor.id=d.respondent_id
                 LEFT JOIN dbo.bookings b ON b.id=d.booking_id
@@ -229,13 +248,16 @@ public class DisputeService {
                 rs.getBigDecimal("disputed_amount"), rs.getString("currency"), rs.getString("category"),
                 rs.getString("description"), rs.getString("status"), instant(rs.getTimestamp("created_at")),
                 rs.getString("resolution_type"), rs.getString("resolution_note"), rs.getBigDecimal("refund_amount"),
-                instant(rs.getTimestamp("resolved_at")), List.of()), disputeId, menteeId);
+                instant(rs.getTimestamp("resolved_at")), List.of(),
+                rs.getString("transfer_reference"), rs.getString("bank_name"), rs.getString("account_number"),
+                rs.getString("account_name"), instant(rs.getTimestamp("approved_at"))), disputeId, menteeId);
         if (!rows.isEmpty()) {
             DisputeDtos.Detail item = rows.get(0);
             return new DisputeDtos.Detail(item.id(), item.ticketCode(), item.targetType(), item.targetId(),
                     item.title(), item.mentorName(), item.scheduledAt(), item.disputedAmount(), item.currency(),
                     item.category(), item.description(), item.status(), item.createdAt(), item.resolutionType(),
-                    item.resolutionNote(), item.refundAmount(), item.resolvedAt(), evidence(disputeId, menteeId));
+                    item.resolutionNote(), item.refundAmount(), item.resolvedAt(), evidence(disputeId, menteeId),
+                    item.transferReference(), item.bankName(), item.accountNumber(), item.accountName(), item.approvedAt());
         }
         Integer exists = jdbc.queryForObject("SELECT COUNT(1) FROM dbo.disputes WHERE id=?", Integer.class, disputeId);
         if (exists != null && exists > 0) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You cannot access this dispute.");
@@ -414,11 +436,14 @@ public class DisputeService {
                        COALESCE(b.start_at, s.activated_at) scheduled_at,
                        d.disputed_amount, d.currency, d.category, d.description, d.status,
                        d.created_at, d.terms_accepted_at, d.assigned_staff_id, st.full_name assigned_staff_name,
-                       d.response_deadline_at, d.resolution_type, d.resolution_note, d.refund_amount, d.resolved_at
+                       d.response_deadline_at, d.resolution_type, d.resolution_note, d.refund_amount, d.resolved_at,
+                       d.bank_name, d.account_number, d.account_name, d.approved_by, ap.full_name approved_by_name,
+                       d.approved_at, d.transfer_reference
                 FROM dbo.disputes d
                 JOIN dbo.users c ON c.id = d.complainant_id
                 JOIN dbo.users m ON m.id = d.respondent_id
                 LEFT JOIN dbo.users st ON st.id = d.assigned_staff_id
+                LEFT JOIN dbo.users ap ON ap.id = d.approved_by
                 LEFT JOIN dbo.bookings b ON b.id = d.booking_id
                 LEFT JOIN dbo.service_offerings o ON o.id = b.service_id
                 LEFT JOIN dbo.subscriptions s ON s.id = d.subscription_id
@@ -437,7 +462,11 @@ public class DisputeService {
                 instant(rs.getTimestamp("response_deadline_at")),
                 rs.getString("resolution_type"), rs.getString("resolution_note"),
                 rs.getBigDecimal("refund_amount"), instant(rs.getTimestamp("resolved_at")),
-                List.of()
+                List.of(),
+                rs.getString("bank_name"), rs.getString("account_number"), rs.getString("account_name"),
+                rs.getObject("approved_by") != null ? rs.getLong("approved_by") : null,
+                rs.getString("approved_by_name"), instant(rs.getTimestamp("approved_at")),
+                rs.getString("transfer_reference")
         ), disputeId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Dispute was not found.");
         StaffDisputeDtos.StaffDetail item = rows.get(0);
@@ -460,7 +489,10 @@ public class DisputeService {
                 item.description(), item.status(), item.createdAt(), item.termsAcceptedAt(),
                 item.assignedStaffId(), item.assignedStaffName(), item.responseDeadlineAt(),
                 item.resolutionType(), item.resolutionNote(), item.refundAmount(), item.resolvedAt(),
-                evList
+                evList,
+                item.bankName(), item.accountNumber(), item.accountName(),
+                item.approvedBy(), item.approvedByName(), item.approvedAt(),
+                item.transferReference()
         );
     }
 
@@ -482,6 +514,7 @@ public class DisputeService {
     @Transactional
     public StaffDisputeDtos.StaffDetail staffIntake(long disputeId, AuthenticatedUser staffUser) {
         long staffId = staffUser != null && staffUser.id() != null ? staffUser.id() : 1L;
+        String staffName = staffUser != null && staffUser.name() != null ? staffUser.name() : "Operational Staff";
         int updated = jdbc.update("""
                 UPDATE dbo.disputes
                 SET status = 'IN_MEDIATION', assigned_staff_id = ?,
@@ -496,8 +529,102 @@ public class DisputeService {
         }
         if (adminRepository != null) {
             adminRepository.audit(staffId, "DISPUTE_INTAKE", "DISPUTE", String.valueOf(disputeId),
-                    "SUBMITTED", "IN_MEDIATION", "Staff assigned and opened mediation room", "127.0.0.1");
+                    Map.of("status", "SUBMITTED"), Map.of("status", "IN_MEDIATION"), "Staff assigned and opened mediation room", "127.0.0.1");
         }
+
+        // Post official mediation notice to 3-party conversation and notify parties
+        try {
+            List<Map<String, Object>> rows = jdbc.queryForList("""
+                    SELECT ticket_code, complainant_id, respondent_id
+                    FROM dbo.disputes WHERE id = ?
+                    """, disputeId);
+            if (!rows.isEmpty()) {
+                Map<String, Object> disp = rows.get(0);
+                String ticketCode = (String) disp.get("ticket_code");
+                long menteeId = ((Number) disp.get("complainant_id")).longValue();
+                long mentorId = ((Number) disp.get("respondent_id")).longValue();
+
+                List<Long> convRows = jdbc.queryForList("""
+                        SELECT id FROM dbo.conversations WHERE dispute_id = ? AND conversation_type = 'MEDIATION'
+                        """, Long.class, disputeId);
+                Long convId = null;
+                if (!convRows.isEmpty()) {
+                    convId = convRows.get(0);
+                } else {
+                    KeyHolder kh = new GeneratedKeyHolder();
+                    jdbc.update(con -> {
+                        PreparedStatement ps = con.prepareStatement("""
+                                INSERT INTO dbo.conversations (mentor_id, mentee_id, conversation_type, dispute_id, inquiry_status, created_at, updated_at)
+                                VALUES (?, ?, 'MEDIATION', ?, 'APPROVED', SYSUTCDATETIME(), SYSUTCDATETIME())
+                                """, new String[]{"id"});
+                        ps.setLong(1, mentorId);
+                        ps.setLong(2, menteeId);
+                        ps.setLong(3, disputeId);
+                        return ps;
+                    }, kh);
+                    convId = kh.getKey() != null ? kh.getKey().longValue() : null;
+                }
+
+                if (convId != null) {
+                    String noticeText = String.format(
+                            "⚖ [OFFICIAL DISPUTE MEDIATION NOTICE - CASE #%s]\n" +
+                            "This conversation is now in 3-party dispute mediation overseen by Operational Staff (%s).\n" +
+                            "Staff participates in monitoring mode to record facts and assist in fair resolution.\n" +
+                            "Mentee and Mentor may directly exchange messages below to clarify and resolve the matter.",
+                            ticketCode, staffName);
+
+                    String clientKey = "MEDIATION_NOTICE_" + ticketCode + "_" + System.currentTimeMillis();
+                    jdbc.update("""
+                            INSERT INTO dbo.messages (conversation_id, sender_id, client_message_key, message_type, body, moderation_status, sent_at, delivered_at)
+                            VALUES (?, ?, ?, 'TEXT', ?, 'ALLOWED', SYSUTCDATETIME(), SYSUTCDATETIME())
+                            """, convId, staffId, clientKey, noticeText);
+
+                    jdbc.update("""
+                            UPDATE dbo.conversations
+                            SET last_message_at = SYSUTCDATETIME(), updated_at = SYSUTCDATETIME()
+                            WHERE id = ?
+                            """, convId);
+
+                    // Insert in-app notifications for both Mentee and Mentor
+                    try {
+                        jdbc.update("""
+                                INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
+                                VALUES (?, 'Dispute Mediation Opened', ?, 'DISPUTE', '#/workspace', 0, SYSUTCDATETIME())
+                                """, menteeId, "Dispute case #" + ticketCode + " has been opened for 3-party mediation.");
+
+                        jdbc.update("""
+                                INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
+                                VALUES (?, 'Dispute Mediation Opened', ?, 'DISPUTE', '#/workspace', 0, SYSUTCDATETIME())
+                                """, mentorId, "Dispute case #" + ticketCode + " has been opened for 3-party mediation.");
+                    } catch (Exception notifEx) {
+                        // ignore if notification table schema mismatch
+                    }
+                }
+
+                if (emailService != null) {
+                    List<Map<String, Object>> users = jdbc.queryForList("""
+                            SELECT id, email, full_name FROM dbo.users WHERE id IN (?, ?)
+                            """, menteeId, mentorId);
+                    for (Map<String, Object> u : users) {
+                        String email = (String) u.get("email");
+                        String fullName = (String) u.get("full_name");
+                        String subject = "[HappyProgramming] Dispute Mediation Room Opened #" + ticketCode;
+                        String emailBody = "Hello " + fullName + ",\n\n"
+                                + "Dispute case #" + ticketCode + " has been assigned to HappyProgramming Staff (" + staffName + ").\n"
+                                + "A 3-party mediation conversation is now active in your Mentorship Messages workspace.\n"
+                                + "The mediator will monitor the conversation to help both parties achieve a fair resolution.\n\n"
+                                + "Please sign in to HappyProgramming to participate in the discussion.\n\n"
+                                + "Best regards,\nHappyProgramming Support Team";
+                        try {
+                            emailService.sendNotification(email, subject, emailBody);
+                        } catch (Exception ignored) {}
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            // Log notice error without breaking intake transaction
+        }
+
         return staffDisputeDetail(disputeId);
     }
 
@@ -511,8 +638,8 @@ public class DisputeService {
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Dispute was not found.");
         Map<String, Object> dispute = rows.get(0);
         String currentStatus = (String) dispute.get("status");
-        if ("RESOLVED".equals(currentStatus) || "REJECTED".equals(currentStatus)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Dispute has already been finalized.");
+        if ("APPROVED".equals(currentStatus) || "RESOLVED".equals(currentStatus) || "REJECTED".equals(currentStatus)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Dispute has already been processed or finalized.");
         }
         BigDecimal disputedAmount = (BigDecimal) dispute.get("disputed_amount");
         String targetType = (String) dispute.get("target_type");
@@ -522,16 +649,19 @@ public class DisputeService {
 
         String newDisputeStatus;
         BigDecimal refundAmount = BigDecimal.ZERO;
+        boolean isRefund = false;
         if ("FULL_REFUND".equals(request.resolutionType())) {
-            newDisputeStatus = "RESOLVED";
+            newDisputeStatus = "APPROVED";
             refundAmount = disputedAmount;
+            isRefund = true;
         } else if ("PARTIAL_REFUND".equals(request.resolutionType())) {
-            newDisputeStatus = "RESOLVED";
+            newDisputeStatus = "APPROVED";
             if (request.refundAmount() == null || request.refundAmount().compareTo(BigDecimal.ZERO) <= 0
                     || request.refundAmount().compareTo(disputedAmount) > 0) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Partial refund amount must be between 1 and " + disputedAmount + " VND.");
             }
             refundAmount = request.refundAmount();
+            isRefund = true;
         } else if ("RESCHEDULE".equals(request.resolutionType())) {
             newDisputeStatus = "RESOLVED";
             refundAmount = BigDecimal.ZERO;
@@ -542,38 +672,235 @@ public class DisputeService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid resolution type.");
         }
 
-        jdbc.update("""
-                UPDATE dbo.disputes
-                SET status = ?, resolution_type = ?, resolution_note = ?, refund_amount = ?,
-                    resolved_at = SYSUTCDATETIME(), assigned_staff_id = ?, updated_at = SYSUTCDATETIME()
-                WHERE id = ?
-                """, newDisputeStatus, request.resolutionType(), request.resolutionNote().trim(), refundAmount, staffId, disputeId);
+        if (isRefund) {
+            jdbc.update("""
+                    UPDATE dbo.disputes
+                    SET status = ?, resolution_type = ?, resolution_note = ?, refund_amount = ?,
+                        approved_by = ?, approved_at = SYSUTCDATETIME(),
+                        bank_name = COALESCE(?, bank_name),
+                        account_number = COALESCE(?, account_number),
+                        account_name = COALESCE(?, account_name),
+                        assigned_staff_id = ?, updated_at = SYSUTCDATETIME()
+                    WHERE id = ?
+                    """, newDisputeStatus, request.resolutionType(), request.resolutionNote().trim(), refundAmount,
+                    staffId, request.bankName(), request.accountNumber(), request.accountName(), staffId, disputeId);
 
-        // Restore target status if rejected or advance it if refunded/rescheduled
-        if ("REJECTED".equals(newDisputeStatus)) {
-            if ("ONE_OFF".equals(targetType) && bookingId != null) {
-                jdbc.update("UPDATE dbo.bookings SET status = ?, updated_at = SYSUTCDATETIME() WHERE id = ? AND status = 'DISPUTED'", prevStatus, bookingId);
-            } else if ("MONTHLY".equals(targetType) && subscriptionId != null) {
-                jdbc.update("UPDATE dbo.subscriptions SET status = ?, updated_at = SYSUTCDATETIME() WHERE id = ? AND status = 'DISPUTED'", prevStatus, subscriptionId);
+            if (adminRepository != null) {
+                adminRepository.audit(staffId, "DISPUTE_REFUND_APPROVED", "DISPUTE", String.valueOf(disputeId),
+                        Map.of("status", currentStatus), Map.of("status", newDisputeStatus), "Staff approved refund of " + refundAmount + " VND for Admin transfer: " + request.resolutionNote().trim(), ip != null ? ip : "127.0.0.1");
             }
-        } else if ("FULL_REFUND".equals(request.resolutionType())) {
+        } else {
+            jdbc.update("""
+                    UPDATE dbo.disputes
+                    SET status = ?, resolution_type = ?, resolution_note = ?, refund_amount = ?,
+                        resolved_at = SYSUTCDATETIME(), assigned_staff_id = ?, updated_at = SYSUTCDATETIME()
+                    WHERE id = ?
+                    """, newDisputeStatus, request.resolutionType(), request.resolutionNote().trim(), refundAmount, staffId, disputeId);
+
+            // Restore target status if rejected or advance it if rescheduled
+            if ("REJECTED".equals(newDisputeStatus)) {
+                if ("ONE_OFF".equals(targetType) && bookingId != null) {
+                    jdbc.update("UPDATE dbo.bookings SET status = ?, updated_at = SYSUTCDATETIME() WHERE id = ? AND status = 'DISPUTED'", prevStatus, bookingId);
+                } else if ("MONTHLY".equals(targetType) && subscriptionId != null) {
+                    jdbc.update("UPDATE dbo.subscriptions SET status = ?, updated_at = SYSUTCDATETIME() WHERE id = ? AND status = 'DISPUTED'", prevStatus, subscriptionId);
+                }
+            } else if ("RESCHEDULE".equals(request.resolutionType())) {
+                if ("ONE_OFF".equals(targetType) && bookingId != null) {
+                    jdbc.update("UPDATE dbo.bookings SET status = 'CONFIRMED', updated_at = SYSUTCDATETIME() WHERE id = ? AND status = 'DISPUTED'", bookingId);
+                }
+            }
+
+            if (adminRepository != null) {
+                adminRepository.audit(staffId, "DISPUTE_RESOLVED", "DISPUTE", String.valueOf(disputeId),
+                        Map.of("status", currentStatus), Map.of("status", newDisputeStatus), request.resolutionNote().trim(), ip != null ? ip : "127.0.0.1");
+            }
+        }
+
+        return staffDisputeDetail(disputeId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdminRefundRequest> adminPendingRefunds() {
+        return queryAdminRefunds("WHERE d.status = 'APPROVED' ORDER BY d.approved_at ASC, d.id ASC");
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdminRefundRequest> adminRefundHistory() {
+        return queryAdminRefunds("WHERE d.status IN ('APPROVED', 'RESOLVED', 'REJECTED') AND (d.resolution_type IN ('FULL_REFUND', 'PARTIAL_REFUND') OR d.refund_amount > 0 OR d.status = 'APPROVED') ORDER BY COALESCE(d.resolved_at, d.approved_at, d.created_at) DESC, d.id DESC");
+    }
+
+    private List<AdminRefundRequest> queryAdminRefunds(String whereClause) {
+        String sql = """
+                SELECT d.id, d.ticket_code, d.complainant_id, c.full_name AS complainant_name, c.email AS complainant_email,
+                       d.respondent_id, r.full_name AS respondent_name, d.target_type, d.disputed_amount,
+                       COALESCE(d.refund_amount, 0) AS refund_amount,
+                       d.bank_name, d.account_name, d.account_number, d.status,
+                       d.resolution_type, d.resolution_note, d.created_at,
+                       d.approved_at, ap.full_name AS approved_by_name,
+                       d.resolved_at, rev.full_name AS resolved_by_name,
+                       d.transfer_reference
+                FROM dbo.disputes d
+                JOIN dbo.users c ON c.id = d.complainant_id
+                JOIN dbo.users r ON r.id = d.respondent_id
+                LEFT JOIN dbo.users ap ON ap.id = d.approved_by
+                LEFT JOIN dbo.users rev ON rev.id = d.reviewed_by
+                """ + " " + whereClause;
+        return jdbc.query(sql, (rs, row) -> new AdminRefundRequest(
+                rs.getLong("id"),
+                rs.getString("ticket_code"),
+                rs.getLong("complainant_id"),
+                rs.getString("complainant_name"),
+                rs.getString("complainant_email"),
+                rs.getLong("respondent_id"),
+                rs.getString("respondent_name"),
+                rs.getString("target_type"),
+                rs.getBigDecimal("disputed_amount"),
+                rs.getBigDecimal("refund_amount"),
+                rs.getString("bank_name"),
+                rs.getString("account_name"),
+                rs.getString("account_number"),
+                rs.getString("status"),
+                rs.getString("resolution_type"),
+                rs.getString("resolution_note"),
+                instant(rs.getTimestamp("created_at")),
+                instant(rs.getTimestamp("approved_at")),
+                rs.getString("approved_by_name"),
+                instant(rs.getTimestamp("resolved_at")),
+                rs.getString("resolved_by_name"),
+                rs.getString("transfer_reference")
+        ));
+    }
+
+    @Transactional
+    public void adminDecideRefund(long disputeId, RefundDecisionRequest decision, AuthenticatedUser adminUser, String ip) {
+        if (adminUser == null || !"ADMIN".equals(adminUser.role())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only administrators can process refunds.");
+        }
+        long adminId = adminUser.id() != null ? adminUser.id() : 1L;
+        if (decision == null || decision.decision() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose PAID or REJECTED.");
+        }
+        String action = decision.decision().trim();
+        if (!("PAID".equals(action) || "REJECTED".equals(action))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose PAID or REJECTED.");
+        }
+        if ("PAID".equals(action)) {
+            String transferReference = decision.transferReference() == null ? "" : decision.transferReference().trim();
+            if (transferReference.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Enter the bank transfer reference before marking this refund paid.");
+            }
+            if (transferReference.length() > 100) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Transfer reference is too long (max 100 characters).");
+            }
+        }
+        if ("REJECTED".equals(action)) {
+            String reason = decision.rejectionReason() == null ? "" : decision.rejectionReason().trim();
+            if (reason.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Provide a reason for rejecting the refund.");
+            }
+        }
+
+        List<Map<String, Object>> rows = jdbc.queryForList("""
+                SELECT id, ticket_code, status, disputed_amount, refund_amount, resolution_type, resolution_note,
+                       previous_target_status, target_type, booking_id, subscription_id, payment_id, complainant_id
+                FROM dbo.disputes WITH (UPDLOCK, HOLDLOCK) WHERE id = ?
+                """, disputeId);
+        if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Dispute was not found.");
+        Map<String, Object> dispute = rows.get(0);
+        String currentStatus = (String) dispute.get("status");
+        if (!"APPROVED".equals(currentStatus)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Dispute refund must be approved by staff before payment.");
+        }
+
+        String ticketCode = (String) dispute.get("ticket_code");
+        BigDecimal refundAmount = (BigDecimal) dispute.get("refund_amount");
+        String resolutionType = (String) dispute.get("resolution_type");
+        String resolutionNote = (String) dispute.get("resolution_note");
+        String targetType = (String) dispute.get("target_type");
+        Long bookingId = dispute.get("booking_id") != null ? ((Number) dispute.get("booking_id")).longValue() : null;
+        Long subscriptionId = dispute.get("subscription_id") != null ? ((Number) dispute.get("subscription_id")).longValue() : null;
+        String prevStatus = (String) dispute.get("previous_target_status");
+        Long paymentId = ((Number) dispute.get("payment_id")).longValue();
+        Long complainantId = ((Number) dispute.get("complainant_id")).longValue();
+
+        if ("PAID".equals(action)) {
+            String transferReference = decision.transferReference().trim();
+
+            // Create refund record in dbo.refunds
+            String refundRef = "REFUND-" + ticketCode;
+            KeyHolder keys = new GeneratedKeyHolder();
+            jdbc.update(con -> {
+                PreparedStatement ps = con.prepareStatement("""
+                        INSERT INTO dbo.refunds(payment_id, refund_reference, amount, reason_code, reason_text,
+                                                status, requested_by, gateway_refund_id, requested_at, completed_at)
+                        VALUES (?, ?, ?, ?, ?, 'SUCCEEDED', ?, ?, SYSUTCDATETIME(), SYSUTCDATETIME())
+                        """, new String[]{"id"});
+                ps.setLong(1, paymentId);
+                ps.setString(2, refundRef);
+                ps.setBigDecimal(3, refundAmount);
+                ps.setString(4, resolutionType != null ? resolutionType : "DISPUTE_REFUND");
+                ps.setString(5, resolutionNote);
+                ps.setLong(6, complainantId);
+                ps.setString(7, transferReference);
+                return ps;
+            }, keys);
+            Number refundId = keys.getKey();
+
+            // Insert into dbo.escrow_ledger_entries
+            if (refundId != null) {
+                jdbc.update("""
+                        INSERT INTO dbo.escrow_ledger_entries(payment_id, refund_id, entry_type, amount, idempotency_key, reason, created_by, created_at)
+                        VALUES (?, ?, 'REFUND_OUT', ?, ?, ?, ?, SYSUTCDATETIME())
+                        """, paymentId, refundId.longValue(), refundAmount, "REFUND:DISPUTE:" + disputeId,
+                        "Admin executed refund transfer for ticket " + ticketCode, adminId);
+            }
+
+            // Advance target status
             if ("ONE_OFF".equals(targetType) && bookingId != null) {
                 jdbc.update("UPDATE dbo.bookings SET status = 'CANCELLED', updated_at = SYSUTCDATETIME() WHERE id = ? AND status = 'DISPUTED'", bookingId);
             } else if ("MONTHLY".equals(targetType) && subscriptionId != null) {
                 jdbc.update("UPDATE dbo.subscriptions SET status = 'CANCELLED', updated_at = SYSUTCDATETIME() WHERE id = ? AND status = 'DISPUTED'", subscriptionId);
             }
-        } else if ("RESCHEDULE".equals(request.resolutionType())) {
+
+            // Update dispute status
+            jdbc.update("""
+                    UPDATE dbo.disputes
+                    SET status = 'RESOLVED', reviewed_by = ?, transfer_reference = ?,
+                        resolved_at = SYSUTCDATETIME(), updated_at = SYSUTCDATETIME()
+                    WHERE id = ? AND status = 'APPROVED'
+                    """, adminId, transferReference, disputeId);
+
+            if (adminRepository != null) {
+                adminRepository.audit(adminId, "DISPUTE_REFUND_PAID", "DISPUTE", String.valueOf(disputeId),
+                        Map.of("status", "APPROVED"), Map.of("status", "RESOLVED"), "Bank transfer reference: " + transferReference, ip != null ? ip : "127.0.0.1");
+            }
+        } else if ("REJECTED".equals(action)) {
+            String reason = decision.rejectionReason() == null ? "" : decision.rejectionReason().trim();
+            if (reason.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Provide a reason for rejecting this refund.");
+            }
+
+            // Restore target status
             if ("ONE_OFF".equals(targetType) && bookingId != null) {
-                jdbc.update("UPDATE dbo.bookings SET status = 'CONFIRMED', updated_at = SYSUTCDATETIME() WHERE id = ? AND status = 'DISPUTED'", bookingId);
+                jdbc.update("UPDATE dbo.bookings SET status = ?, updated_at = SYSUTCDATETIME() WHERE id = ? AND status = 'DISPUTED'", prevStatus, bookingId);
+            } else if ("MONTHLY".equals(targetType) && subscriptionId != null) {
+                jdbc.update("UPDATE dbo.subscriptions SET status = ?, updated_at = SYSUTCDATETIME() WHERE id = ? AND status = 'DISPUTED'", prevStatus, subscriptionId);
+            }
+
+            // Update dispute status
+            jdbc.update("""
+                    UPDATE dbo.disputes
+                    SET status = 'REJECTED', reviewed_by = ?,
+                        resolution_note = CASE WHEN resolution_note IS NULL THEN ? ELSE resolution_note + ' | Admin rejection: ' + ? END,
+                        resolved_at = SYSUTCDATETIME(), updated_at = SYSUTCDATETIME()
+                    WHERE id = ? AND status = 'APPROVED'
+                    """, adminId, reason, reason, disputeId);
+
+            if (adminRepository != null) {
+                adminRepository.audit(adminId, "DISPUTE_REFUND_REJECTED", "DISPUTE", String.valueOf(disputeId),
+                        Map.of("status", "APPROVED"), Map.of("status", "REJECTED"), reason, ip != null ? ip : "127.0.0.1");
             }
         }
-
-        if (adminRepository != null) {
-            adminRepository.audit(staffId, "DISPUTE_RESOLVED", "DISPUTE", String.valueOf(disputeId),
-                    currentStatus, newDisputeStatus, request.resolutionNote().trim(), ip != null ? ip : "127.0.0.1");
-        }
-
-        return staffDisputeDetail(disputeId);
     }
 
     private record Target(long id,long menteeId,long mentorId,String status,Instant startAt,Instant endAt,

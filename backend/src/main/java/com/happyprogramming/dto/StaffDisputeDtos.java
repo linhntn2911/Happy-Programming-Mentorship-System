@@ -57,8 +57,34 @@ public final class StaffDisputeDtos {
             String resolutionNote,
             BigDecimal refundAmount,
             Instant resolvedAt,
-            List<DisputeDtos.Evidence> evidence
-    ) {}
+            List<DisputeDtos.Evidence> evidence,
+            String bankName,
+            String accountNumber,
+            String accountName,
+            Long approvedBy,
+            String approvedByName,
+            Instant approvedAt,
+            String transferReference
+    ) {
+        public StaffDetail(
+                long id, String ticketCode, String targetType, long targetId, String title,
+                long complainantId, String complainantName, String complainantEmail,
+                long respondentId, String respondentName, String respondentEmail,
+                Instant scheduledAt, BigDecimal disputedAmount, String currency,
+                String category, String description, String status,
+                Instant createdAt, Instant termsAcceptedAt,
+                Long assignedStaffId, String assignedStaffName,
+                Instant responseDeadlineAt, String resolutionType,
+                String resolutionNote, BigDecimal refundAmount,
+                Instant resolvedAt, List<DisputeDtos.Evidence> evidence
+        ) {
+            this(id, ticketCode, targetType, targetId, title, complainantId, complainantName, complainantEmail,
+                 respondentId, respondentName, respondentEmail, scheduledAt, disputedAmount, currency,
+                 category, description, status, createdAt, termsAcceptedAt, assignedStaffId, assignedStaffName,
+                 responseDeadlineAt, resolutionType, resolutionNote, refundAmount, resolvedAt, evidence,
+                 null, null, null, null, null, null, null);
+        }
+    }
 
     public record ResolveRequest(
             @NotBlank(message = "Resolution type is required.")
@@ -69,6 +95,13 @@ public final class StaffDisputeDtos {
             @Size(min = 10, max = 2000, message = "Resolution note must be between 10 and 2,000 characters.")
             String resolutionNote,
 
-            BigDecimal refundAmount
-    ) {}
+            BigDecimal refundAmount,
+            String bankName,
+            String accountNumber,
+            String accountName
+    ) {
+        public ResolveRequest(String resolutionType, String resolutionNote, BigDecimal refundAmount) {
+            this(resolutionType, resolutionNote, refundAmount, null, null, null);
+        }
+    }
 }

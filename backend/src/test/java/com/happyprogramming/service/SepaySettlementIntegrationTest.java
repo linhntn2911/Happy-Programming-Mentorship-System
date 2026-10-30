@@ -20,6 +20,7 @@ class SepaySettlementIntegrationTest {
  @Autowired JdbcTemplate db;
  @Autowired SepayPaymentService sepay;
  @Autowired MentorWalletService wallet;
+ @Autowired DisputeService disputes;
  long mentor,mentee,admin,request;
  CheckoutResponse checkout;
  long user(String role) {
@@ -172,6 +173,43 @@ class SepaySettlementIntegrationTest {
   var self=assertThrows(org.springframework.web.server.ResponseStatusException.class,()->wallet.decidePayout(payout.id(),new PayoutDecisionRequest("PAID","SELF",null),"local"));
   assertEquals(409,self.getStatusCode().value());
   assertEquals("APPROVED",db.queryForObject("SELECT status FROM dbo.mentor_payout_requests WHERE id=?",String.class,payout.id()));
+ }
+ @Test void mergedStaffRefundApprovalHoldsFundsUntilAdminRecordsTransfer() {
+  matureFixture();
+  db.update("UPDATE dbo.payments SET billing_period_start=paid_at,billing_period_end=DATEADD(MONTH,1,paid_at) WHERE id=?",checkout.paymentId());
+  db.update("UPDATE r SET funded_at=p.paid_at FROM dbo.mentorship_requests r JOIN dbo.payments p ON p.request_id=r.id WHERE p.id=?",checkout.paymentId());
+  db.update("""
+    INSERT INTO dbo.subscriptions(request_id,service_id,mentor_id,mentee_id,agreed_price,plan_snapshot,status,
+      activated_at,trial_ends_at,current_period_start,current_period_end)
+    SELECT r.id,r.service_id,r.mentor_id,r.mentee_id,1000000,r.offer_snapshot,'TRIALING',
+      p.paid_at,DATEADD(DAY,7,p.paid_at),p.billing_period_start,p.billing_period_end
+    FROM dbo.mentorship_requests r JOIN dbo.payments p ON p.request_id=r.id WHERE p.id=?
+    """,checkout.paymentId());
+  long subscription=db.queryForObject("SELECT id FROM dbo.subscriptions WHERE request_id=?",Long.class,request);
+  long dispute=db.queryForObject("""
+    INSERT INTO dbo.disputes(ticket_code,complainant_id,respondent_id,subscription_id,payment_id,
+      target_type,previous_target_status,category,description,disputed_amount,terms_accepted_at)
+    OUTPUT INSERTED.id VALUES (?,?,?, ?,?,'MONTHLY','TRIALING','OTHER',?,1000000,SYSUTCDATETIME())
+    """,Long.class,"MERGE-"+UUID.randomUUID().toString().substring(0,24),mentee,mentor,subscription,checkout.paymentId(),
+    "Integration test of staff approval and administrator refund settlement.");
+  db.update("UPDATE dbo.subscriptions SET status='DISPUTED' WHERE id=?",subscription);
+  long staff=user("STAFF");login(staff,"STAFF");
+  var actor=new AuthenticatedUser(staff,"Staff","staff@example.invalid","STAFF");
+  disputes.staffResolve(dispute,new StaffDisputeDtos.ResolveRequest("FULL_REFUND","Approved after reviewing the evidence",null,"Test Bank","123456789","TEST MENTEE"),actor,"local");
+  assertEquals("APPROVED",db.queryForObject("SELECT status FROM dbo.disputes WHERE id=?",String.class,dispute));
+  wallet.releaseMaturedPayments();
+  assertEquals(0,db.queryForObject("SELECT COUNT(*) FROM dbo.escrow_ledger_entries WHERE payment_id=? AND entry_type='MENTOR_RELEASE'",Integer.class,checkout.paymentId()));
+  var decision=new RefundDecisionRequest("PAID","MERGE-REFUND-TEST",null,null,null,null);
+  assertThrows(org.springframework.web.server.ResponseStatusException.class,()->disputes.adminDecideRefund(dispute,decision,actor,"local"));
+  login(admin,"ADMIN");var adminActor=new AuthenticatedUser(admin,"Admin","admin@example.invalid","ADMIN");
+  var tooLong=new RefundDecisionRequest("PAID","R".repeat(101),null,null,null,null);
+  assertEquals(400,assertThrows(org.springframework.web.server.ResponseStatusException.class,
+    ()->disputes.adminDecideRefund(dispute,tooLong,adminActor,"local")).getStatusCode().value());
+  assertEquals("APPROVED",db.queryForObject("SELECT status FROM dbo.disputes WHERE id=?",String.class,dispute));
+  disputes.adminDecideRefund(dispute,decision,adminActor,"local");
+  assertEquals("RESOLVED",db.queryForObject("SELECT status FROM dbo.disputes WHERE id=?",String.class,dispute));
+  assertEquals(1,db.queryForObject("SELECT COUNT(*) FROM dbo.escrow_ledger_entries WHERE payment_id=? AND entry_type='REFUND_OUT'",Integer.class,checkout.paymentId()));
+  assertThrows(org.springframework.web.server.ResponseStatusException.class,()->disputes.adminDecideRefund(dispute,decision,adminActor,"local"));
  }
  void approveAsStaff(long payoutId) {
   long staff=user("STAFF");login(staff,"STAFF");

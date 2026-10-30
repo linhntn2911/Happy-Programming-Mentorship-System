@@ -97,6 +97,10 @@
                         <copy file="${project.basedir}/../docs/database/migration/031_20261023_add_operational_settings.sql" tofile="${project.build.outputDirectory}/db/migration/V22__add_operational_settings.sql" overwrite="true"/>
                         <copy file="${project.basedir}/../docs/database/migration/032_20261028_staff_approval_admin_payout.sql" tofile="${project.build.outputDirectory}/db/migration/V23__staff_approval_admin_payout.sql" overwrite="true"/>
                         <copy file="${project.basedir}/../docs/database/migration/033_20261029_enforce_two_stage_payout_lifecycle.sql" tofile="${project.build.outputDirectory}/db/migration/V24__enforce_two_stage_payout_lifecycle.sql" overwrite="true"/>
+                        <copy file="${project.basedir}/../docs/database/migration/034_20261029_add_dispute_refund_approval_step.sql" tofile="${project.build.outputDirectory}/db/migration/V25__add_dispute_refund_approval_step.sql" overwrite="true"/>
+                        <copy file="${project.basedir}/../docs/database/migration/035_20261030_split_dispute_mediation_conversations.sql" tofile="${project.build.outputDirectory}/db/migration/V26__split_dispute_mediation_conversations.sql" overwrite="true"/>
+                        <copy file="${project.basedir}/../docs/database/migration/036_20261030_backfill_open_dispute_mediation_rooms.sql" tofile="${project.build.outputDirectory}/db/migration/V27__backfill_open_dispute_mediation_rooms.sql" overwrite="true"/>
+                        <copy file="${project.basedir}/../docs/database/migration/037_20261030_move_legacy_mediation_notices.sql" tofile="${project.build.outputDirectory}/db/migration/V28__move_legacy_mediation_notices.sql" overwrite="true"/>
                     </target></configuration>
                 </execution></executions>
             </plugin>

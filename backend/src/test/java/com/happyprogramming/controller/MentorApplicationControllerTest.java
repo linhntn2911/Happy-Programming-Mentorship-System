@@ -169,9 +169,9 @@ class MentorApplicationControllerTest {
     }
     @Test void googleCannotProvisionOrUpgradeAMentor() {
         assertTrue(auth.google("subject-"+UUID.randomUUID(),email,"Test Applicant","Test","Applicant","MENTOR").isEmpty());
-        assertEquals(0,db.queryForObject("SELECT COUNT(*) FROM dbo.users WHERE email=?",Integer.class,email));
-        account(email,"MENTEE");
+        assertEquals("MENTEE",db.queryForObject("SELECT role_code FROM dbo.users WHERE email=?",String.class,email));
         assertTrue(auth.google("subject-"+UUID.randomUUID(),email,"Test Applicant","Test","Applicant","MENTOR").isEmpty());
+        assertEquals("MENTEE",db.queryForObject("SELECT role_code FROM dbo.users WHERE email=?",String.class,email));
     }
     @Test void passwordCanResumeDraftButCannotAuthenticateBeforeOtp() throws Exception {
         var initial=new MockHttpSession(); draft(initial);

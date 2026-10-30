@@ -83,7 +83,7 @@ public class MentorWalletService {
                 rs.getBigDecimal("amount"), rs.getString("merchant_reference"), rs.getTimestamp("created_at").toInstant()), mentorId);
         var requests = db.query("""
                 SELECT TOP (50) id,amount,fee_amount,bank_name,account_name,account_last4,status,transfer_reference,
-                    rejection_reason,requested_at,reviewed_at
+                    rejection_reason,requested_at,COALESCE(reviewed_at, approved_at) AS reviewed_at
                 FROM dbo.mentor_payout_requests WHERE mentor_id=? ORDER BY requested_at DESC,id DESC
                 """, (rs, n) -> new MentorWalletResponse.PayoutRequest(rs.getLong("id"), rs.getBigDecimal("amount"),
                 rs.getString("bank_name"), rs.getString("account_name"), rs.getString("account_last4"), rs.getString("status"),
@@ -248,6 +248,18 @@ public class MentorWalletService {
     }
 
     @Transactional(readOnly = true)
+    public List<AdminPayoutRequest> staffPendingPayouts() {
+        requireAnyRole("ADMIN", "STAFF");
+        return pendingPayouts();
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdminPayoutRequest> adminPendingPayouts() {
+        requireRole("ADMIN");
+        return pendingPayouts();
+    }
+
+    @Transactional(readOnly = true)
     public List<AdminPayoutRequest> pendingPayouts() {
         requireAnyRole("ADMIN", "STAFF");
         var principal = (AuthenticatedUser) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -342,7 +354,7 @@ public class MentorWalletService {
                   AND NOT EXISTS (SELECT 1 FROM dbo.escrow_ledger_entries e WHERE e.payment_id=p.id AND e.entry_type='MENTOR_RELEASE')
                   AND NOT EXISTS (SELECT 1 FROM dbo.refunds f WHERE f.payment_id=p.id AND f.status IN ('PENDING','PROCESSING'))
                   AND NOT EXISTS (SELECT 1 FROM dbo.disputes d WHERE d.payment_id=p.id
-                                  AND d.status IN ('SUBMITTED','IN_MEDIATION','AWAITING_EVIDENCE'))
+                                  AND d.status IN ('SUBMITTED','IN_MEDIATION','AWAITING_EVIDENCE','APPROVED'))
                 ORDER BY p.paid_at,p.id
                 """, (rs,n) -> new MaturePayment(rs.getLong("id"), rs.getBigDecimal("distributable_amount"),
                 rs.getBigDecimal("commission_rate_snapshot")), limit);

@@ -13,6 +13,7 @@ test('bookings page combines monthly applications and one-off session controls',
   assert.match(markup, /class="admin-page-heading"/);
   assert.match(markup, /id="requests-content" class="admin-panel"/);
   assert.match(markup, /class="data-table min-w-\[860px\]"/);
+  assert.match(markup, /id="request-search-input"/);
   assert.match(markup, /id="request-status-filter"/);
   assert.match(markup, /value="AWAITING_PAYMENT">Awaiting payment/);
   assert.match(markup, /id="request-type-filter"/);

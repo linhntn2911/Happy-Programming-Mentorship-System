@@ -730,13 +730,53 @@ export async function mountStaffPayouts(root) {
         const id = Number(btn.dataset.payoutApprove);
         const item = requests.find(r => r.id === id);
         if (!item) return;
+
         openPayoutDialog({
-          title: 'Approve payout for Admin payment',
-          eyebrow: 'STAFF REVIEW',
-          prompt: `<p>Confirm that you checked the withdrawal and bank destination for ${e(item.mentorName)}.</p><p>Gross: ${money(item.amount)}. Fee: ${money(item.feeAmount)}. Net transfer: ${money(item.netAmount ?? item.amount)}.</p><p>Admin will perform the bank transfer. This approval keeps the amount reserved and does not debit the wallet.</p>`,
+          title: 'Verify & approve payout request',
+          eyebrow: 'STAFF REVIEW WORKFLOW',
+          prompt: `
+            <div class="mb-4 rounded-xl border border-line bg-cream p-4">
+              <div class="flex items-center justify-between mb-3 pb-2 border-b border-line">
+                <div>
+                  <span class="text-xs font-semibold uppercase tracking-wider text-brand">Verification Summary</span>
+                  <p class="text-xs text-muted">Confirm mentor withdrawal information before approving for Admin payment.</p>
+                </div>
+                <span class="text-xs font-bold text-ink bg-lilac/70 px-2 py-0.5 rounded">Payout #${e(item.id)}</span>
+              </div>
+
+              <div class="space-y-2 text-xs">
+                <div class="flex items-center justify-between pb-1.5 border-b border-line/50">
+                  <span class="text-muted">Mentor:</span>
+                  <span class="font-semibold text-ink">${e(item.mentorName)} <span class="text-muted font-normal">(${e(item.mentorEmail)})</span></span>
+                </div>
+                <div class="flex items-center justify-between pb-1.5 border-b border-line/50">
+                  <span class="text-muted">Bank name:</span>
+                  <strong class="text-ink">${e(item.bankName)}</strong>
+                </div>
+                <div class="flex items-center justify-between pb-1.5 border-b border-line/50">
+                  <span class="text-muted">Account number (STK):</span>
+                  <strong class="font-mono text-ink text-sm bg-lilac/50 px-1.5 py-0.5 rounded">${e(item.accountNumber)}</strong>
+                </div>
+                <div class="flex items-center justify-between pb-1.5 border-b border-line/50">
+                  <span class="text-muted">Account holder:</span>
+                  <span class="font-semibold text-ink">${e(item.accountName)}</span>
+                </div>
+                <div class="flex items-center justify-between pb-1.5 border-b border-line/50">
+                  <span class="text-muted">Transfer amount:</span>
+                  <span class="text-brand font-bold text-sm">${money(item.netAmount ?? item.amount)}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-muted">Withdrawal fee:</span>
+                  <span class="text-ink">${money(item.feeAmount || 0)}</span>
+                </div>
+              </div>
+            </div>
+            <div class="rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-xs text-amber-900">
+              <p>Approving this request verifies the mentor's banking details and forwards it to <strong>Admin</strong> to execute the bank transfer. Funds remain reserved in the mentor's wallet until payment is completed.</p>
+            </div>`,
           action: async () => {
             await staffService.decidePayout(id, { decision: 'APPROVED' });
-            notice = { message: `Payout #${id} approved and awaiting Admin payment.`, type: 'info' };
+            notice = { message: `Payout #${id} approved and forwarded to Admin for bank transfer.`, type: 'info' };
             await loadData();
           }
         });
@@ -948,6 +988,7 @@ export async function mountStaffReports(root) {
 
     function renderModalContent(detail) {
       const isResolved = detail.status === 'RESOLVED' || detail.status === 'REJECTED';
+      const isApproved = detail.status === 'APPROVED';
       const isSubmitted = detail.status === 'SUBMITTED';
 
       const evidencesHtml = detail.evidences && detail.evidences.length > 0
@@ -972,20 +1013,45 @@ export async function mountStaffReports(root) {
         `
         : '<p class="mt-4 text-xs text-muted italic">No attached evidence files submitted.</p>';
 
-      const actionsHtml = isResolved
-        ? `
+      let actionsHtml = '';
+      if (isApproved) {
+        actionsHtml = `
+          <div class="mt-5 p-4 rounded-xl bg-amber-50/80 border border-amber-200">
+            <span class="text-xs font-semibold uppercase tracking-wider text-amber-900">Refund Approved · Awaiting Admin Bank Transfer</span>
+            <p class="mt-1 text-xs text-ink font-medium">Outcome: <span class="badge !text-[10px] ml-1 bg-amber-100 text-amber-900">${e(detail.resolutionType || 'FULL_REFUND')}</span></p>
+            ${detail.resolutionNote ? `<p class="mt-1 text-xs text-muted">Notes: ${e(detail.resolutionNote)}</p>` : ''}
+            <div class="mt-2 text-xs flex gap-4 text-ink">
+              <span>Approved Refund: <strong>${money(detail.refundAmount)}</strong></span>
+            </div>
+            ${detail.bankName ? `
+              <div class="mt-2 p-2.5 rounded-lg bg-white/90 border border-amber-200 text-xs text-ink">
+                <span>Mentee Bank: <strong>${e(detail.bankName)}</strong> · Account: <strong>${e(detail.accountNumber)}</strong> (${e(detail.accountName)})</span>
+              </div>
+            ` : ''}
+            ${detail.approvedByName ? `<p class="mt-2 text-[11px] text-muted">Approved by Staff: <strong>${e(detail.approvedByName)}</strong> at ${e(dateTime(detail.approvedAt))}</p>` : ''}
+            <p class="mt-2 text-[11px] text-amber-800 italic">Dispute is in Administrator payout queue. Admin will transfer funds via bank and record the transaction reference.</p>
+          </div>
+        `;
+      } else if (isResolved) {
+        actionsHtml = `
           <div class="mt-5 p-4 rounded-xl bg-lilac/30 border border-line">
             <span class="text-xs font-semibold uppercase tracking-wider text-brand">Case Resolution</span>
-            <p class="mt-1 text-xs text-ink font-medium">Outcome: <span class="badge !text-[10px] ml-1">${e(detail.outcome || detail.status)}</span></p>
-            ${detail.resolutionNotes ? `<p class="mt-1 text-xs text-muted">Notes: ${e(detail.resolutionNotes)}</p>` : ''}
+            <p class="mt-1 text-xs text-ink font-medium">Outcome: <span class="badge !text-[10px] ml-1">${e(detail.resolutionType || detail.status)}</span></p>
+            ${detail.resolutionNote ? `<p class="mt-1 text-xs text-muted">Notes: ${e(detail.resolutionNote)}</p>` : ''}
             <div class="mt-2 text-xs flex gap-4 text-ink">
-              <span>Mentee Refund: <strong>${money(detail.menteeRefundAmount)}</strong></span>
-              <span>Mentor Release: <strong>${money(detail.mentorReleaseAmount)}</strong></span>
+              <span>Mentee Refund: <strong>${money(detail.refundAmount)}</strong></span>
             </div>
+            ${detail.bankName ? `
+              <div class="mt-2 p-2.5 rounded-lg bg-white border border-line text-xs text-ink">
+                <span>Bank: <strong>${e(detail.bankName)}</strong> · Account: <strong>${e(detail.accountNumber)}</strong> (${e(detail.accountName)})</span>
+                ${detail.transferReference ? `<div class="mt-1 text-muted">Transfer Ref: <strong class="font-mono text-ink">${e(detail.transferReference)}</strong></div>` : ''}
+              </div>
+            ` : ''}
             ${detail.resolvedBy ? `<p class="mt-1 text-[11px] text-muted">Resolved by: ${e(detail.resolvedBy)} at ${e(dateTime(detail.resolvedAt))}</p>` : ''}
           </div>
-        `
-        : `
+        `;
+      } else {
+        actionsHtml = `
           <div class="mt-5 space-y-4 border-t border-line pt-4">
             ${isSubmitted ? `
               <div class="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-xl">
@@ -1004,22 +1070,37 @@ export async function mountStaffReports(root) {
                 <label class="admin-field" for="resolve-outcome">
                   Settlement Outcome
                   <select id="resolve-outcome" name="outcome" required>
-                    <option value="FULL_REFUND_MENTEE">Full refund to mentee (100% mentee, 0% mentor)</option>
-                    <option value="RELEASE_TO_MENTOR">Release to mentor (Mentee claim denied, 100% mentor)</option>
-                    <option value="NO_FAULT_SPLIT">Split equally (50% mentee, 50% mentor)</option>
-                    <option value="PARTIAL_REFUND">Custom split / partial settlement</option>
+                    <option value="FULL_REFUND">Full refund to mentee (100% mentee - forwards to Admin)</option>
+                    <option value="PARTIAL_REFUND">Partial refund to mentee (forwards to Admin)</option>
+                    <option value="REJECTED">Reject dispute / Claim denied</option>
+                    <option value="RESCHEDULE">Reschedule session / Mentorship continued</option>
                   </select>
                 </label>
 
-                <div class="grid grid-cols-2 gap-3" id="split-amounts-row">
+                <div id="split-amounts-row">
                   <label class="admin-field" for="resolve-mentee-refund">
                     Mentee Refund (VND)
                     <input type="number" id="resolve-mentee-refund" name="menteeRefundAmount" value="${detail.disputedAmount || 0}" min="0" max="${detail.disputedAmount || 0}" step="1000" />
                   </label>
-                  <label class="admin-field" for="resolve-mentor-release">
-                    Mentor Release (VND)
-                    <input type="number" id="resolve-mentor-release" name="mentorReleaseAmount" value="0" min="0" max="${detail.disputedAmount || 0}" step="1000" />
-                  </label>
+                </div>
+
+                <div id="resolve-bank-container" class="p-3 rounded-xl bg-cream border border-line space-y-2">
+                  <p class="text-[11px] font-semibold text-ink uppercase tracking-wider">Mentee Receiving Bank Account</p>
+                  <p class="text-[11px] text-muted">Admin requires these details to execute the bank transfer.</p>
+                  <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    <label class="admin-field" for="resolve-bank-name">
+                      Bank Name
+                      <input id="resolve-bank-name" name="bankName" type="text" value="${e(detail.bankName || '')}" placeholder="e.g. Vietcombank" maxlength="100">
+                    </label>
+                    <label class="admin-field" for="resolve-account-number">
+                      Account Number
+                      <input id="resolve-account-number" name="accountNumber" type="text" value="${e(detail.accountNumber || '')}" placeholder="e.g. 1029384756" maxlength="50">
+                    </label>
+                    <label class="admin-field" for="resolve-account-name">
+                      Account Name
+                      <input id="resolve-account-name" name="accountName" type="text" value="${e(detail.accountName || '')}" placeholder="e.g. NGUYEN VAN A" maxlength="150">
+                    </label>
+                  </div>
                 </div>
 
                 <label class="admin-field" for="resolve-notes">
@@ -1027,14 +1108,17 @@ export async function mountStaffReports(root) {
                   <textarea id="resolve-notes" name="resolutionNotes" rows="3" placeholder="Document investigation findings, policy basis, and instructions..." required minlength="10" maxlength="2000"></textarea>
                 </label>
 
+                <p class="text-[11px] text-muted italic">Note: When approving a refund, Staff validates the complaint and forwards the request to Admin. Admin executes the bank transfer and marks the payout completed.</p>
+
                 <div class="admin-actions mt-3">
                   <button type="button" class="btn btn-outline btn-sm" id="btn-cancel-resolve">Cancel</button>
-                  <button type="submit" class="btn btn-primary btn-sm" id="btn-submit-resolve">Confirm Resolution & Settle</button>
+                  <button type="submit" class="btn btn-primary btn-sm" id="btn-submit-resolve">Confirm & Submit Decision</button>
                 </div>
               </form>
             </div>
           </div>
         `;
+      }
 
       dialogContent.innerHTML = `
         <button class="modal-close" type="button" aria-label="Close" id="close-report-modal">
@@ -1044,10 +1128,14 @@ export async function mountStaffReports(root) {
         <p class="eyebrow !pr-8">DISPUTE MEDIATION · TICKET #${e(detail.ticketCode)}</p>
         <h2 id="report-dialog-title" class="mt-2 font-display text-2xl text-ink">${e(detail.title || 'Mentorship Complaint')}</h2>
         
-        <div class="flex items-center gap-2 mt-1">
+        <div class="flex items-center gap-2 mt-1 flex-wrap">
           <span class="badge !text-[10px]">${e(detail.targetType)}</span>
           <span class="badge !text-[10px]">${e(detail.category ? detail.category.replaceAll('_', ' ') : 'GENERAL')}</span>
           <span class="text-xs text-muted">Amount: <strong class="text-ink">${money(detail.disputedAmount)}</strong></span>
+          <a href="#/workspace" class="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-lilac/70 text-brand hover:bg-lilac transition">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            Open Messages
+          </a>
         </div>
 
         <div class="mt-4 grid grid-cols-2 gap-4 p-3 rounded-xl bg-cream border border-line text-xs">
@@ -1081,7 +1169,6 @@ export async function mountStaffReports(root) {
 
       dialogContent.querySelector('#close-report-modal')?.addEventListener('click', () => dialog.close());
       dialogContent.querySelector('#btn-cancel-resolve')?.addEventListener('click', () => dialog.close());
-
       const intakeBtn = dialogContent.querySelector('#btn-intake-dispute');
       if (intakeBtn) {
         intakeBtn.addEventListener('click', async () => {
@@ -1104,72 +1191,74 @@ export async function mountStaffReports(root) {
       if (resolveForm) {
         const outcomeSelect = resolveForm.querySelector('#resolve-outcome');
         const menteeInput = resolveForm.querySelector('#resolve-mentee-refund');
-        const mentorInput = resolveForm.querySelector('#resolve-mentor-release');
         const errorEl = resolveForm.querySelector('#dispute-resolve-error');
         const total = Number(detail.disputedAmount || 0);
 
         const updateAmounts = () => {
           const outcome = outcomeSelect.value;
-          if (outcome === 'FULL_REFUND_MENTEE') {
+          const bankBox = resolveForm.querySelector('#resolve-bank-container');
+          const refundRow = resolveForm.querySelector('#split-amounts-row');
+          if (outcome === 'FULL_REFUND') {
             menteeInput.value = total;
-            mentorInput.value = 0;
             menteeInput.disabled = true;
-            mentorInput.disabled = true;
-          } else if (outcome === 'RELEASE_TO_MENTOR') {
-            menteeInput.value = 0;
-            mentorInput.value = total;
-            menteeInput.disabled = true;
-            mentorInput.disabled = true;
-          } else if (outcome === 'NO_FAULT_SPLIT') {
-            const half = Math.floor(total / 2);
-            menteeInput.value = half;
-            mentorInput.value = total - half;
-            menteeInput.disabled = true;
-            mentorInput.disabled = true;
-          } else {
+            if (refundRow) refundRow.style.display = 'block';
+            if (bankBox) bankBox.style.display = 'block';
+          } else if (outcome === 'PARTIAL_REFUND') {
             menteeInput.disabled = false;
-            mentorInput.disabled = false;
+            if (refundRow) refundRow.style.display = 'block';
+            if (bankBox) bankBox.style.display = 'block';
+          } else {
+            menteeInput.value = 0;
+            menteeInput.disabled = true;
+            if (refundRow) refundRow.style.display = 'none';
+            if (bankBox) bankBox.style.display = 'none';
           }
         };
 
         outcomeSelect.addEventListener('change', updateAmounts);
         updateAmounts();
 
-        menteeInput.addEventListener('input', () => {
-          if (outcomeSelect.value === 'PARTIAL_REFUND') {
-            const val = Math.min(Math.max(Number(menteeInput.value) || 0, 0), total);
-            mentorInput.value = total - val;
-          }
-        });
-
         resolveForm.addEventListener('submit', async (e) => {
           e.preventDefault();
           const submitBtn = resolveForm.querySelector('#btn-submit-resolve');
           submitBtn.disabled = true;
-          submitBtn.textContent = 'Finalizing resolution…';
+          submitBtn.textContent = 'Submitting decision...';
           if (errorEl) errorEl.classList.add('hidden');
 
           try {
-            const outcome = outcomeSelect.value;
-            const menteeRefund = Number(menteeInput.value);
-            const mentorRelease = Number(mentorInput.value);
+            const resolutionType = outcomeSelect.value;
+            const refundAmount = resolutionType === 'FULL_REFUND' ? total : (resolutionType === 'PARTIAL_REFUND' ? Number(menteeInput.value) : 0);
             const notes = resolveForm.querySelector('#resolve-notes').value.trim();
+            const bankName = resolveForm.querySelector('#resolve-bank-name')?.value.trim() || detail.bankName || '';
+            const accountNumber = resolveForm.querySelector('#resolve-account-number')?.value.trim() || detail.accountNumber || '';
+            const accountName = resolveForm.querySelector('#resolve-account-name')?.value.trim() || detail.accountName || '';
+
+            if ((resolutionType === 'FULL_REFUND' || resolutionType === 'PARTIAL_REFUND') && (!bankName || !accountNumber || !accountName)) {
+              throw new Error('Please provide the mentee bank name, account number, and account holder name for Admin to execute the refund transfer.');
+            }
 
             await staffService.resolveReport(detail.id, {
-              outcome,
-              resolutionNotes: notes,
-              menteeRefundAmount: menteeRefund,
-              mentorReleaseAmount: mentorRelease
+              resolutionType,
+              resolutionNote: notes,
+              refundAmount,
+              bankName,
+              accountNumber,
+              accountName
             });
 
             dialog.close();
-            notice = { type: 'success', message: `Dispute #${detail.ticketCode} has been resolved successfully.` };
+            notice = {
+              type: 'success',
+              message: (resolutionType === 'FULL_REFUND' || resolutionType === 'PARTIAL_REFUND')
+                ? `Dispute #${detail.ticketCode} refund approved and forwarded to Admin for bank transfer.`
+                : `Dispute #${detail.ticketCode} resolution finalized.`
+            };
             await loadData();
           } catch (err) {
             submitBtn.disabled = false;
-            submitBtn.textContent = 'Confirm Resolution & Settle';
+            submitBtn.textContent = 'Confirm & Submit Decision';
             if (errorEl) {
-              errorEl.innerHTML = Notice({ message: err.message || 'Failed to resolve dispute.', type: 'error' });
+              errorEl.innerHTML = Notice({ message: err.message || 'Failed to submit resolution.', type: 'error' });
               errorEl.classList.remove('hidden');
             }
           }
@@ -1177,7 +1266,5 @@ export async function mountStaffReports(root) {
       }
     }
   }
-
   await loadData();
 }
-

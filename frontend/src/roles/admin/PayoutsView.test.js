@@ -2,18 +2,26 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PayoutsView, filterPayouts } from './AdminViews.js';
 
-test('payout admin view escapes mentor and bank fields and offers explicit transfer decisions', () => {
-  const html = PayoutsView([{
+test('payout admin view escapes mentor and bank fields and offers explicit transfer decisions for approved payouts', () => {
+  const htmlApproved = PayoutsView([{
     id: 12, mentorId: 8, mentorName: '<img src=x onerror=alert(1)>', mentorEmail: 'mentor@example.test',
     amount: 300000, bankName: '<script>bad()</script>', accountName: 'Mentor Name',
     accountNumber: '1234567890', status: 'APPROVED', requestedAt: '2026-10-11T00:00:00Z',
   }]);
-  assert.match(html, /data-payout-paid="12"/);
-  assert.match(html, /data-payout-reject="12"/);
-  assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
-  assert.match(html, /&lt;script&gt;bad\(\)&lt;\/script&gt;/);
-  assert.doesNotMatch(html, /<img src=x/);
-  assert.doesNotMatch(html, /<script>bad/);
+  assert.match(htmlApproved, /data-payout-paid="12"/);
+  assert.match(htmlApproved, /data-payout-reject="12"/);
+  assert.match(htmlApproved, /&lt;img src=x onerror=alert\(1\)&gt;/);
+  assert.match(htmlApproved, /&lt;script&gt;bad\(\)&lt;\/script&gt;/);
+  assert.doesNotMatch(htmlApproved, /<img src=x/);
+  assert.doesNotMatch(htmlApproved, /<script>bad/);
+
+  const htmlRequested = PayoutsView([{
+    id: 13, mentorId: 8, mentorName: 'Mentor Name', mentorEmail: 'mentor@example.test',
+    amount: 300000, bankName: 'Bank', accountName: 'Mentor Name',
+    accountNumber: '1234567890', status: 'REQUESTED', requestedAt: '2026-10-11T00:00:00Z',
+  }]);
+  assert.match(htmlRequested, /Awaiting staff review/);
+  assert.doesNotMatch(htmlRequested, /data-payout-paid="13"/);
 });
 
 test('history filters status, reference and inclusive UTC request dates', () => {
@@ -43,5 +51,5 @@ test('history is paginated and empty filters show feedback', () => {
 
 test('unreviewed requests have no Admin payment buttons', () => {
  const html=PayoutsView([{id:7,status:'REQUESTED',amount:20000}]);
- assert.match(html,/Awaiting Staff review/);assert.doesNotMatch(html,/data-payout-paid|data-payout-reject/);
+ assert.match(html,/Awaiting staff review/i);assert.doesNotMatch(html,/data-payout-paid|data-payout-reject/);
 });

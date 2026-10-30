@@ -7,7 +7,7 @@ import { adminService } from './adminService.js';
 import { createDemoService } from './adminDemo.js';
 import { escapeHtml as e } from '../../shared/html.js';
 import { PERMISSIONS, paymentCommission, revenue } from './admin.js';
-import { OverviewView, UsersView, RevenueView, PayoutsView, SettingsView, AuditView } from './AdminViews.js';
+import { OverviewView, UsersView, RevenueView, PayoutsView, RefundsView, SettingsView, AuditView } from './AdminViews.js';
 
 let service = adminService;
 function enterDemo() {
@@ -25,6 +25,7 @@ export function mountAdmin(root, section = 'overview') {
   let session;
   let data;
   let payoutRequests = [];
+  let refundRequests = [];
   let message = '';
   let activeDialog;
   const state = { query: '', role: '', status: '', page: 1, from: '', to: '' };
@@ -63,8 +64,14 @@ export function mountAdmin(root, section = 'overview') {
         const pending = new Map(pendingPayouts.map(item => [item.id, item]));
         pendingPayouts = history.map(item => ({ ...item, ...(item.status === 'APPROVED' ? pending.get(item.id) : {}) }));
       }
+      let pendingRefunds = section === 'refunds' && !service.demo ? await service.refundRequests() : [];
+      if (section === 'refunds' && !service.demo) {
+        const history = await service.refundHistory();
+        const pending = new Map(pendingRefunds.map(item => [item.id, item]));
+        pendingRefunds = history.map(item => ({ ...item, ...(item.status === 'APPROVED' ? pending.get(item.id) : {}) }));
+      }
       if (!alive() || version !== requestVersion) return;
-      session = currentSession; data = result; payoutRequests = pendingPayouts; render();
+      session = currentSession; data = result; payoutRequests = pendingPayouts; refundRequests = pendingRefunds; render();
     } catch (err) {
       if (!alive() || version !== requestVersion) return;
       if (err.status === 401 || err.status === 403) login(err.status === 403 ? err.message : '');
@@ -76,7 +83,7 @@ export function mountAdmin(root, section = 'overview') {
   }
   function render() {
     if (!alive()) return;
-    const views = { overview: () => OverviewView(data, session), users: () => UsersView(data, state), staff: () => UsersView(data, state, true), revenue: () => RevenueView(data, state), payouts: () => PayoutsView(payoutRequests, service.demo, state), settings: () => SettingsView(data), audit: () => AuditView(data, state) };
+    const views = { overview: () => OverviewView(data, session), users: () => UsersView(data, state), staff: () => UsersView(data, state, true), revenue: () => RevenueView(data, state), payouts: () => PayoutsView(payoutRequests, service.demo, state), refunds: () => RefundsView(refundRequests, service.demo, state), settings: () => SettingsView(data), audit: () => AuditView(data, state) };
     const content = Object.hasOwn(adminSections, section) ? views[section]() : '<h1 class="section-title">Page not found</h1><a class="btn btn-primary mt-5" href="#/admin">Back to overview</a>';
     renderShell(`<div class="flex flex-wrap items-center justify-between gap-3 mb-5"><div class="grow">${service.demo ? Notice({ message: 'Demo workspace · Sample data only. Changes are saved in this browser.' }) : '<p class="text-[11px] text-muted">Administrator workspace · Live data</p>'}</div>${Button({ label: service.demo ? 'Exit demo' : 'Sign out', variant: 'outline', size: 'sm', id: 'admin-logout' })}</div>${service.warning ? Notice({ message: service.warning }) : ''}${message ? Notice({ message }) : ''}${content}`);
     on('#admin-logout', 'click', async event => {
@@ -128,6 +135,19 @@ export function mountAdmin(root, section = 'overview') {
     root.querySelectorAll('[data-payout-reject]').forEach(button => button.addEventListener('click', () => {
       const id = Number(button.dataset.payoutReject);
       openDialog('Reject payout request', '<p>The reserved amount will return to the mentor’s available balance.</p><label class="admin-field mt-4">Reason<textarea name="reason" rows="3" maxlength="500" required></textarea></label>', form => service.decidePayout(id, { decision: 'REJECTED', rejectionReason: form.elements.reason.value.trim() }));
+    }));
+    root.querySelectorAll('[data-refund-paid]').forEach(button => button.addEventListener('click', () => {
+      const id = Number(button.dataset.refundPaid);
+      const refund = refundRequests.find(item => Number(item.id) === id);
+      openDialog('Process mentee refund', `<p>Mentee: <strong>${e(refund?.menteeName || 'Mentee')}</strong></p><p>Refund amount: <strong>${Number(refund?.refundAmount || 0).toLocaleString()} VND</strong></p><p class="text-sm text-muted mt-2">Bank: <strong>${e(refund?.bankName || 'N/A')}</strong> Â· Account: <strong>${e(refund?.accountNumber || 'N/A')}</strong> (${e(refund?.accountName || 'N/A')})</p><p class="mt-3">Confirm that the bank transfer has been made to the mentee. Enter the external bank transfer reference to complete the refund and record the escrow release debit.</p><label class="admin-field mt-4">Bank transfer reference<input name="transferReference" maxlength="100" required placeholder="e.g. MBVCB.123456789"></label>`, form => {
+        const transferReference = form.elements.transferReference.value.trim();
+        if (!transferReference) throw new Error('Enter the bank transfer reference.');
+        return service.decideRefund(id, { decision: 'PAID', transferReference });
+      });
+    }));
+    root.querySelectorAll('[data-refund-reject]').forEach(button => button.addEventListener('click', () => {
+      const id = Number(button.dataset.refundReject);
+      openDialog('Reject refund proposal', '<p>Rejecting will cancel the staff-approved refund and restore the underlying booking/subscription.</p><label class="admin-field mt-4">Rejection reason<textarea name="reason" rows="3" maxlength="500" required placeholder="Reason for rejecting this refund"></textarea></label>', form => service.decideRefund(id, { decision: 'REJECTED', rejectionReason: form.elements.reason.value.trim() }));
     }));
     if (section === 'settings' && data.operations) {
       root.querySelector('#admin-content')?.insertAdjacentHTML('beforeend', OperationsView(data.operations));

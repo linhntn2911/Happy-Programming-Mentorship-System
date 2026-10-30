@@ -58,9 +58,12 @@ public class DisputeController {
             @RequestParam String category,
             @RequestParam String description,
             @RequestParam boolean termsAccepted,
-            @RequestParam("evidence") List<MultipartFile> evidence) {
+            @RequestParam("evidence") List<MultipartFile> evidence,
+            @RequestParam(required = false) String bankName,
+            @RequestParam(required = false) String accountNumber,
+            @RequestParam(required = false) String accountName) {
         return ApiResponse.ok("Dispute submitted.",
-                service.submit(targetType, targetId, requestId, category, description, termsAccepted, evidence));
+                service.submit(targetType, targetId, requestId, category, description, termsAccepted, evidence, bankName, accountNumber, accountName));
     }
 
     @GetMapping("/{id}/evidence/{evidenceId}")

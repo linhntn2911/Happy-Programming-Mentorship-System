@@ -7,6 +7,7 @@ const paths = {
   mentees: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
   reports: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
   payouts: '<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>',
+  messages: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
   arrow: '<path d="M19 12H5m5-5-5 5 5 5"/>',
 };
 
@@ -18,7 +19,8 @@ export const staffSections = {
   requests: 'Mentorship requests',
   skills: 'Technical skills',
   reports: 'Manage Reports',
-  payouts: 'Mentor payouts'
+  payouts: 'Mentor payouts',
+  messages: 'Mentorship messages'
 };
 
 export function staffIcon(name) {
@@ -37,6 +39,7 @@ export function StaffLayout(section, content, { name = 'Operational Staff' } = {
       case 'skills': return '#/staff/skills';
       case 'reports': case 'disputes': return '#/staff/reports';
       case 'payouts': return '#/staff/payouts';
+      case 'messages': return '#/workspace';
       default: return '#/staff/dashboard';
     }
   };

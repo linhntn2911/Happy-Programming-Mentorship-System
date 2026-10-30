@@ -57,7 +57,7 @@ class MentorshipWorkspaceServiceTest {
         assertEquals(1, rows.size());
         assertEquals(20L, rows.get(0).partnerId());
         assertEquals("Mentor", rows.get(0).partnerName());
-        assertEquals("MENTEE", rows.get(0).currentUserRole());
+        assertEquals("MENTOR", rows.get(0).partnerRole());
         assertEquals(2L, rows.get(0).unreadCount());
     }
 
