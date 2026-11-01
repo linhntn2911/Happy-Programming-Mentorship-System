@@ -1,9 +1,12 @@
 import { mentorDashboardService } from './mentorDashboardService.js';
+import { renderPagination, bindPagination } from '../../shared/pagination.js';
 import {
   formatSlaRemaining,
   formatUtcDate,
   summarizeLearningGoals,
 } from './MentorDashboardPage.js';
+
+const REQUESTS_PAGE_SIZE = 8;
 
 export function MentorRequestsPage() {
   return `
@@ -60,6 +63,7 @@ export function MentorRequestsPage() {
       </table>
     </div>
     <div id="requests-cards" class="grid gap-3 md:hidden"></div>
+    <div id="requests-pagination"></div>
   </div>
 
   <div id="request-dialog-overlay" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
@@ -235,6 +239,7 @@ export function initializeMentorRequestsPage() {
   const statusFilter = root.querySelector('#request-status-filter');
   const requestCount = root.querySelector('#requests-count');
   const empty = root.querySelector('#requests-empty');
+  const requestsPagination = root.querySelector('#requests-pagination');
   const dialog = root.querySelector('#request-dialog');
   const dialogOverlay = root.querySelector('#request-dialog-overlay');
   const acceptButton = root.querySelector('#request-dialog-accept');
@@ -243,6 +248,7 @@ export function initializeMentorRequestsPage() {
   const requestsById = new Map();
   let allRequests = [];
   let activeRequestId = null;
+  let requestsPage = 1;
   let busy = false;
   let disposed = false;
   let actionStatusTimer;
@@ -289,7 +295,11 @@ export function initializeMentorRequestsPage() {
     for (const request of requests) {
       requestsById.set(String(request.id), request);
     }
-    renderRows(root, requests);
+    const totalPages = Math.max(1, Math.ceil(requests.length / REQUESTS_PAGE_SIZE));
+    requestsPage = Math.min(Math.max(1, requestsPage), totalPages);
+    const start = (requestsPage - 1) * REQUESTS_PAGE_SIZE;
+    renderRows(root, requests.slice(start, start + REQUESTS_PAGE_SIZE));
+    requestsPagination.innerHTML = renderPagination({ page: requestsPage, totalPages, label: 'Request pages' });
     requestCount.textContent = `${requests.length} request${requests.length === 1 ? '' : 's'}`;
     empty.textContent = statusFilter.value === 'ALL'
       ? 'No mentorship requests have been submitted yet.'
@@ -298,6 +308,7 @@ export function initializeMentorRequestsPage() {
   }
 
   function applyStatusFilter() {
+    requestsPage = 1;
     const requests = statusFilter.value === 'ALL'
       ? allRequests
       : allRequests.filter(request => request.status === statusFilter.value);
@@ -426,6 +437,14 @@ export function initializeMentorRequestsPage() {
     void loadRequests();
   });
   statusFilter.addEventListener('change', applyStatusFilter);
+  const unbindPagination = bindPagination(requestsPagination, {
+    onChange: next => {
+      requestsPage = next;
+      applyRequests(statusFilter.value === 'ALL'
+        ? allRequests
+        : allRequests.filter(request => request.status === statusFilter.value));
+    },
+  });
   root.addEventListener('click', handleClick);
   dialogOverlay.addEventListener('click', handleDialogClick);
   window.addEventListener('keydown', handleKeydown);
@@ -440,5 +459,6 @@ export function initializeMentorRequestsPage() {
     window.removeEventListener('keydown', handleKeydown);
     root.removeEventListener('click', handleClick);
     dialogOverlay.removeEventListener('click', handleDialogClick);
+    unbindPagination();
   };
 }

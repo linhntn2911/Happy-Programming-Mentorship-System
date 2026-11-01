@@ -39,7 +39,7 @@ class MentorReviewServiceTest {
 
     private static MentorReviewResponse card(long id) {
         return new MentorReviewResponse(id, 5, "Clear and dedicated mentor.", "Mentee A",
-                "Monthly Mentorship", Instant.parse("2026-10-10T03:15:00Z"));
+                "Monthly Mentorship", "MONTHLY", Instant.parse("2026-10-10T03:15:00Z"));
     }
 
     @Test
