@@ -88,9 +88,23 @@ function renderEntries(entries = []) {
   return `<div class="data-table-scroll"><table class="data-table"><thead><tr><th>Activity</th><th>Amount</th><th>Reference</th><th>Date (UTC)</th></tr></thead><tbody>${entries.map(entry => `<tr><td>${e(entry.type.replaceAll('_', ' '))}</td><td>${money(entry.amount)}</td><td>${e(entry.reference)}</td><td>${e(dateTime(entry.createdAt))}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
-function renderPayouts(requests = []) {
+const PAYOUT_STATUS_LABELS = { REQUESTED: 'Pending review', APPROVED: 'Approved', PAID: 'Paid', REJECTED: 'Rejected' };
+const PAYOUT_STATUS_TONES = { REQUESTED: 'warning', APPROVED: 'neutral', PAID: 'success', REJECTED: 'danger' };
+
+function payoutStatusBadge(status) {
+  const tone = PAYOUT_STATUS_TONES[status] || 'neutral';
+  const label = PAYOUT_STATUS_LABELS[status] || status || 'Unknown';
+  return `<span class="status-badge status-${tone}"><span aria-hidden="true">●</span> ${e(label)}</span>`;
+}
+
+function payoutReceipt(receiptUrl) {
+  if (!receiptUrl || !/^https?:\/\//i.test(receiptUrl)) return '<span class="text-muted">—</span>';
+  return `<a class="font-semibold text-brand underline" href="${e(receiptUrl)}" target="_blank" rel="noopener noreferrer">View receipt</a>`;
+}
+
+export function renderPayouts(requests = []) {
   if (!requests.length) return '<p class="text-sm text-muted">No payout requests yet.</p>';
-  return `<div class="data-table-scroll"><table class="data-table"><thead><tr><th>Requested</th><th>Amount</th><th>Destination</th><th>Status</th><th>Transfer / note</th></tr></thead><tbody>${requests.map(item => `<tr><td>${e(dateTime(item.requestedAt))}</td><td>${money(item.amount)}</td><td>${e(item.bankName)} ···· ${e(item.accountLast4)}</td><td>${e(item.status)}</td><td>${e(item.transferReference || item.rejectionReason || '—')}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<div class="data-table-scroll"><table class="data-table"><thead><tr><th>Requested</th><th>Amount</th><th>Destination</th><th>Status</th><th>Transfer / note</th><th>Receipt</th></tr></thead><tbody>${requests.map(item => `<tr><td>${e(dateTime(item.requestedAt))}</td><td>${money(item.amount)}</td><td>${e(item.bankName)} ···· ${e(item.accountLast4)}</td><td>${payoutStatusBadge(item.status)}</td><td>${e(item.transferReference || item.rejectionReason || '—')}</td><td>${payoutReceipt(item.receiptUrl)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 export function MentorWalletPage() {

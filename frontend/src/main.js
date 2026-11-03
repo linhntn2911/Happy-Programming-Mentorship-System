@@ -31,6 +31,7 @@ import { initializeMentorDashboardPage, MentorDashboardPage } from './roles/ment
 import { initializeMentorRequestsPage, MentorRequestsPage } from './roles/mentor/MentorRequestsPage.js';
 import { initializeMentorWalletPage, MentorWalletPage } from './roles/mentor/MentorWalletPage.js';
 import { initializeMenteeFeedbackPage, MenteeFeedbackPage } from './roles/mentor/MenteeFeedbackPage.js';
+import { initializeMentorDisputesPage, MentorDisputesPage } from './roles/mentor/MentorDisputesPage.js';
 import { mountMentorWorkspacePage } from './roles/mentor/MentorWorkspacePage.js';
 import { MentorSearchPage } from './roles/guest/MentorSearchPage.js';
 import { DirectoryMentorCard } from './shared/DirectoryMentorCard.js';
@@ -566,6 +567,10 @@ function router() {
     appEl.innerHTML = MenteeFeedbackPage();
     window.scrollTo({ top: 0, behavior: 'instant' });
     cleanupCurrentPage = initializeMenteeFeedbackPage(appEl) || (() => {});
+  } else if (hash === '#/mentor/disputes') {
+    appEl.innerHTML = MentorDisputesPage();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    cleanupCurrentPage = initializeMentorDisputesPage(appEl) || (() => {});
   } else if (hash === '#/mentor/availability' || hash === '#/mentor/packages') {
     cleanupCurrentPage = mountMentorWorkspacePage(appEl, hash === '#/mentor/packages' ? 'packages' : 'availability');
     window.scrollTo({ top: 0, behavior: 'instant' });
