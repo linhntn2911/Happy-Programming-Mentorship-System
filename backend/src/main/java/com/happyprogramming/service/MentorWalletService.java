@@ -46,17 +46,20 @@ public class MentorWalletService {
     private final String encryptionKey;
     private final SecurityTokenRepository securityTokens;
     private final EmailService emailService;
+    private final NotificationService notificationService;
     private final Clock clock;
 
     public MentorWalletService(@Autowired(required = false) JdbcTemplate jdbc,
                                @Value("${hpms.wallet.encryption-key:}") String encryptionKey,
                                SecurityTokenRepository securityTokens,
                                EmailService emailService,
+                               NotificationService notificationService,
                                Clock clock) {
         this.jdbc = jdbc;
         this.encryptionKey = encryptionKey;
         this.securityTokens = securityTokens;
         this.emailService = emailService;
+        this.notificationService = notificationService;
         this.clock = clock;
     }
 
@@ -80,11 +83,12 @@ public class MentorWalletService {
                 rs.getBigDecimal("amount"), rs.getString("merchant_reference"), rs.getTimestamp("created_at").toInstant()), mentorId);
         var requests = db.query("""
                 SELECT TOP (50) id,amount,bank_name,account_name,account_last4,status,transfer_reference,
-                    rejection_reason,requested_at,reviewed_at
+                    receipt_url,rejection_reason,requested_at,reviewed_at
                 FROM dbo.mentor_payout_requests WHERE mentor_id=? ORDER BY requested_at DESC,id DESC
                 """, (rs, n) -> new MentorWalletResponse.PayoutRequest(rs.getLong("id"), rs.getBigDecimal("amount"),
                 rs.getString("bank_name"), rs.getString("account_name"), rs.getString("account_last4"), rs.getString("status"),
-                rs.getString("transfer_reference"), rs.getString("rejection_reason"), rs.getTimestamp("requested_at").toInstant(),
+                rs.getString("transfer_reference"), rs.getString("receipt_url"), rs.getString("rejection_reason"),
+                rs.getTimestamp("requested_at").toInstant(),
                 rs.getTimestamp("reviewed_at") == null ? null : rs.getTimestamp("reviewed_at").toInstant()), mentorId);
         return new MentorWalletResponse(held, available.max(BigDecimal.ZERO), reserved, paid, entries, requests);
     }
@@ -184,7 +188,7 @@ public class MentorWalletService {
                 "Mentor requested a wallet payout.", remoteAddress);
         return db.queryForObject("""
                 SELECT id,amount,bank_name,account_name,account_last4,status,transfer_reference,
-                    rejection_reason,requested_at,reviewed_at FROM dbo.mentor_payout_requests WHERE id=?
+                    receipt_url,rejection_reason,requested_at,reviewed_at FROM dbo.mentor_payout_requests WHERE id=?
                 """, (rs, n) -> payoutDto(rs), key.id());
     }
 
@@ -265,22 +269,40 @@ public class MentorWalletService {
                     """, reason, adminId, Timestamp.from(now), payoutId);
             audit(db, adminId, "MENTOR_PAYOUT_REJECTED", payoutId, "{\"status\":\"REQUESTED\"}",
                     "{\"status\":\"REJECTED\"}", reason, remoteAddress);
+            notifyMentor(mentorId, "Payout request rejected",
+                    "Your payout request #" + payoutId + " was rejected. Reason: " + reason, "PAYOUT_REJECTED");
             return;
         }
         String transferReference = clean(decision.transferReference(), 150, "Enter the bank transfer reference before marking this payout paid.");
+        String receiptUrl = optionalReceiptUrl(decision.receiptUrl());
         BigDecimal amount = (BigDecimal) payout.get("amount");
         BigDecimal unreserved = releasedBalance(db, mentorId).subtract(paidBalance(db, mentorId))
                 .subtract(reservedBalance(db, mentorId, payoutId));
         if (unreserved.compareTo(amount) < 0)
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Released wallet balance is no longer sufficient for this payout.");
         db.update("""
-                UPDATE dbo.mentor_payout_requests SET status='PAID',transfer_reference=?,reviewed_by=?,reviewed_at=?
+                UPDATE dbo.mentor_payout_requests SET status='PAID',transfer_reference=?,receipt_url=?,reviewed_by=?,reviewed_at=?
                 WHERE id=? AND status='REQUESTED'
-                """, transferReference, adminId, Timestamp.from(now), payoutId);
+                """, transferReference, receiptUrl, adminId, Timestamp.from(now), payoutId);
         allocatePayout(db, mentorId, payoutId, amount, adminId, now);
         audit(db, adminId, "MENTOR_PAYOUT_PAID", payoutId, "{\"status\":\"REQUESTED\"}",
                 "{\"status\":\"PAID\",\"amount\":\"" + amount.toPlainString() + "\"}",
                 "Bank transfer reference: " + transferReference, remoteAddress);
+        notifyMentor(mentorId, "Payout paid",
+                "Your payout of " + amount.toPlainString() + " VND was transferred. Bank reference: " + transferReference + ".",
+                "PAYOUT_PAID");
+    }
+
+    private void notifyMentor(long mentorId, String title, String message, String type) {
+        notificationService.create(mentorId, title, message, type, "/mentor/wallet");
+    }
+
+    private static String optionalReceiptUrl(String value) {
+        String normalized = value == null ? "" : value.trim();
+        if (normalized.isEmpty()) return null;
+        if (normalized.length() > 1000 || !normalized.matches("https?://\\S+"))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Enter a valid http(s) receipt link.");
+        return normalized;
     }
 
     @Transactional
@@ -446,7 +468,8 @@ public class MentorWalletService {
         Timestamp reviewed = rs.getTimestamp("reviewed_at");
         return new MentorWalletResponse.PayoutRequest(rs.getLong("id"), rs.getBigDecimal("amount"), rs.getString("bank_name"),
                 rs.getString("account_name"), rs.getString("account_last4"), rs.getString("status"), rs.getString("transfer_reference"),
-                rs.getString("rejection_reason"), rs.getTimestamp("requested_at").toInstant(), reviewed == null ? null : reviewed.toInstant());
+                rs.getString("receipt_url"), rs.getString("rejection_reason"),
+                rs.getTimestamp("requested_at").toInstant(), reviewed == null ? null : reviewed.toInstant());
     }
 
     private long requireRole(String role) {

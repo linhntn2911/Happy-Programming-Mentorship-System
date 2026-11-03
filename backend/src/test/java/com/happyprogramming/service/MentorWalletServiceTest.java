@@ -33,7 +33,7 @@ class MentorWalletServiceTest {
     @Test
     void payoutAccountEncryptionUsesAuthenticatedCiphertextAndRandomNonce() {
         byte[] key = new byte[32]; new SecureRandom().nextBytes(key);
-        MentorWalletService service = new MentorWalletService(null, Base64.getEncoder().encodeToString(key), null, null, null);
+        MentorWalletService service = new MentorWalletService(null, Base64.getEncoder().encodeToString(key), null, null, null, null);
 
         String first = service.encryptAccount("1234567890");
         String second = service.encryptAccount("1234567890");
@@ -45,7 +45,7 @@ class MentorWalletServiceTest {
 
     @Test
     void payoutDetailsFailClosedWithoutConfiguredEncryptionKey() {
-        MentorWalletService service = new MentorWalletService(null, "", null, null, null);
+        MentorWalletService service = new MentorWalletService(null, "", null, null, null, null);
 
         ResponseStatusException error = assertThrows(ResponseStatusException.class,
                 () -> service.encryptAccount("1234567890"));

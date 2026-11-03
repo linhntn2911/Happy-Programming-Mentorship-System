@@ -42,7 +42,7 @@ class MentorWalletControllerTest {
 
     private static MentorWalletResponse.PayoutRequest payout() {
         return new MentorWalletResponse.PayoutRequest(7L, new BigDecimal("500000"), "TPBank",
-                "Nguyen Van A", "6789", "REQUESTED", null, null,
+                "Nguyen Van A", "6789", "REQUESTED", null, null, null,
                 Instant.parse("2026-10-13T02:05:00Z"), null);
     }
 
