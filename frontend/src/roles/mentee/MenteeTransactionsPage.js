@@ -3,11 +3,13 @@ import { BrowseAllMentorsLink } from '../../shared/BrowseAllMentorsLink.js';
 import { bindUserDropdown, getInitials, renderNotificationBell, renderUserDropdown } from '../../shared/Header.js';
 import { authService } from '../auth/authService.js';
 import { menteeTransactionsService } from './menteeTransactionsService.js';
+import { renderPagination } from '../../shared/pagination.js';
 
 const esc = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 const money = (value, currency) => `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Number(value || 0))} ${currency || 'VND'}`;
 const dateLabel = value => value ? new Date(value).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 const statusLabel = { SUCCEEDED: 'Paid', PENDING: 'Pending', EXPIRED: 'Expired', CANCELLED: 'Cancelled', FAILED: 'Failed' };
+const PAGE_SIZE = 10;
 
 function row(item) {
   const status = item.status || 'PENDING';
@@ -25,29 +27,78 @@ export async function mountMenteeTransactions(root) {
   root.innerHTML = `<header class="directory-header"><div class="container flex h-[76px] items-center justify-between gap-4">${BrandLogo()}<nav class="flex items-center gap-3" aria-label="Main navigation">${BrowseAllMentorsLink()}${renderNotificationBell()}${renderUserDropdown({ currentUser: user, displayName: name, initials: getInitials(name) })}</nav></div></header><main class="min-h-screen bg-cream"><section class="container max-w-5xl py-12 sm:py-16"><p class="eyebrow">YOUR ACCOUNT</p><h1 class="mt-3 font-display text-4xl sm:text-5xl text-ink">My transactions</h1><p class="mt-4 text-sm text-muted">Review payments and payment attempts made through HappyProgramming.</p><div id="transactions-results" class="mt-8" role="status" aria-live="polite">Loading your transactions…</div></section></main>`;
   bindUserDropdown(root, () => { location.hash = '#/'; location.reload(); });
   const results = root.querySelector('#transactions-results');
-  try {
-    const data = await menteeTransactionsService.list();
-    if (!data.length) { results.innerHTML = '<div class="rounded-2xl border border-line bg-white p-10 text-center shadow-sm"><h2 class="font-display text-2xl text-ink">No transactions yet</h2><p class="mt-3 text-sm text-muted">Your verified payments will appear here.</p><a href="#/mentors" class="btn btn-primary mt-6">Browse mentors</a></div>'; return; }
-    results.innerHTML = `<section class="rounded-2xl border border-line bg-white p-5 shadow-sm sm:p-6"><div class="flex flex-wrap items-end justify-between gap-5"><label class="block text-xs font-semibold text-ink">Status<select id="transaction-status-filter" class="mt-2 min-w-48 rounded-lg border border-line bg-white px-3.5 py-2.5 text-sm focus:border-brand focus:outline-none"><option value="">All statuses</option><option value="SUCCEEDED">Paid</option><option value="PENDING">Pending</option><option value="EXPIRED">Expired</option><option value="CANCELLED">Cancelled</option><option value="FAILED">Failed</option></select></label><label class="block text-xs font-semibold text-ink">Type<select id="transaction-type-filter" class="mt-2 min-w-48 rounded-lg border border-line bg-white px-3.5 py-2.5 text-sm focus:border-brand focus:outline-none"><option value="">All types</option><option value="MONTHLY">Monthly</option><option value="ONE_OFF">One-off session</option></select></label><p id="transaction-count" class="text-xs text-muted"></p></div></section><div id="transaction-table" class="mt-5"></div>`;
-    const statusFilter = root.querySelector('#transaction-status-filter'); const typeFilter = root.querySelector('#transaction-type-filter'); const table = root.querySelector('#transaction-table'); const count = root.querySelector('#transaction-count');
-    const render = () => { const filtered = data.filter(item => (!statusFilter.value || item.status === statusFilter.value) && (!typeFilter.value || item.serviceType === typeFilter.value)); count.textContent = `${filtered.length} transaction${filtered.length === 1 ? '' : 's'}`; table.innerHTML = filtered.length ? renderTable(filtered) : '<div class="rounded-2xl border border-line bg-white p-10 text-center text-sm text-muted">No transactions match these filters.</div>'; };
-    results.addEventListener('click', event => {
-      const button = event.target.closest('[data-transaction-detail]');
-      if (!button) return;
-      const item = data.find(transaction => String(transaction.paymentId) === button.dataset.transactionDetail);
-      if (!item) return;
-      const status = item.status || 'PENDING';
-      const dialog = document.createElement('dialog');
-      dialog.className = 'modal';
-      dialog.innerHTML = `<button class="modal-close" type="button" aria-label="Close"><span aria-hidden="true">×</span></button><p class="eyebrow mt-4">TRANSACTION DETAILS</p><h2 class="mt-2 font-display text-3xl text-ink">${esc(item.packageName)}</h2><p class="mt-2 text-sm text-muted">Payment with ${esc(item.mentorName)}</p><div class="mt-6 divide-y divide-line rounded-xl border border-line bg-cream"><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Status</span><span class="status-badge ${status === 'SUCCEEDED' ? 'status-success' : status === 'PENDING' ? 'status-warning' : status === 'FAILED' ? 'status-danger' : 'status-neutral'}">${esc(statusLabel[status] || status)}</span></div><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Amount</span><strong>${esc(money(item.amount, item.currency))}</strong></div><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Type</span><strong>${esc(item.serviceType === 'ONE_OFF' ? 'One-off session' : 'Monthly mentorship')}</strong></div><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Date</span><strong>${esc(dateLabel(item.paidAt || item.createdAt))}</strong></div><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Payment reference</span><strong class="break-all text-right">${esc(item.merchantReference || '—')}</strong></div><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">SePay transaction</span><strong class="break-all text-right">${esc(item.gatewayTransactionId || '—')}</strong></div></div>`;
-      root.append(dialog);
-      const close = () => { dialog.close(); dialog.remove(); };
-      dialog.querySelector('.modal-close').addEventListener('click', close);
-      dialog.addEventListener('click', event => { if (event.target === dialog) close(); });
-      dialog.addEventListener('close', () => dialog.remove(), { once: true });
-      dialog.showModal();
-    });
-    statusFilter.addEventListener('change', render); typeFilter.addEventListener('change', render); render();
+  results.innerHTML = `<section class="rounded-2xl border border-line bg-white p-5 shadow-sm sm:p-6"><div class="flex flex-wrap items-end justify-between gap-5"><label class="block text-xs font-semibold text-ink">Status<select id="transaction-status-filter" class="mt-2 min-w-48 rounded-lg border border-line bg-white px-3.5 py-2.5 text-sm focus:border-brand focus:outline-none"><option value="">All statuses</option><option value="SUCCEEDED">Paid</option><option value="PENDING">Pending</option><option value="EXPIRED">Expired</option><option value="CANCELLED">Cancelled</option><option value="FAILED">Failed</option></select></label><label class="block text-xs font-semibold text-ink">Type<select id="transaction-type-filter" class="mt-2 min-w-48 rounded-lg border border-line bg-white px-3.5 py-2.5 text-sm focus:border-brand focus:outline-none"><option value="">All types</option><option value="MONTHLY">Monthly</option><option value="ONE_OFF">One-off session</option></select></label><p id="transaction-count" class="text-xs text-muted"></p></div></section><div id="transaction-table" class="mt-5"></div>`;
+  const statusFilter = root.querySelector('#transaction-status-filter');
+  const typeFilter = root.querySelector('#transaction-type-filter');
+  const table = root.querySelector('#transaction-table');
+  const count = root.querySelector('#transaction-count');
+  let page = 0;
+  let data = [];
+  let currentRequest = 0;
+
+  async function load() {
+    const request = ++currentRequest;
+    table.textContent = 'Loading your transactions…';
+    try {
+      const response = await menteeTransactionsService.list({
+        page,
+        size: PAGE_SIZE,
+        status: statusFilter.value,
+        serviceType: typeFilter.value,
+      });
+      if (request !== currentRequest || !table.isConnected) return;
+      data = response.transactions || [];
+      const totalElements = response.totalElements || 0;
+      const totalPages = response.totalPages || 0;
+      if (totalPages > 0 && page >= totalPages) { page = totalPages - 1; load(); return; }
+      count.textContent = `${totalElements} transaction${totalElements === 1 ? '' : 's'}`;
+      if (!data.length) {
+        const filtered = Boolean(statusFilter.value || typeFilter.value);
+        table.innerHTML = filtered
+          ? '<div class="rounded-2xl border border-line bg-white p-10 text-center text-sm text-muted">No transactions match these filters.</div>'
+          : '<div class="rounded-2xl border border-line bg-white p-10 text-center shadow-sm"><h2 class="font-display text-2xl text-ink">No transactions yet</h2><p class="mt-3 text-sm text-muted">Your payments and payment attempts will appear here.</p><a href="#/mentors" class="btn btn-primary mt-6">Browse mentors</a></div>';
+        return;
+      }
+      table.innerHTML = `${renderTable(data)}${renderPagination(page, totalPages, { idPrefix: 'transaction-page', ariaLabel: 'Transaction pages' })}`;
+    } catch (error) {
+      if (request !== currentRequest || !table.isConnected) return;
+      table.innerHTML = `<div class="rounded-2xl border border-rose-200 bg-rose-50 p-8 text-center text-sm text-rose-800" role="alert">${esc(error.message || 'Could not load your transactions.')}<button type="button" data-retry class="btn btn-outline btn-sm mt-5">Try again</button></div>`;
+    }
   }
-  catch (error) { results.innerHTML = `<div class="rounded-2xl border border-rose-200 bg-rose-50 p-8 text-center text-sm text-rose-800" role="alert">${esc(error.message || 'Could not load your transactions.')}</div>`; }
+
+  statusFilter.addEventListener('change', () => { page = 0; load(); });
+  typeFilter.addEventListener('change', () => { page = 0; load(); });
+  table.addEventListener('click', event => {
+      if (event.target.closest('[data-retry]')) { load(); return; }
+      const button = event.target.closest('[data-transaction-detail]');
+      if (button) {
+        const item = data.find(transaction => String(transaction.paymentId) === button.dataset.transactionDetail);
+        if (!item) return;
+        const status = item.status || 'PENDING';
+        const dialog = document.createElement('dialog');
+        dialog.className = 'modal';
+        dialog.innerHTML = `<button class="modal-close" type="button" aria-label="Close"><span aria-hidden="true">×</span></button><p class="eyebrow mt-4">TRANSACTION DETAILS</p><h2 class="mt-2 font-display text-3xl text-ink">${esc(item.packageName)}</h2><p class="mt-2 text-sm text-muted">Payment with ${esc(item.mentorName)}</p><div class="mt-6 divide-y divide-line rounded-xl border border-line bg-cream"><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Status</span><span class="status-badge ${status === 'SUCCEEDED' ? 'status-success' : status === 'PENDING' ? 'status-warning' : status === 'FAILED' ? 'status-danger' : 'status-neutral'}">${esc(statusLabel[status] || status)}</span></div><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Amount</span><strong>${esc(money(item.amount, item.currency))}</strong></div><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Type</span><strong>${esc(item.serviceType === 'ONE_OFF' ? 'One-off session' : 'Monthly mentorship')}</strong></div><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Date</span><strong>${esc(dateLabel(item.paidAt || item.createdAt))}</strong></div><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Payment reference</span><strong class="break-all text-right">${esc(item.merchantReference || '—')}</strong></div><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">SePay transaction</span><strong class="break-all text-right">${esc(item.gatewayTransactionId || '—')}</strong></div></div>`;
+        root.append(dialog);
+        const close = () => { dialog.close(); dialog.remove(); };
+        dialog.querySelector('.modal-close').addEventListener('click', close);
+        dialog.addEventListener('click', dialogEvent => { if (dialogEvent.target === dialog) close(); });
+        dialog.addEventListener('close', () => dialog.remove(), { once: true });
+        dialog.showModal();
+        return;
+      }
+      const pageButton = event.target.closest('[data-page]');
+      if (pageButton && !pageButton.disabled) { page += pageButton.dataset.page === 'next' ? 1 : -1; load(); return; }
+      const jumpButton = event.target.closest('[data-page-jump]');
+      if (jumpButton) {
+        const targetPage = Number(jumpButton.dataset.pageJump);
+        if (!Number.isNaN(targetPage) && targetPage !== page) { page = targetPage; load(); }
+      }
+  });
+  table.addEventListener('change', event => {
+    const pageSelect = event.target.closest('[data-page-select]');
+    if (!pageSelect) return;
+    const targetPage = Number(pageSelect.value);
+    if (!Number.isNaN(targetPage) && targetPage !== page) { page = targetPage; load(); }
+  });
+  load();
 }

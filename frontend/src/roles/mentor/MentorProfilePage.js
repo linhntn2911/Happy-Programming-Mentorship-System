@@ -346,7 +346,7 @@ export function ServiceDetail(m, type) {
   const price = monthly ? m.monthly : m.session;
   return `<p class="text-xs font-semibold uppercase tracking-wider text-muted">${monthly ? 'Monthly mentorship' : 'One-off session'}</p><p class="profile-price">${esc(price || 'Not available')} ${price ? '<span>VND</span>' : ''}</p><p class="text-xs text-muted">${monthly ? 'per month' : 'per session'}</p><div class="profile-service-description"><h3 class="font-semibold">${monthly ? 'Ongoing guidance' : 'A focused conversation'}</h3><p class="mt-2 text-sm leading-7 text-muted">${monthly ? 'Explore monthly support for your programming and learning goals.' : 'Explore individual guidance on a specific programming topic.'}</p></div>`;
 }
-export async function mountMentorProfile(app, id) {
+export async function mountMentorProfile(app, id, section = '') {
   const state = (title, copy, retry=false) => layout(`<section class="profile-block text-center" role="status"><h1 class="font-display text-3xl">${title}</h1><p class="mt-4 text-muted">${copy}</p>${retry ? '<button id="profile-retry" class="btn btn-primary mt-6">Try again</button>' : '<a href="?#/mentors" data-browse-all-mentors class="btn btn-outline mt-6">Browse all mentors</a>'}</section>`);
   app.innerHTML = state('Loading mentor profile…','Getting the profile details.');
   const marker = app.firstElementChild;
@@ -383,9 +383,15 @@ export async function mountMentorProfile(app, id) {
       });
     }
     app.querySelectorAll('.profile-nav a').forEach(a => a.addEventListener('click', e => { e.preventDefault(); app.querySelector(a.getAttribute('href')).scrollIntoView({behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'}); }));
+    if (section === 'reviews') {
+      app.querySelector('#profile-reviews')?.scrollIntoView({
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+        block: 'start',
+      });
+    }
   } catch {
     if (app.firstElementChild !== marker) return;
     app.innerHTML = state('Unable to load this profile','Please check your connection and try again.',true);
-    app.querySelector('#profile-retry').addEventListener('click',() => mountMentorProfile(app,id));
+    app.querySelector('#profile-retry').addEventListener('click',() => mountMentorProfile(app,id,section));
   }
 }

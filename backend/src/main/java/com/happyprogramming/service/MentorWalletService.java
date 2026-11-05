@@ -3,6 +3,7 @@ package com.happyprogramming.service;
 import com.happyprogramming.dto.AdminPayoutRequest;
 import com.happyprogramming.dto.AuthenticatedUser;
 import com.happyprogramming.dto.CreatePayoutRequest;
+import com.happyprogramming.dto.DisputeFileDownload;
 import com.happyprogramming.dto.MentorBankAccountRequest;
 import com.happyprogramming.dto.MentorBankAccountResponse;
 import com.happyprogramming.dto.MentorWalletResponse;
@@ -16,6 +17,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,13 +32,17 @@ import java.math.RoundingMode;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
+import java.security.MessageDigest;
+import java.sql.PreparedStatement;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 public class MentorWalletService {
@@ -83,12 +90,13 @@ public class MentorWalletService {
                 rs.getBigDecimal("amount"), rs.getString("merchant_reference"), rs.getTimestamp("created_at").toInstant()), mentorId);
         var requests = db.query("""
                 SELECT TOP (50) id,amount,fee_amount,bank_name,account_name,account_last4,status,transfer_reference,
-                    rejection_reason,requested_at,COALESCE(reviewed_at, approved_at) AS reviewed_at
+                    rejection_reason,requested_at,COALESCE(reviewed_at, approved_at) AS reviewed_at,receipt_file_id
                 FROM dbo.mentor_payout_requests WHERE mentor_id=? ORDER BY requested_at DESC,id DESC
                 """, (rs, n) -> new MentorWalletResponse.PayoutRequest(rs.getLong("id"), rs.getBigDecimal("amount"),
                 rs.getString("bank_name"), rs.getString("account_name"), rs.getString("account_last4"), rs.getString("status"),
                 rs.getString("transfer_reference"), rs.getString("rejection_reason"), rs.getTimestamp("requested_at").toInstant(),
-                rs.getTimestamp("reviewed_at") == null ? null : rs.getTimestamp("reviewed_at").toInstant(), rs.getBigDecimal("fee_amount"), rs.getBigDecimal("amount").subtract(rs.getBigDecimal("fee_amount"))), mentorId);
+                rs.getTimestamp("reviewed_at") == null ? null : rs.getTimestamp("reviewed_at").toInstant(), rs.getBigDecimal("fee_amount"),
+                rs.getBigDecimal("amount").subtract(rs.getBigDecimal("fee_amount")), rs.getObject("receipt_file_id", Long.class)), mentorId);
         return new MentorWalletResponse(held, available.max(BigDecimal.ZERO), reserved, paid, entries, requests);
     }
 
@@ -199,7 +207,7 @@ public class MentorWalletService {
                 "Mentor requested a wallet payout.", remoteAddress);
         return db.queryForObject("""
                 SELECT id,amount,fee_amount,bank_name,account_name,account_last4,status,transfer_reference,
-                    rejection_reason,requested_at,reviewed_at FROM dbo.mentor_payout_requests WHERE id=?
+                    rejection_reason,requested_at,reviewed_at,receipt_file_id FROM dbo.mentor_payout_requests WHERE id=?
                 """, (rs, n) -> payoutDto(rs), key.id());
     }
 
@@ -302,6 +310,8 @@ public class MentorWalletService {
         Instant now = Instant.now();
 
         if ("APPROVED".equals(action)) {
+            if (!isStaff || isAdmin)
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only staff can approve payout requests for admin settlement.");
             if (!"REQUESTED".equals(currentStatus))
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Only pending requests can be approved.");
             db.update("""
@@ -310,6 +320,8 @@ public class MentorWalletService {
                     """, reviewerId, Timestamp.from(now), payoutId);
             audit(db, reviewerId, "MENTOR_PAYOUT_APPROVED", payoutId, "{\"status\":\"REQUESTED\"}",
                     "{\"status\":\"APPROVED\"}", "Staff approved payout request for payment", remoteAddress);
+            notifyUser(db, mentorId, "Payout request approved",
+                    "Your payout request #" + payoutId + " was approved by Staff and is awaiting Admin transfer.");
             return;
         }
 
@@ -321,18 +333,21 @@ public class MentorWalletService {
 
             lockMentor(db, mentorId);
             String transferReference = clean(decision.transferReference(), 150, "Enter the bank transfer reference before marking this payout paid.");
+            long receiptFileId = savePayoutReceipt(db, reviewerId, payoutId, decision);
             BigDecimal unreserved = releasedBalance(db, mentorId).subtract(paidBalance(db, mentorId))
                     .subtract(reservedBalance(db, mentorId, payoutId));
             if (unreserved.compareTo(amount) < 0)
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Released wallet balance is no longer sufficient for this payout.");
             db.update("""
-                    UPDATE dbo.mentor_payout_requests SET status='PAID',transfer_reference=?,reviewed_by=?,reviewed_at=?
+                    UPDATE dbo.mentor_payout_requests SET status='PAID',transfer_reference=?,receipt_file_id=?,reviewed_by=?,reviewed_at=?
                     WHERE id=? AND status='APPROVED'
-                    """, transferReference, reviewerId, Timestamp.from(now), payoutId);
+                    """, transferReference, receiptFileId, reviewerId, Timestamp.from(now), payoutId);
             allocatePayout(db, mentorId, payoutId, amount, reviewerId, now);
             audit(db, reviewerId, "MENTOR_PAYOUT_PAID", payoutId, "{\"status\":\"APPROVED\"}",
                     "{\"status\":\"PAID\",\"amount\":\"" + amount.toPlainString() + "\"}",
                     "Bank transfer reference: " + transferReference, remoteAddress);
+            notifyUser(db, mentorId, "Payout transferred",
+                    "Admin transferred payout #" + payoutId + ". Reference: " + transferReference + ". The receipt is available in your wallet.");
             return;
         }
 
@@ -350,7 +365,86 @@ public class MentorWalletService {
                     """, reason, reviewerId, Timestamp.from(now), payoutId, currentStatus);
             audit(db, reviewerId, "MENTOR_PAYOUT_REJECTED", payoutId, "{\"status\":\"" + currentStatus + "\"}",
                     "{\"status\":\"REJECTED\"}", reason, remoteAddress);
+            notifyUser(db, mentorId, "Payout request rejected",
+                    "Payout request #" + payoutId + " was rejected. Reason: " + reason);
         }
+    }
+
+    @Transactional(readOnly = true)
+    public DisputeFileDownload payoutReceipt(long payoutId) {
+        long mentorId = requireRole("MENTOR");
+        return db().query("""
+                SELECT f.original_name,f.mime_type,f.size_bytes,f.file_content
+                FROM dbo.mentor_payout_requests p
+                JOIN dbo.files f ON f.id=p.receipt_file_id
+                WHERE p.id=? AND p.mentor_id=? AND p.status='PAID' AND f.status='READY'
+                """, (rs, n) -> new DisputeFileDownload(rs.getString("original_name"), rs.getString("mime_type"),
+                rs.getLong("size_bytes"), rs.getBytes("file_content")), payoutId, mentorId).stream().findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payout receipt not found."));
+    }
+
+    private long savePayoutReceipt(JdbcTemplate db, long adminId, long payoutId, PayoutDecisionRequest decision) {
+        if (decision.receiptBase64() == null || decision.receiptBase64().isBlank())
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Upload the bank transfer receipt before marking this payout paid.");
+        try {
+            String encoded = decision.receiptBase64().trim();
+            if (encoded.contains(",")) encoded = encoded.substring(encoded.indexOf(',') + 1);
+            byte[] content = Base64.getDecoder().decode(encoded);
+            if (content.length == 0 || content.length > 5 * 1024 * 1024)
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Receipt image must be between 1 byte and 5 MB.");
+            String fileName = decision.receiptFileName() == null || decision.receiptFileName().isBlank()
+                    ? "payout_receipt.png" : decision.receiptFileName().trim().replace('\\', '/');
+            fileName = fileName.substring(fileName.lastIndexOf('/') + 1);
+            String mime = isPng(content) ? "image/png"
+                    : isJpeg(content) ? "image/jpeg"
+                    : isWebp(content) ? "image/webp" : null;
+            if (mime == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Receipt must be a PNG, JPG, or WEBP image.");
+            String checksum = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content));
+            KeyHolder key = new GeneratedKeyHolder();
+            String savedName = fileName;
+            String savedMime = mime;
+            db.update(connection -> {
+                PreparedStatement ps = connection.prepareStatement("""
+                        INSERT INTO dbo.files(uploaded_by,original_name,storage_key,mime_type,size_bytes,checksum,
+                            file_content,visibility,status,created_at,updated_at)
+                        VALUES (?,?,?,?,?,?,?,'AUTHORIZED','READY',SYSUTCDATETIME(),SYSUTCDATETIME())
+                        """, new String[]{"id"});
+                ps.setLong(1, adminId);
+                ps.setString(2, savedName);
+                ps.setString(3, "payouts/" + payoutId + "/receipt-" + UUID.randomUUID());
+                ps.setString(4, savedMime);
+                ps.setLong(5, content.length);
+                ps.setString(6, checksum);
+                ps.setBytes(7, content);
+                return ps;
+            }, key);
+            if (key.getKey() == null) throw new IllegalStateException("Receipt file id was not generated.");
+            return key.getKey().longValue();
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Receipt image could not be processed.");
+        }
+    }
+
+    private void notifyUser(JdbcTemplate db, long userId, String title, String message) {
+        db.update("""
+                INSERT INTO dbo.notifications(user_id,title,message,type,action_url,is_read,created_at)
+                VALUES (?,?,?,'PAYOUT','#/mentor/wallet',0,SYSUTCDATETIME())
+                """, userId, title, message);
+    }
+
+    private static boolean isPng(byte[] bytes) {
+        return bytes.length >= 8 && bytes[0] == (byte) 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47;
+    }
+
+    private static boolean isJpeg(byte[] bytes) {
+        return bytes.length >= 3 && bytes[0] == (byte) 0xFF && bytes[1] == (byte) 0xD8 && bytes[2] == (byte) 0xFF;
+    }
+
+    private static boolean isWebp(byte[] bytes) {
+        return bytes.length >= 12 && bytes[0] == 'R' && bytes[1] == 'I' && bytes[2] == 'F' && bytes[3] == 'F'
+                && bytes[8] == 'W' && bytes[9] == 'E' && bytes[10] == 'B' && bytes[11] == 'P';
     }
 
     @Transactional
@@ -518,7 +612,9 @@ public class MentorWalletService {
         Timestamp reviewed = rs.getTimestamp("reviewed_at");
         return new MentorWalletResponse.PayoutRequest(rs.getLong("id"), rs.getBigDecimal("amount"), rs.getString("bank_name"),
                 rs.getString("account_name"), rs.getString("account_last4"), rs.getString("status"), rs.getString("transfer_reference"),
-                rs.getString("rejection_reason"), rs.getTimestamp("requested_at").toInstant(), reviewed == null ? null : reviewed.toInstant(), rs.getBigDecimal("fee_amount"), rs.getBigDecimal("amount").subtract(rs.getBigDecimal("fee_amount")));
+                rs.getString("rejection_reason"), rs.getTimestamp("requested_at").toInstant(), reviewed == null ? null : reviewed.toInstant(),
+                rs.getBigDecimal("fee_amount"), rs.getBigDecimal("amount").subtract(rs.getBigDecimal("fee_amount")),
+                rs.getObject("receipt_file_id", Long.class));
     }
 
     private long requireRole(String role) {

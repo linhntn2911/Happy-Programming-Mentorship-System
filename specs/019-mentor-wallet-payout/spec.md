@@ -25,12 +25,14 @@ As a mentor, I can request a payout up to my available balance and provide desti
 
 ### User Story 3 - Process a payout (Priority: P1)
 
-As an administrator, I can review a payout request, transfer funds outside the application, and record it as paid or reject it.
+As Staff, I can validate and approve or reject a mentor payout request. As an administrator, I can process an approved request, transfer funds outside the application, and record the result with transfer evidence.
 
 **Acceptance Scenarios**:
-1. Marking a request paid creates one immutable payout ledger entry and requires a transfer reference.
-2. Rejecting a request releases its reserved balance.
-3. Duplicate decisions cannot create another payout entry.
+1. Staff can approve or reject only `REQUESTED` payouts; approval forwards the request to Admin.
+2. Admin can process only `APPROVED` payouts and must provide a transfer reference and receipt image before marking one `PAID`.
+3. Rejecting a request releases its reserved balance.
+4. Duplicate decisions cannot create another payout entry.
+5. The mentor receives status notifications and can open the transfer receipt for a paid payout.
 
 ## Requirements
 
@@ -39,9 +41,10 @@ As an administrator, I can review a payout request, transfer funds outside the a
 - **FR-003**: Platform commission uses the payment's commission snapshot; the rest is the mentor share.
 - **FR-004**: Release and payout operations are idempotent and append-only.
 - **FR-005**: Mentors may request withdrawals only from released, unreserved balances.
-- **FR-006**: Only administrators may record payout completion or rejection.
+- **FR-006**: Staff may approve or reject requested payouts but cannot record payment. Only administrators may transfer and mark approved payouts paid.
 - **FR-007**: Destination bank account information is encrypted using a separately configured application key.
 - **FR-008**: The system does not initiate bank transfers; an administrator performs the transfer and records its reference.
+- **FR-009**: Marking a payout paid requires a PNG, JPG, or WEBP receipt no larger than 5 MB; only the owning mentor may retrieve it.
 
 ## Assumptions
 

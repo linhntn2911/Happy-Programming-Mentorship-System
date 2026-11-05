@@ -83,9 +83,11 @@ test('TransferQrPanel renders receipt upload input and preview elements when sho
     bankName: 'TP bank',
     accountNumber: '00000806194',
     showReceiptUpload: true,
+    receiptRecipient: 'mentor',
   });
 
   assert.match(markup, /id="admin-receipt-file"/);
   assert.match(markup, /id="receipt-preview-container"/);
   assert.match(markup, /id="receipt-preview-img"/);
+  assert.match(markup, /evidence for mentor/);
 });

@@ -25,6 +25,35 @@ public record AdminRefundRequest(
         String approvedByName,
         Instant resolvedAt,
         String resolvedByName,
-        String transferReference) {
-}
+        String transferReference,
+        Long receiptFileId) {
 
+    public AdminRefundRequest(
+            long id,
+            String ticketCode,
+            long complainantId,
+            String complainantName,
+            String complainantEmail,
+            long respondentId,
+            String respondentName,
+            String targetType,
+            BigDecimal disputedAmount,
+            BigDecimal refundAmount,
+            String bankName,
+            String accountName,
+            String accountNumber,
+            String status,
+            String resolutionType,
+            String resolutionNote,
+            Instant createdAt,
+            Instant approvedAt,
+            String approvedByName,
+            Instant resolvedAt,
+            String resolvedByName,
+            String transferReference) {
+        this(id, ticketCode, complainantId, complainantName, complainantEmail, respondentId, respondentName,
+                targetType, disputedAmount, refundAmount, bankName, accountName, accountNumber, status,
+                resolutionType, resolutionNote, createdAt, approvedAt, approvedByName, resolvedAt, resolvedByName,
+                transferReference, null);
+    }
+}

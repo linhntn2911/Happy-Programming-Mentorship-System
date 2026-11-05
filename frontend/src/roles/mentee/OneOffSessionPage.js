@@ -25,7 +25,7 @@ function ratingSummary(mentor) {
     return '<span class="text-sm text-muted">No reviews yet</span>';
   }
   const stars = '★★★★★';
-  return `<span class="text-base tracking-[0.16em] text-brand" aria-hidden="true">${stars}</span><span class="sr-only">${rating.toFixed(1)} out of 5 stars</span><span class="text-sm font-semibold text-ink">${rating.toFixed(1)}</span><a class="text-sm text-brand underline-offset-2 hover:underline" href="#reviews">${reviewCount} verified review${reviewCount === 1 ? '' : 's'}</a>`;
+  return `<span class="text-base tracking-[0.16em] text-brand" aria-hidden="true">${stars}</span><span class="sr-only">${rating.toFixed(1)} out of 5 stars</span><span class="text-sm font-semibold text-ink">${rating.toFixed(1)}</span><a class="text-sm text-brand underline-offset-2 hover:underline" href="#/mentors/${encodeURIComponent(mentor.id)}?section=reviews">${reviewCount} verified review${reviewCount === 1 ? '' : 's'}</a>`;
 }
 
 function header() {

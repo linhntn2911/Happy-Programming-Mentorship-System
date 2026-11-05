@@ -33,8 +33,11 @@ function table(items) {
 }
 
 function detailMarkup(item) {
-  const evidence = item.evidence?.map(file => `<a class="block overflow-hidden rounded-xl border border-line bg-cream focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" href="${menteeDisputesService.evidenceUrl(item.id, file.id)}" target="_blank" rel="noopener"><img class="h-32 w-full object-cover" src="${menteeDisputesService.evidenceUrl(item.id, file.id)}" alt="Evidence: ${esc(file.fileName)}"><span class="block truncate p-2 text-[10px] text-muted">${esc(file.fileName)}</span></a>`).join('') || '';
-  return `<button class="modal-close" type="button" aria-label="Close"><span aria-hidden="true">×</span></button><p class="eyebrow mt-4">DISPUTE DETAILS</p><div class="mt-2 flex flex-wrap items-center justify-between gap-3"><h2 class="font-display text-3xl text-ink">${esc(item.ticketCode)}</h2>${badge(item.status)}</div><p class="mt-2 text-sm text-muted">${esc(item.title)} with ${esc(item.mentorName)}</p><div class="mt-6 divide-y divide-line rounded-xl border border-line bg-cream"><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Category</span><strong>${esc(categoryLabels[item.category] || item.category)}</strong></div><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Disputed amount</span><strong>${esc(money(item.disputedAmount, item.currency))}</strong></div><div class="p-4 text-sm"><span class="text-muted">Your statement</span><p class="mt-2 whitespace-pre-wrap text-ink">${esc(item.description)}</p></div></div><h3 class="mt-6 text-sm font-semibold text-ink">Initial evidence</h3><div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">${evidence}</div>${item.status === 'APPROVED' ? `
+  const hasEvidence = item.evidence && item.evidence.length > 0;
+  const evidence = hasEvidence
+    ? item.evidence.map(file => `<a class="block overflow-hidden rounded-xl border border-line bg-cream focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand hover:border-brand transition" href="${menteeDisputesService.evidenceUrl(item.id, file.id)}" target="_blank" rel="noopener"><img class="h-32 w-full object-cover" src="${menteeDisputesService.evidenceUrl(item.id, file.id)}" alt="Evidence: ${esc(file.fileName)}"><span class="block truncate p-2 text-[10px] text-muted">${esc(file.fileName)}</span></a>`).join('')
+    : '';
+  return `<button class="modal-close" type="button" aria-label="Close"><span aria-hidden="true">×</span></button><p class="eyebrow mt-4">DISPUTE DETAILS</p><div class="mt-2 flex flex-wrap items-center justify-between gap-3"><h2 class="font-display text-3xl text-ink">${esc(item.ticketCode)}</h2>${badge(item.status)}</div><p class="mt-2 text-sm text-muted">${esc(item.title)} with ${esc(item.mentorName)}</p><div class="mt-6 divide-y divide-line rounded-xl border border-line bg-cream"><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Category</span><strong>${esc(categoryLabels[item.category] || item.category)}</strong></div><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Disputed amount</span><strong>${esc(money(item.disputedAmount, item.currency))}</strong></div><div class="p-4 text-sm"><span class="text-muted">Your statement</span><p class="mt-2 whitespace-pre-wrap text-ink">${esc(item.description)}</p></div></div>${hasEvidence ? `<h3 class="mt-6 text-sm font-semibold text-ink">Initial evidence</h3><div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">${evidence}</div>` : ''}${item.status === 'APPROVED' ? `
   <div class="mt-6 rounded-xl border border-amber-200 bg-amber-50/80 p-4">
     <div class="flex items-center gap-2">
       <span class="w-2 h-2 rounded-full bg-amber-500"></span>
@@ -53,16 +56,25 @@ function detailMarkup(item) {
     ${item.bankName ? `<div class="mt-2 text-xs text-ink">Bank: <strong>${esc(item.bankName)}</strong> · Account: <strong>${esc(item.accountNumber)}</strong> (${esc(item.accountName)})</div>` : ''}
     ${item.transferReference ? `<div class="mt-1 text-xs text-muted">Bank Transfer Reference: <strong class="font-mono text-ink">${esc(item.transferReference)}</strong></div>` : ''}
     ${item.receiptFileId ? `
-      <div class="mt-3.5 pt-3 border-t border-line">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-xs font-semibold text-ink">Transfer Receipt / Evidence:</span>
-          <a class="text-xs text-brand hover:underline font-medium" href="${menteeDisputesService.receiptUrl(item.id)}" target="_blank" rel="noopener">Open full size ↗</a>
+      <div class="mt-4 pt-3.5 border-t border-line">
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <span class="text-xs font-semibold text-ink flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-emerald-600 inline shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            Transfer Receipt / Proof (sent by Admin):
+          </span>
+          <a class="text-xs text-brand hover:underline font-semibold" href="${menteeDisputesService.receiptUrl(item.id)}" target="_blank" rel="noopener">Open full size ↗</a>
         </div>
-        <a href="${menteeDisputesService.receiptUrl(item.id)}" target="_blank" rel="noopener" class="inline-block border border-line rounded-lg overflow-hidden bg-white p-1 hover:border-brand transition">
-          <img src="${menteeDisputesService.receiptUrl(item.id)}" alt="Transfer Receipt" class="max-h-48 rounded object-contain" />
+        <a href="${menteeDisputesService.receiptUrl(item.id)}" target="_blank" rel="noopener" class="group inline-block border border-line rounded-xl overflow-hidden bg-white p-1 hover:border-brand shadow-sm transition">
+          <img src="${menteeDisputesService.receiptUrl(item.id)}" alt="Transfer Receipt Evidence" class="max-h-48 max-w-xs rounded-lg object-contain group-hover:opacity-95" />
         </a>
+        <p class="mt-1.5 text-[11px] text-muted">Click image to view in new tab</p>
       </div>
-    ` : ''}
+    ` : (item.status === 'RESOLVED' ? `
+      <div class="mt-4 pt-3 border-t border-line flex items-center gap-2 text-xs text-muted">
+        <span class="inline-block w-2 h-2 rounded-full bg-slate-400 shrink-0"></span>
+        <span>Bank transfer verified with transaction reference. No photo receipt was attached.</span>
+      </div>
+    ` : '')}
   </div>
 ` : '<p class="mt-6 rounded-xl border border-line bg-cream p-4 text-xs leading-5 text-muted">Staff has not issued a decision yet. You can track status here while the complaint is reviewed.</p>'}`;
 }

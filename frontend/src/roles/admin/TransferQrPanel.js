@@ -80,7 +80,8 @@ export function TransferQrPanel({
   referenceCode = '',
   memoPrefix = 'REFUND',
   contextNote = '',
-  showReceiptUpload = false
+  showReceiptUpload = false,
+  receiptRecipient = 'recipient'
 }) {
   const rawTransferAmount = Math.max(0, Math.round(Number(netAmount !== null ? netAmount : amount) || 0));
   const amountFormatted = rawTransferAmount.toLocaleString('vi-VN');
@@ -162,9 +163,9 @@ export function TransferQrPanel({
       ${contextNote ? `<p class="text-xs text-muted mb-3">${e(contextNote)}</p>` : ''}
 
       ${showReceiptUpload ? `
-      <label class="admin-field mt-3">Upload transfer receipt / proof (evidence for mentee)
+      <label class="admin-field mt-3">Upload transfer receipt / proof (evidence for ${e(receiptRecipient)})
         <input type="file" id="admin-receipt-file" name="receiptFile" accept="image/png,image/jpeg,image/webp" class="mt-1 block w-full text-xs text-muted file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-lilac file:text-brand hover:file:bg-brand hover:file:text-white cursor-pointer">
-        <span class="text-[11px] text-muted">Supports PNG, JPG, WEBP up to 5 MB. Verified receipt sent to mentee and mediation chat.</span>
+        <span class="text-[11px] text-muted">Supports PNG, JPG, WEBP up to 5 MB. The verified receipt will be available to ${e(receiptRecipient)}.</span>
       </label>
       <div id="receipt-preview-container" class="mt-2 hidden">
         <div class="relative inline-block border border-line rounded-lg overflow-hidden bg-white p-1">

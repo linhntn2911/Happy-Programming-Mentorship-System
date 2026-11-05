@@ -546,9 +546,11 @@ function router() {
     void mountOneOffSessionPage(appEl, mentorId, query.get('offeringId') || '');
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash.startsWith('#/mentors/')) {
+    const path = hash.split('?')[0];
+    const query = new URLSearchParams(hash.split('?')[1] || '');
     let id;
-    try { id = decodeURIComponent(hash.slice('#/mentors/'.length)); } catch { id = ''; }
-    mountMentorProfile(appEl, id);
+    try { id = decodeURIComponent(path.slice('#/mentors/'.length)); } catch { id = ''; }
+    mountMentorProfile(appEl, id, query.get('section') || '');
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash === '#/components' || hash === '#/showcase') {
     appEl.innerHTML = ComponentShowcasePage();

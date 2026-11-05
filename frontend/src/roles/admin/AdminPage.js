@@ -4,23 +4,16 @@ import { Button } from '../../shared/Button.js';
 import { Dialog } from '../../shared/Dialog.js';
 import { Notice } from './AdminPrimitives.js';
 import { adminService } from './adminService.js';
-import { createDemoService } from './adminDemo.js';
 import { escapeHtml as e } from '../../shared/html.js';
 import { PERMISSIONS, paymentCommission, revenue } from './admin.js';
 import { OverviewView, UsersView, RevenueView, PayoutsView, RefundsView, SettingsView, AuditView } from './AdminViews.js';
 import { TransferQrPanel } from './TransferQrPanel.js';
 
 let service = adminService;
-function enterDemo() {
-  let storage;
-  try { storage = window.localStorage; window.sessionStorage.setItem('hpms.admin.mode', 'demo'); } catch { /* in-memory demo still works */ }
-  service = createDemoService(storage);
-}
-try { if (window.sessionStorage.getItem('hpms.admin.mode') === 'demo') enterDemo(); } catch { /* browser storage is optional */ }
 export function mountAdmin(root, section = 'overview') {
   document.title = 'Admin workspace | HappyProgramming';
   service = adminService;
-  try { if (window.sessionStorage.getItem('hpms.admin.mode') === 'demo') enterDemo(); } catch { /* optional storage */ }
+  try { window.sessionStorage.removeItem('hpms.admin.mode'); } catch { /* optional storage */ }
   let disposed = false;
   let requestVersion = 0;
   let session;
@@ -34,39 +27,28 @@ export function mountAdmin(root, section = 'overview') {
   const on = (selector, event, handler) => root.querySelector(selector)?.addEventListener(event, handler);
   const renderShell = content => {
     if (!alive()) return;
-    root.innerHTML = AdminLayout(section, content, { ...session, demo: service.demo });
+    root.innerHTML = AdminLayout(section, content, { ...session, authenticated: Boolean(session) });
     on('#admin-menu', 'click', event => {
       const open = root.querySelector('.admin-sidebar').classList.toggle('menu-open');
       event.currentTarget.setAttribute('aria-expanded', String(open));
     });
     on('.admin-skip', 'click', event => { event.preventDefault(); root.querySelector('#admin-content').focus(); });
   };
-  function login(error = '') {
-    renderShell(`<div class="max-w-lg mx-auto py-10"><p class="eyebrow">ADMIN WORKSPACE</p><h1 class="section-title mt-4">A space to help<br>your community grow.</h1><p class="section-copy mt-4 mb-7">Sign in with an administrator account to manage HappyProgramming.</p><section class="admin-panel"><form id="admin-login" class="admin-panel-body admin-form">${error ? Notice({ message: error, type: 'error' }) : ''}<label class="admin-field" for="admin-email">Email address<input id="admin-email" name="email" type="email" autocomplete="username" required maxlength="254"></label><label class="admin-field" for="admin-password">Password<input id="admin-password" name="password" type="password" autocomplete="current-password" required></label>${Button({ label: 'Sign in to workspace', type: 'submit' })}</form></section><div class="mt-6">${Notice({ message: 'Just exploring? The demo uses sample data and does not affect real accounts.' })}<div class="mt-4">${Button({ label: 'Explore demo workspace', variant: 'outline', id: 'admin-demo' })}</div></div></div>`);
-    on('#admin-demo', 'click', () => { enterDemo(); load(); });
-    on('#admin-login', 'submit', async event => {
-      event.preventDefault(); const form = event.currentTarget; const values = Object.fromEntries(new FormData(form));
-      form.querySelector('button').disabled = true;
-      try { await adminService.login(values); if (!alive()) return; service = adminService; await load(); }
-      catch (err) { if (alive()) login(err.message); }
-    });
-  }
   async function load() {
     const version = ++requestVersion;
-    renderShell(`${Notice({ message: 'Loading your admin workspace…' })}<div class="mt-5">${Button({ id: 'admin-loading-login', label: 'Sign in or explore demo', variant: 'outline' })}</div>`);
-    on('#admin-loading-login', 'click', () => { requestVersion++; login(); });
+    renderShell(Notice({ message: 'Loading your admin workspace…' }));
     try {
       const currentSession = await service.session();
       const result = await service.workspace();
-      if (section === 'settings' && !service.demo) result.operations = await service.operations();
-      let pendingPayouts = section === 'payouts' && !service.demo ? await service.payoutRequests() : [];
-      if (section === 'payouts' && !service.demo) {
+      if (section === 'settings') result.operations = await service.operations();
+      let pendingPayouts = section === 'payouts' ? await service.payoutRequests() : [];
+      if (section === 'payouts') {
         const history = await service.payoutHistory();
         const pending = new Map(pendingPayouts.map(item => [item.id, item]));
         pendingPayouts = history.map(item => ({ ...item, ...(item.status === 'APPROVED' ? pending.get(item.id) : {}) }));
       }
-      let pendingRefunds = section === 'refunds' && !service.demo ? await service.refundRequests() : [];
-      if (section === 'refunds' && !service.demo) {
+      let pendingRefunds = section === 'refunds' ? await service.refundRequests() : [];
+      if (section === 'refunds') {
         const history = await service.refundHistory();
         const pending = new Map(pendingRefunds.map(item => [item.id, item]));
         pendingRefunds = history.map(item => ({ ...item, ...(item.status === 'APPROVED' ? pending.get(item.id) : {}) }));
@@ -75,21 +57,21 @@ export function mountAdmin(root, section = 'overview') {
       session = currentSession; data = result; payoutRequests = pendingPayouts; refundRequests = pendingRefunds; render();
     } catch (err) {
       if (!alive() || version !== requestVersion) return;
-      if (err.status === 401 || err.status === 403) login(err.status === 403 ? err.message : '');
+      if (err.status === 401 || err.status === 403) window.location.hash = '#/login';
       else {
-        renderShell(`${Notice({ message: err.message || 'Unable to load the workspace.', type: 'error' })}<div class="admin-actions">${Button({ id: 'admin-retry', label: 'Try again' })}${Button({ id: 'admin-login-screen', label: 'Sign in or explore demo', variant: 'outline' })}</div>`);
-        on('#admin-retry', 'click', load); on('#admin-login-screen', 'click', () => login());
+        renderShell(`${Notice({ message: err.message || 'Unable to load the workspace.', type: 'error' })}<div class="admin-actions">${Button({ id: 'admin-retry', label: 'Try again' })}</div>`);
+        on('#admin-retry', 'click', load);
       }
     }
   }
   function render() {
     if (!alive()) return;
-    const views = { overview: () => OverviewView(data, session), users: () => UsersView(data, state), staff: () => UsersView(data, state, true), revenue: () => RevenueView(data, state), payouts: () => PayoutsView(payoutRequests, service.demo, state), refunds: () => RefundsView(refundRequests, service.demo, state), settings: () => SettingsView(data), audit: () => AuditView(data, state) };
+    const views = { overview: () => OverviewView(data, session), users: () => UsersView(data, state), staff: () => UsersView(data, state, true), revenue: () => RevenueView(data, state), payouts: () => PayoutsView(payoutRequests, false, state), refunds: () => RefundsView(refundRequests, false, state), settings: () => SettingsView(data), audit: () => AuditView(data, state) };
     const content = Object.hasOwn(adminSections, section) ? views[section]() : '<h1 class="section-title">Page not found</h1><a class="btn btn-primary mt-5" href="#/admin">Back to overview</a>';
-    renderShell(`<div class="flex flex-wrap items-center justify-between gap-3 mb-5"><div class="grow">${service.demo ? Notice({ message: 'Demo workspace · Sample data only. Changes are saved in this browser.' }) : '<p class="text-[11px] text-muted">Administrator workspace · Live data</p>'}</div>${Button({ label: service.demo ? 'Exit demo' : 'Sign out', variant: 'outline', size: 'sm', id: 'admin-logout' })}</div>${service.warning ? Notice({ message: service.warning }) : ''}${message ? Notice({ message }) : ''}${content}`);
+    renderShell(`<p class="text-[11px] text-muted mb-5">Administrator workspace · Live data</p>${service.warning ? Notice({ message: service.warning }) : ''}${message ? Notice({ message }) : ''}${content}`);
     on('#admin-logout', 'click', async event => {
       event.currentTarget.disabled = true;
-      try { await service.logout(); service = adminService; try { window.sessionStorage.removeItem('hpms.admin.mode'); } catch { /* optional storage */ } session = undefined; data = undefined; if (alive()) login(); }
+      try { await service.logout(); session = undefined; data = undefined; if (alive()) window.location.hash = '#/login'; }
       catch (err) { message = err.message; render(); }
     });
     on('#admin-filters', 'submit', event => { event.preventDefault(); Object.assign(state, Object.fromEntries(new FormData(event.currentTarget)), { page: 1 }); render(); root.querySelector('#admin-query')?.focus(); });
@@ -139,12 +121,21 @@ export function mountAdmin(root, section = 'overview') {
         accountName: payout?.accountName || payout?.mentorName || '',
         referenceCode: `#${payout?.id || id}`,
         memoPrefix: 'PAYOUT',
-        contextNote: 'Confirm that the bank transfer has already been completed. Enter its transaction reference to post the debit to the wallet ledger.'
+        contextNote: 'Confirm that the bank transfer has already been completed. Enter its transaction reference and attach the receipt before posting the debit to the wallet ledger.',
+        showReceiptUpload: true,
+        receiptRecipient: 'mentor'
       });
       openDialog('Record mentor payout', content, form => {
         const transferReference = form.elements.transferReference.value.trim();
         if (!transferReference) throw new Error('Enter the bank transfer reference.');
-        return service.decidePayout(id, { decision: 'PAID', transferReference });
+        if (!form.__receiptBase64) throw new Error('Upload the bank transfer receipt.');
+        return service.decidePayout(id, {
+          decision: 'PAID',
+          transferReference,
+          receiptFileName: form.__receiptFileName || null,
+          receiptBase64: form.__receiptBase64,
+          receiptMimeType: form.__receiptMimeType || null
+        });
       });
     }));
     root.querySelectorAll('[data-payout-reject]').forEach(button => button.addEventListener('click', () => {
@@ -165,7 +156,8 @@ export function mountAdmin(root, section = 'overview') {
         referenceCode: refund?.ticketCode || String(id),
         memoPrefix: 'REFUND',
         contextNote: 'Confirm that the bank transfer has been made to the mentee. Enter the external bank transfer reference to complete the refund and record the escrow release debit.',
-        showReceiptUpload: true
+        showReceiptUpload: true,
+        receiptRecipient: 'mentee'
       });
       openDialog('Process mentee refund', content, form => {
         const transferReference = form.elements.transferReference.value.trim();
@@ -307,7 +299,7 @@ export function mountAdmin(root, section = 'overview') {
     const quote = value => '"' + String(value).replace(/^[=+@-]/, char => "'" + char).replaceAll('"', '""') + '"';
     const rows = [['Reference', 'Paid at (UTC)', 'Gross VND', 'Commission VND', 'Rate %'], ...revenue(data.payments, state.from, state.to).payments.map(p => [p.reference, p.paidAt, p.amount, paymentCommission(p), p.commissionRate])];
     const url = URL.createObjectURL(new Blob(['\uFEFF' + rows.map(row => row.map(quote).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' }));
-    const link = document.createElement('a'); link.href = url; link.download = `happyprogramming-${service.demo ? 'demo-' : ''}revenue.csv`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    const link = document.createElement('a'); link.href = url; link.download = 'happyprogramming-revenue.csv'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   load();
   return () => { disposed = true; requestVersion++; activeDialog?.close(); };
