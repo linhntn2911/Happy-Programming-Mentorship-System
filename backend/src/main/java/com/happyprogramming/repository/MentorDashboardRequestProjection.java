@@ -9,6 +9,8 @@ public interface MentorDashboardRequestProjection {
 
     String getPackageName();
 
+    String getServiceType();
+
     String getLearningGoals();
 
     String getStatus();

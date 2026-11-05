@@ -1,0 +1,21 @@
+openapi: 3.0.3
+info:
+  title: HappyProgramming Public Support Configuration
+  version: 1.0.0
+paths:
+  /api/public/support:
+    get:
+      summary: Read the configured public support email
+      responses:
+        '200':
+          description: Standard response envelope containing only supportEmail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      supportEmail: { type: string }

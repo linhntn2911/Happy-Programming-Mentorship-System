@@ -116,8 +116,47 @@ class SepaySettlementIntegrationTest {
   login(mentor,"MENTOR");BigDecimal net=wallet.wallet().availableAmount();assertTrue(net.signum()>0);
   var payout=wallet.requestPayout(new CreatePayoutRequest(net.setScale(0),"Test Bank","Test Owner","123456789"),"127.0.0.1");
   assertEquals(0,wallet.wallet().availableAmount().signum());
-  login(admin,"ADMIN");wallet.decidePayout(payout.id(),new PayoutDecisionRequest("PAID","TEST-TRANSFER",null),"127.0.0.1");
+  login(admin,"ADMIN");wallet.decidePayout(payout.id(),new PayoutDecisionRequest("PAID","TEST-TRANSFER",null,null),"127.0.0.1");
   login(mentor,"MENTOR");assertEquals(0,wallet.wallet().availableAmount().signum());
   assertThrows(org.springframework.web.server.ResponseStatusException.class,()->wallet.requestPayout(new CreatePayoutRequest(BigDecimal.ONE,"Test Bank","Test Owner","123456789"),"127.0.0.1"));
+ }
+ @Test void paidPayoutStoresReceiptAndNotifiesMentor(){
+  matureFixture();
+  wallet.releaseMaturedPayments();wallet.releaseMaturedPayments();
+  login(mentor,"MENTOR");BigDecimal net=wallet.wallet().availableAmount();assertTrue(net.signum()>0);
+  var payout=wallet.requestPayout(new CreatePayoutRequest(net.setScale(0),"Test Bank","Test Owner","123456789"),"127.0.0.1");
+  login(admin,"ADMIN");
+  wallet.decidePayout(payout.id(),new PayoutDecisionRequest("PAID","TEST-TRANSFER","https://bank.example.invalid/receipt.png",null),"127.0.0.1");
+  assertEquals("https://bank.example.invalid/receipt.png",db.queryForObject("SELECT receipt_url FROM dbo.mentor_payout_requests WHERE id=?",String.class,payout.id()));
+  assertEquals(1,db.queryForObject("SELECT COUNT(*) FROM dbo.notifications WHERE user_id=? AND type='PAYOUT_PAID' AND action_url='/mentor/wallet'",Integer.class,mentor));
+  assertTrue(db.queryForObject("SELECT message FROM dbo.notifications WHERE user_id=? AND type='PAYOUT_PAID'",String.class,mentor).contains("TEST-TRANSFER"));
+  login(mentor,"MENTOR");
+  var history=wallet.wallet().payoutRequests().stream().filter(item->item.id()==payout.id()).findFirst().orElseThrow();
+  assertEquals("PAID",history.status());assertEquals("TEST-TRANSFER",history.transferReference());
+  assertEquals("https://bank.example.invalid/receipt.png",history.receiptUrl());
+ }
+ @Test void paidPayoutRejectsAMalformedReceiptLink(){
+  matureFixture();
+  wallet.releaseMaturedPayments();wallet.releaseMaturedPayments();
+  login(mentor,"MENTOR");BigDecimal net=wallet.wallet().availableAmount();
+  var payout=wallet.requestPayout(new CreatePayoutRequest(net.setScale(0),"Test Bank","Test Owner","123456789"),"127.0.0.1");
+  login(admin,"ADMIN");
+  var error=assertThrows(org.springframework.web.server.ResponseStatusException.class,
+    ()->wallet.decidePayout(payout.id(),new PayoutDecisionRequest("PAID","TEST-TRANSFER","javascript:alert(1)",null),"127.0.0.1"));
+  assertEquals(400,error.getStatusCode().value());
+  assertEquals("REQUESTED",db.queryForObject("SELECT status FROM dbo.mentor_payout_requests WHERE id=?",String.class,payout.id()));
+  assertEquals(0,db.queryForObject("SELECT COUNT(*) FROM dbo.notifications WHERE user_id=? AND type='PAYOUT_PAID'",Integer.class,mentor).intValue());
+ }
+ @Test void rejectedPayoutNotifiesMentorWithTheReason(){
+  matureFixture();
+  wallet.releaseMaturedPayments();wallet.releaseMaturedPayments();
+  login(mentor,"MENTOR");BigDecimal net=wallet.wallet().availableAmount();
+  var payout=wallet.requestPayout(new CreatePayoutRequest(net.setScale(0),"Test Bank","Test Owner","123456789"),"127.0.0.1");
+  login(admin,"ADMIN");
+  wallet.decidePayout(payout.id(),new PayoutDecisionRequest("REJECTED",null,null,"Bank account name does not match the payout profile."),"127.0.0.1");
+  assertEquals(1,db.queryForObject("SELECT COUNT(*) FROM dbo.notifications WHERE user_id=? AND type='PAYOUT_REJECTED'",Integer.class,mentor));
+  assertTrue(db.queryForObject("SELECT message FROM dbo.notifications WHERE user_id=? AND type='PAYOUT_REJECTED'",String.class,mentor)
+    .contains("Bank account name does not match the payout profile."));
+  login(mentor,"MENTOR");assertTrue(wallet.wallet().availableAmount().signum()>0);
  }
 }

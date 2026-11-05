@@ -61,7 +61,7 @@ class MentorDashboardServiceTest {
                 .thenReturn(new RatingProjection(new BigDecimal("4.50"), 2L));
         when(dashboardRepository.findPendingRequestsForMentor(42L))
                 .thenReturn(List.of(new RequestProjection(
-                        19L, "Mentee Example", "Backend Mentorship",
+                        19L, "Mentee Example", "Backend Mentorship", "MONTHLY",
                         "I want to build reliable API services with clear testing and deployment practices.",
                         "PENDING",
                         LocalDateTime.parse("2026-10-01T10:00:00"),
@@ -175,11 +175,11 @@ class MentorDashboardServiceTest {
     void mentorRequestHistoryReturnsPersistedAcceptedAndRejectedRows() {
         when(dashboardRepository.findRequestsForMentor(42L)).thenReturn(List.of(
                 new RequestProjection(
-                        88L, "Mentee One", "Lite", "Goals that were saved when the application was created.",
+                        88L, "Mentee One", "Lite", "MONTHLY", "Goals that were saved when the application was created.",
                         "ACCEPTED", LocalDateTime.parse("2026-10-08T10:00:00"),
                         LocalDateTime.parse("2026-10-10T10:00:00")),
                 new RequestProjection(
-                        87L, "Mentee Two", "Pro", "Another saved application with a declined decision.",
+                        87L, "Mentee Two", "Code review", "ONE_OFF", "Another saved application with a declined decision.",
                         "REJECTED", LocalDateTime.parse("2026-10-07T10:00:00"),
                         LocalDateTime.parse("2026-10-09T10:00:00"))));
 
@@ -189,7 +189,9 @@ class MentorDashboardServiceTest {
         assertEquals(88L, requests.get(0).id());
         assertEquals("ACCEPTED", requests.get(0).status());
         assertEquals("Lite", requests.get(0).packageName());
+        assertEquals("MONTHLY", requests.get(0).serviceType());
         assertEquals("REJECTED", requests.get(1).status());
+        assertEquals("ONE_OFF", requests.get(1).serviceType());
         verify(dashboardRepository).findRequestsForMentor(42L);
     }
 
@@ -269,6 +271,7 @@ class MentorDashboardServiceTest {
             Long id,
             String menteeName,
             String packageName,
+            String serviceType,
             String learningGoals,
             String status,
             LocalDateTime submittedAt,
@@ -277,6 +280,7 @@ class MentorDashboardServiceTest {
         @Override public Long getId() { return id; }
         @Override public String getMenteeName() { return menteeName; }
         @Override public String getPackageName() { return packageName; }
+        @Override public String getServiceType() { return serviceType; }
         @Override public String getLearningGoals() { return learningGoals; }
         @Override public String getStatus() { return status; }
         @Override public LocalDateTime getSubmittedAt() { return submittedAt; }

@@ -12,6 +12,7 @@ test('requests page exposes persisted request history, status filtering, and the
   assert.match(markup, /id="request-dialog-overlay" class="fixed inset-0 z-50 hidden items-center justify-center bg-black\/40 backdrop-blur-sm p-4 overflow-y-auto"/);
   assert.match(markup, /id="request-dialog" class="relative mx-auto my-auto w-full max-w-2xl rounded-2xl border border-line bg-white shadow-2xl"/);
   assert.match(markup, /id="request-dialog-status"/);
+  assert.match(markup, /id="request-dialog-type"/);
   assert.match(markup, /id="requests-error" class="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"/);
   assert.match(markup, /data-dialog-action="ACCEPTED"/);
   assert.match(markup, /data-dialog-action="REJECTED"/);

@@ -44,4 +44,10 @@ public class MentorPlanController {
     public ApiResponse<List<MentorPlanResponse>> getMentorPlans(@PathVariable String identifier) {
         return ApiResponse.ok(mentorPlanService.getPublicPlans(identifier));
     }
+
+    @GetMapping("/api/mentors/{identifier}/offerings")
+    @Transactional(readOnly = true)
+    public ApiResponse<List<MentorPlanResponse>> getMentorOfferings(@PathVariable String identifier) {
+        return ApiResponse.ok(mentorPlanService.getPublicOfferings(identifier));
+    }
 }

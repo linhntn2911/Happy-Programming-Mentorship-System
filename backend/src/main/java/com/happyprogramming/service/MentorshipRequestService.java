@@ -5,6 +5,7 @@ import com.happyprogramming.dto.CheckoutInfoDto;
 import com.happyprogramming.dto.CheckoutRequest;
 import com.happyprogramming.dto.CheckoutResponse;
 import com.happyprogramming.dto.CreateMentorshipRequest;
+import com.happyprogramming.dto.CreateOneOffSessionRequest;
 import com.happyprogramming.dto.MentorshipRequestResponse;
 import com.happyprogramming.dto.MenteeApplicationDto;
 import com.happyprogramming.dto.MenteeApplicationPageDto;
@@ -60,6 +61,28 @@ public class MentorshipRequestService {
                  response_deadline, terms_version, terms_accepted_at, created_at, updated_at)
             VALUES
                 (?, ?, ?, 'MONTHLY', ?, ?, ?, ?, N'[]', ?, 'PENDING', SYSUTCDATETIME(),
+                 DATEADD(HOUR, 48, SYSUTCDATETIME()), ?, SYSUTCDATETIME(), SYSUTCDATETIME(), SYSUTCDATETIME())
+            """;
+
+    private static final String SELECT_ONE_OFF_OFFERING = """
+            SELECT id, name, plan_tier, price, currency, session_duration_minutes, calls_per_period, trial_days
+            FROM dbo.service_offerings
+            WHERE id = ? AND mentor_id = ? AND service_type = 'ONE_OFF' AND status = 'ACTIVE'
+            """;
+
+    private static final String COUNT_ACTIVE_ONE_OFF_REQUESTS = """
+            SELECT COUNT(1) FROM dbo.mentorship_requests
+            WHERE mentee_id = ? AND mentor_id = ? AND service_type = 'ONE_OFF'
+              AND status IN ('PENDING', 'ACCEPTED')
+            """;
+
+    private static final String INSERT_ONE_OFF_REQUEST = """
+            INSERT INTO dbo.mentorship_requests
+                (mentee_id, mentor_id, service_id, service_type, experience_level, background,
+                 learning_goals, expectations, project_links, offer_snapshot, status, submitted_at,
+                 response_deadline, terms_version, terms_accepted_at, created_at, updated_at)
+            VALUES
+                (?, ?, ?, 'ONE_OFF', ?, NULL, ?, NULL, N'[]', ?, 'PENDING', SYSUTCDATETIME(),
                  DATEADD(HOUR, 48, SYSUTCDATETIME()), ?, SYSUTCDATETIME(), SYSUTCDATETIME(), SYSUTCDATETIME())
             """;
 
@@ -176,6 +199,88 @@ public class MentorshipRequestService {
                 menteeId,
                 "Mentorship request submitted",
                 "Your request to " + mentorName + " was sent. They have 48 hours to respond. Track its status in My applications.",
+                "MENTORSHIP_REQUEST_SUBMITTED",
+                "#/applications");
+
+        return new MentorshipRequestResponse(requestId, "PENDING", false, Instant.now());
+    }
+
+    @Transactional
+    public MentorshipRequestResponse createOneOff(CreateOneOffSessionRequest payload) {
+        JdbcTemplate template = jdbc();
+        AuthenticatedUser currentUser = currentUser();
+        if (currentUser == null || currentUser.id() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Please log in to request a one-off session.");
+        }
+        long menteeId = currentUser.id();
+        String menteeName = currentUser.name() == null ? "A mentee" : currentUser.name();
+
+        String agenda = payload.agenda() == null ? "" : payload.agenda().trim();
+        if (agenda.length() < MIN_GOALS_LENGTH) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Tell your mentor what you need help with (at least 50 characters).");
+        }
+
+        List<Map<String, Object>> mentors = template.queryForList(SELECT_MENTOR, payload.mentorSlug());
+        if (mentors.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Mentor is not available for one-off sessions.");
+        }
+        long mentorId = ((Number) mentors.get(0).get("user_id")).longValue();
+        String mentorName = String.valueOf(mentors.get(0).get("full_name"));
+        if (mentorId == menteeId) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You cannot book a session with yourself.");
+        }
+
+        List<Map<String, Object>> offerings =
+                template.queryForList(SELECT_ONE_OFF_OFFERING, payload.serviceOfferingId(), mentorId);
+        if (offerings.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "The selected session is no longer available. Refresh the mentor profile and choose an active session.");
+        }
+        Map<String, Object> offering = offerings.get(0);
+        long serviceId = ((Number) offering.get("id")).longValue();
+        String sessionName = String.valueOf(offering.get("name"));
+
+        Integer activeRequests =
+                template.queryForObject(COUNT_ACTIVE_ONE_OFF_REQUESTS, Integer.class, menteeId, mentorId);
+        if (activeRequests != null && activeRequests > 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "You already have a one-off session request with this mentor awaiting a decision.");
+        }
+
+        String offerSnapshot = buildOneOffSnapshot(offering);
+
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+        template.update(connection -> {
+            PreparedStatement ps = connection.prepareStatement(INSERT_ONE_OFF_REQUEST, new String[] {"id"});
+            ps.setLong(1, menteeId);
+            ps.setLong(2, mentorId);
+            ps.setLong(3, serviceId);
+            ps.setString(4, payload.experienceLevel());
+            ps.setString(5, agenda);
+            ps.setString(6, offerSnapshot);
+            ps.setString(7, payload.termsVersion());
+            return ps;
+        }, keyHolder);
+
+        Number generatedId = keyHolder.getKey();
+        if (generatedId == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR, "One-off session request could not be created.");
+        }
+        long requestId = generatedId.longValue();
+
+        notificationService.create(
+                mentorId,
+                "New one-off session request",
+                menteeName + " requested the session \"" + sessionName + "\". Review it in your mentor dashboard.",
+                "MENTORSHIP_REQUEST_RECEIVED",
+                "#/mentor/requests");
+        notificationService.create(
+                menteeId,
+                "Session request submitted",
+                "Your request for \"" + sessionName + "\" with " + mentorName
+                        + " was sent. They have 48 hours to respond. Track its status in My applications.",
                 "MENTORSHIP_REQUEST_SUBMITTED",
                 "#/applications");
 
@@ -444,6 +549,22 @@ public class MentorshipRequestService {
         } catch (Exception exception) {
             throw new ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR, "Mentorship offer snapshot could not be serialized.");
+        }
+    }
+
+    private String buildOneOffSnapshot(Map<String, Object> offering) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("serviceId", offering.get("id"));
+        snapshot.put("serviceType", "ONE_OFF");
+        snapshot.put("name", offering.get("name"));
+        snapshot.put("price", offering.get("price"));
+        snapshot.put("currency", offering.get("currency"));
+        snapshot.put("sessionDurationMinutes", offering.get("session_duration_minutes"));
+        try {
+            return objectMapper.writeValueAsString(snapshot);
+        } catch (Exception exception) {
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR, "One-off offer snapshot could not be serialized.");
         }
     }
 

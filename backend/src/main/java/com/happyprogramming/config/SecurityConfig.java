@@ -30,7 +30,7 @@ public class SecurityConfig {
                                  @Value("${hpms.frontend.base-url:http://localhost:5173}") String frontendBaseUrl) throws Exception {
         http.authorizeHttpRequests(r -> r
             .requestMatchers("/error").permitAll()
-            .requestMatchers(HttpMethod.GET, "/", "/api/mentors", "/api/mentors/**", "/api/auth/csrf", "/api/auth/options").permitAll()
+            .requestMatchers(HttpMethod.GET, "/", "/api/mentors", "/api/mentors/**", "/api/public/support", "/api/auth/csrf", "/api/auth/options").permitAll()
             .requestMatchers("/api/payments/sepay/webhook").permitAll()
             .requestMatchers("/api/auth/login", "/api/auth/signup/**", "/api/auth/verify-otp", "/api/auth/resend-otp",
                 "/api/auth/forgot-password", "/api/auth/reset-password",

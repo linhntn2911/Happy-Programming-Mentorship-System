@@ -1,6 +1,10 @@
 import { BrandLogo } from './BrandLogo.js';
+import { hydrateSupportEmail, SupportEmailLink } from './supportEmail.js';
 
 export function Footer() {
+  if (typeof document !== 'undefined') {
+    queueMicrotask(() => void hydrateSupportEmail(document));
+  }
   return `
 <footer class="border-t border-line bg-white pt-12">
   <div class="container">
@@ -27,7 +31,7 @@ export function Footer() {
       <div>
         <h2 class="text-xs font-semibold">Good to know</h2>
         <div class="mt-5 flex flex-col gap-3 text-[11px] text-muted">
-          <a href="#faq" class="hover:text-brand">Frequently asked questions</a>
+          ${SupportEmailLink({ className: 'hover:text-brand' })}
           <a href="#/components" class="hover:text-brand font-medium text-brand">UI Component Showcase</a>
         </div>
       </div>

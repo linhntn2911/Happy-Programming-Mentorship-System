@@ -3,8 +3,15 @@ package com.happyprogramming.service;
 import com.happyprogramming.dto.AdminPayoutRequest;
 import com.happyprogramming.dto.AuthenticatedUser;
 import com.happyprogramming.dto.CreatePayoutRequest;
+import com.happyprogramming.dto.MentorBankAccountRequest;
+import com.happyprogramming.dto.MentorBankAccountResponse;
 import com.happyprogramming.dto.MentorWalletResponse;
 import com.happyprogramming.dto.PayoutDecisionRequest;
+import com.happyprogramming.dto.PayoutOtpResponse;
+import com.happyprogramming.dto.RequestPayoutOtpRequest;
+import com.happyprogramming.dto.SubmitPayoutRequest;
+import com.happyprogramming.entity.SecurityToken;
+import com.happyprogramming.repository.SecurityTokenRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -23,21 +30,37 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 public class MentorWalletService {
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final int PAYOUT_OTP_EXPIRY_MINUTES = 10;
     private final JdbcTemplate jdbc;
     private final String encryptionKey;
+    private final SecurityTokenRepository securityTokens;
+    private final EmailService emailService;
+    private final NotificationService notificationService;
+    private final Clock clock;
 
     public MentorWalletService(@Autowired(required = false) JdbcTemplate jdbc,
-                               @Value("${hpms.wallet.encryption-key:}") String encryptionKey) {
+                               @Value("${hpms.wallet.encryption-key:}") String encryptionKey,
+                               SecurityTokenRepository securityTokens,
+                               EmailService emailService,
+                               NotificationService notificationService,
+                               Clock clock) {
         this.jdbc = jdbc;
         this.encryptionKey = encryptionKey;
+        this.securityTokens = securityTokens;
+        this.emailService = emailService;
+        this.notificationService = notificationService;
+        this.clock = clock;
     }
 
     @Transactional
@@ -60,11 +83,12 @@ public class MentorWalletService {
                 rs.getBigDecimal("amount"), rs.getString("merchant_reference"), rs.getTimestamp("created_at").toInstant()), mentorId);
         var requests = db.query("""
                 SELECT TOP (50) id,amount,bank_name,account_name,account_last4,status,transfer_reference,
-                    rejection_reason,requested_at,reviewed_at
+                    receipt_url,rejection_reason,requested_at,reviewed_at
                 FROM dbo.mentor_payout_requests WHERE mentor_id=? ORDER BY requested_at DESC,id DESC
                 """, (rs, n) -> new MentorWalletResponse.PayoutRequest(rs.getLong("id"), rs.getBigDecimal("amount"),
                 rs.getString("bank_name"), rs.getString("account_name"), rs.getString("account_last4"), rs.getString("status"),
-                rs.getString("transfer_reference"), rs.getString("rejection_reason"), rs.getTimestamp("requested_at").toInstant(),
+                rs.getString("transfer_reference"), rs.getString("receipt_url"), rs.getString("rejection_reason"),
+                rs.getTimestamp("requested_at").toInstant(),
                 rs.getTimestamp("reviewed_at") == null ? null : rs.getTimestamp("reviewed_at").toInstant()), mentorId);
         return new MentorWalletResponse(held, available.max(BigDecimal.ZERO), reserved, paid, entries, requests);
     }
@@ -78,22 +102,133 @@ public class MentorWalletService {
         String accountName = clean(input.accountName(), 150, "Account holder name is required.");
         String accountNumber = input.accountNumber() == null ? "" : input.accountNumber().trim();
         if (!accountNumber.matches("[0-9]{6,34}")) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Enter a valid bank account number.");
+        String encrypted = encryptAccount(accountNumber);
+        return createPayout(db(), mentorId, input.amount(), bank, accountName, encrypted,
+                accountNumber.substring(accountNumber.length() - 4), remoteAddress);
+    }
+
+    @Transactional(readOnly = true)
+    public MentorBankAccountResponse bankAccount() {
+        long mentorId = requireRole("MENTOR");
+        SavedBankAccount saved = loadSavedBankAccount(db(), mentorId);
+        return saved == null ? MentorBankAccountResponse.none()
+                : new MentorBankAccountResponse(true, saved.bankName(), saved.accountName(), saved.last4(), saved.updatedAt());
+    }
+
+    @Transactional
+    public MentorBankAccountResponse saveBankAccount(MentorBankAccountRequest input, String remoteAddress) {
+        long mentorId = requireRole("MENTOR");
+        String bank = clean(input.bankName(), 100, "Bank name is required.");
+        String accountName = clean(input.accountName(), 150, "Account holder name is required.");
+        String accountNumber = input.accountNumber() == null ? "" : input.accountNumber().trim();
+        if (!accountNumber.matches("[0-9]{6,34}")) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Enter a valid bank account number.");
         JdbcTemplate db = db();
-        releaseMatured(db, 100);
         lockMentor(db, mentorId);
+        String encrypted = encryptAccount(accountNumber);
+        String last4 = accountNumber.substring(accountNumber.length() - 4);
+        int updated = db.update("""
+                UPDATE dbo.mentor_bank_accounts
+                SET bank_name=?,account_name=?,account_number_ciphertext=?,account_last4=?,updated_at=SYSUTCDATETIME()
+                WHERE mentor_id=?
+                """, bank, accountName, encrypted, last4, mentorId);
+        if (updated == 0) db.update("""
+                INSERT INTO dbo.mentor_bank_accounts(mentor_id,bank_name,account_name,account_number_ciphertext,account_last4)
+                VALUES (?,?,?,?,?)
+                """, mentorId, bank, accountName, encrypted, last4);
+        SavedBankAccount saved = loadSavedBankAccount(db, mentorId);
+        return new MentorBankAccountResponse(true, saved.bankName(), saved.accountName(), saved.last4(), saved.updatedAt());
+    }
+
+    @Transactional
+    public PayoutOtpResponse requestPayoutOtp(RequestPayoutOtpRequest input, String remoteAddress) {
+        long mentorId = requireRole("MENTOR");
+        if (input == null || input.amount() == null || input.amount().signum() <= 0 || input.amount().scale() > 0)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Enter a positive whole-VND amount.");
+        JdbcTemplate db = db();
+        SavedBankAccount saved = loadSavedBankAccount(db, mentorId);
+        if (saved == null)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Save your bank account before requesting a payout.");
+        releaseMatured(db, 100);
         BigDecimal available = releasedBalance(db, mentorId).subtract(paidBalance(db, mentorId)).subtract(reservedBalance(db, mentorId, null));
         if (input.amount().compareTo(available) > 0)
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Payout amount exceeds your available balance.");
-        String encrypted = encryptAccount(accountNumber);
-        KeyHolderHolder key = insertPayoutRequest(db, mentorId, input.amount(), bank, accountName, encrypted,
-                accountNumber.substring(accountNumber.length() - 4));
+        MentorContact contact = mentorContact(db, mentorId);
+        String code = String.format("%06d", ThreadLocalRandom.current().nextInt(1000000));
+        securityTokens.save(SecurityToken.createPayoutOtp(mentorId, code, LocalDateTime.now(clock), PAYOUT_OTP_EXPIRY_MINUTES));
+        String destination = saved.bankName() + " ···· " + saved.last4();
+        String amountLabel = input.amount().toPlainString() + " VND";
+        emailService.sendPayoutOtpEmail(contact.email(), contact.name(), code, amountLabel, destination);
+        return new PayoutOtpResponse(maskEmail(contact.email()), destination, PAYOUT_OTP_EXPIRY_MINUTES * 60);
+    }
+
+    @Transactional
+    public MentorWalletResponse.PayoutRequest submitPayoutWithOtp(SubmitPayoutRequest input, String remoteAddress) {
+        long mentorId = requireRole("MENTOR");
+        if (input == null || input.amount() == null || input.amount().signum() <= 0 || input.amount().scale() > 0)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Enter a positive whole-VND amount.");
+        JdbcTemplate db = db();
+        SavedBankAccount saved = loadSavedBankAccount(db, mentorId);
+        if (saved == null)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Save your bank account before requesting a payout.");
+        verifyPayoutOtp(mentorId, input.otp());
+        return createPayout(db, mentorId, input.amount(), saved.bankName(), saved.accountName(),
+                saved.ciphertext(), saved.last4(), remoteAddress);
+    }
+
+    private MentorWalletResponse.PayoutRequest createPayout(JdbcTemplate db, long mentorId, BigDecimal amount, String bank,
+                                                            String accountName, String encrypted, String last4, String remoteAddress) {
+        releaseMatured(db, 100);
+        lockMentor(db, mentorId);
+        BigDecimal available = releasedBalance(db, mentorId).subtract(paidBalance(db, mentorId)).subtract(reservedBalance(db, mentorId, null));
+        if (amount.compareTo(available) > 0)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Payout amount exceeds your available balance.");
+        KeyHolderHolder key = insertPayoutRequest(db, mentorId, amount, bank, accountName, encrypted, last4);
         audit(db, mentorId, "MENTOR_PAYOUT_REQUESTED", key.id(), null,
-                "{\"status\":\"REQUESTED\",\"amount\":\"" + input.amount().toPlainString() + "\"}",
+                "{\"status\":\"REQUESTED\",\"amount\":\"" + amount.toPlainString() + "\"}",
                 "Mentor requested a wallet payout.", remoteAddress);
         return db.queryForObject("""
                 SELECT id,amount,bank_name,account_name,account_last4,status,transfer_reference,
-                    rejection_reason,requested_at,reviewed_at FROM dbo.mentor_payout_requests WHERE id=?
+                    receipt_url,rejection_reason,requested_at,reviewed_at FROM dbo.mentor_payout_requests WHERE id=?
                 """, (rs, n) -> payoutDto(rs), key.id());
+    }
+
+    private void verifyPayoutOtp(long mentorId, String code) {
+        String normalized = code == null ? "" : code.trim();
+        SecurityToken token = securityTokens
+                .findFirstByUserIdAndPurposeAndUsedAtIsNullOrderByCreatedAtDesc(mentorId, "PAYOUT")
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request a new verification code to continue."));
+        LocalDateTime now = LocalDateTime.now(clock);
+        if (!token.isValid(now) || !token.matches(normalized))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid or expired verification code.");
+        token.markUsed(now);
+        securityTokens.saveAndFlush(token);
+    }
+
+    private SavedBankAccount loadSavedBankAccount(JdbcTemplate db, long mentorId) {
+        return db.query("""
+                SELECT bank_name,account_name,account_number_ciphertext,account_last4,updated_at
+                FROM dbo.mentor_bank_accounts WHERE mentor_id=?
+                """, (rs, n) -> new SavedBankAccount(rs.getString("bank_name"), rs.getString("account_name"),
+                rs.getString("account_number_ciphertext"), rs.getString("account_last4"),
+                rs.getTimestamp("updated_at").toInstant()), mentorId)
+                .stream().findFirst().orElse(null);
+    }
+
+    private MentorContact mentorContact(JdbcTemplate db, long mentorId) {
+        return db.query("SELECT full_name,email FROM dbo.users WHERE id=?",
+                (rs, n) -> new MentorContact(rs.getString("full_name"), rs.getString("email")), mentorId)
+                .stream().findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Mentor account not found."));
+    }
+
+    static String maskEmail(String email) {
+        if (email == null || email.isBlank()) return "";
+        int at = email.indexOf('@');
+        if (at <= 0) return "•••";
+        String local = email.substring(0, at);
+        String domain = email.substring(at);
+        String visible = local.length() <= 2 ? local.substring(0, 1) : local.substring(0, 2);
+        return visible + "•••" + domain;
     }
 
     @Transactional(readOnly = true)
@@ -134,22 +269,40 @@ public class MentorWalletService {
                     """, reason, adminId, Timestamp.from(now), payoutId);
             audit(db, adminId, "MENTOR_PAYOUT_REJECTED", payoutId, "{\"status\":\"REQUESTED\"}",
                     "{\"status\":\"REJECTED\"}", reason, remoteAddress);
+            notifyMentor(mentorId, "Payout request rejected",
+                    "Your payout request #" + payoutId + " was rejected. Reason: " + reason, "PAYOUT_REJECTED");
             return;
         }
         String transferReference = clean(decision.transferReference(), 150, "Enter the bank transfer reference before marking this payout paid.");
+        String receiptUrl = optionalReceiptUrl(decision.receiptUrl());
         BigDecimal amount = (BigDecimal) payout.get("amount");
         BigDecimal unreserved = releasedBalance(db, mentorId).subtract(paidBalance(db, mentorId))
                 .subtract(reservedBalance(db, mentorId, payoutId));
         if (unreserved.compareTo(amount) < 0)
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Released wallet balance is no longer sufficient for this payout.");
         db.update("""
-                UPDATE dbo.mentor_payout_requests SET status='PAID',transfer_reference=?,reviewed_by=?,reviewed_at=?
+                UPDATE dbo.mentor_payout_requests SET status='PAID',transfer_reference=?,receipt_url=?,reviewed_by=?,reviewed_at=?
                 WHERE id=? AND status='REQUESTED'
-                """, transferReference, adminId, Timestamp.from(now), payoutId);
+                """, transferReference, receiptUrl, adminId, Timestamp.from(now), payoutId);
         allocatePayout(db, mentorId, payoutId, amount, adminId, now);
         audit(db, adminId, "MENTOR_PAYOUT_PAID", payoutId, "{\"status\":\"REQUESTED\"}",
                 "{\"status\":\"PAID\",\"amount\":\"" + amount.toPlainString() + "\"}",
                 "Bank transfer reference: " + transferReference, remoteAddress);
+        notifyMentor(mentorId, "Payout paid",
+                "Your payout of " + amount.toPlainString() + " VND was transferred. Bank reference: " + transferReference + ".",
+                "PAYOUT_PAID");
+    }
+
+    private void notifyMentor(long mentorId, String title, String message, String type) {
+        notificationService.create(mentorId, title, message, type, "/mentor/wallet");
+    }
+
+    private static String optionalReceiptUrl(String value) {
+        String normalized = value == null ? "" : value.trim();
+        if (normalized.isEmpty()) return null;
+        if (normalized.length() > 1000 || !normalized.matches("https?://\\S+"))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Enter a valid http(s) receipt link.");
+        return normalized;
     }
 
     @Transactional
@@ -315,7 +468,8 @@ public class MentorWalletService {
         Timestamp reviewed = rs.getTimestamp("reviewed_at");
         return new MentorWalletResponse.PayoutRequest(rs.getLong("id"), rs.getBigDecimal("amount"), rs.getString("bank_name"),
                 rs.getString("account_name"), rs.getString("account_last4"), rs.getString("status"), rs.getString("transfer_reference"),
-                rs.getString("rejection_reason"), rs.getTimestamp("requested_at").toInstant(), reviewed == null ? null : reviewed.toInstant());
+                rs.getString("receipt_url"), rs.getString("rejection_reason"),
+                rs.getTimestamp("requested_at").toInstant(), reviewed == null ? null : reviewed.toInstant());
     }
 
     private long requireRole(String role) {
@@ -349,4 +503,6 @@ public class MentorWalletService {
     private record MaturePayment(long id, BigDecimal distributable, BigDecimal commissionRate) { }
     private record Allocation(long paymentId, BigDecimal remaining) { }
     private record KeyHolderHolder(long id) { }
+    private record SavedBankAccount(String bankName, String accountName, String ciphertext, String last4, Instant updatedAt) { }
+    private record MentorContact(String name, String email) { }
 }

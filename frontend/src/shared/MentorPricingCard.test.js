@@ -31,3 +31,15 @@ test('switching pricing tiers updates the application offering ID', () => {
 
   assert.equal(applyButton.attributes['data-apply-offering-id'], 102);
 });
+
+test('one-off sessions remain reachable when no monthly package is published', () => {
+  const html = MentorPricingCard({ tiers: [], oneOffPrice: '500,000', showOneOff: true, onOneOffClick: "window.location.hash='#/sessions'" });
+  assert.match(html, /Book a one-off session from 500,000/);
+  assert.match(html, /#\/sessions/);
+});
+
+test('one-off entry remains visible without fabricating a price', () => {
+  const html = MentorPricingCard({ tiers: [lite], showOneOff: true, onOneOffClick: "window.location.hash='#/sessions'" });
+  assert.match(html, /Book a one-off call/);
+  assert.doesNotMatch(html, /Book a one-off call \(/);
+});

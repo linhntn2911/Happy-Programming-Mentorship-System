@@ -62,6 +62,16 @@ public class SecurityToken {
         return token;
     }
 
+    public static SecurityToken createPayoutOtp(Long userId, String code, LocalDateTime now, int expiryMinutes) {
+        var token = new SecurityToken();
+        token.userId = userId;
+        token.tokenHash = hashToken(userId, code);
+        token.purpose = "PAYOUT";
+        token.expiresAt = now.plusMinutes(expiryMinutes);
+        token.createdAt = now;
+        return token;
+    }
+
     public boolean matches(String code) {
         byte[] expected = hashToken(this.userId, code);
         return MessageDigest.isEqual(this.tokenHash, expected);
