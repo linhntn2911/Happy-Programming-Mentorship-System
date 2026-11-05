@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
@@ -11,16 +12,20 @@
     <groupId>com.happyprogramming</groupId>
     <artifactId>happyprogramming-backend</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>HappyProgramming Backend</name>
-    <description>Programming mentorship platform REST API</description>
+    <name>happyprogramming-backend</name>
+    <description>HappyProgramming REST API backend</description>
     <properties>
         <java.version>17</java.version>
-        <maven.compiler.fork>true</maven.compiler.fork>
     </properties>
     <dependencies>
-        <dependency><groupId>org.flywaydb</groupId><artifactId>flyway-core</artifactId></dependency>
-        <dependency><groupId>org.flywaydb</groupId><artifactId>flyway-sqlserver</artifactId></dependency>
-        <dependency><groupId>com.h2database</groupId><artifactId>h2</artifactId><scope>test</scope></dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
@@ -28,15 +33,6 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-oauth2-client</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.security</groupId>
-            <artifactId>spring-security-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -47,16 +43,31 @@
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-jpa</artifactId>
-        </dependency>
-        <dependency>
             <groupId>com.microsoft.sqlserver</groupId>
             <artifactId>mssql-jdbc</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-sqlserver</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -100,6 +111,10 @@
                         <copy file="${project.basedir}/../docs/database/migration/034_20261030_split_dispute_mediation_conversations.sql" tofile="${project.build.outputDirectory}/db/migration/V25__split_dispute_mediation_conversations.sql" overwrite="true"/>
                         <copy file="${project.basedir}/../docs/database/migration/035_20261030_backfill_open_dispute_mediation_rooms.sql" tofile="${project.build.outputDirectory}/db/migration/V26__backfill_open_dispute_mediation_rooms.sql" overwrite="true"/>
                         <copy file="${project.basedir}/../docs/database/migration/036_20261030_move_legacy_mediation_notices.sql" tofile="${project.build.outputDirectory}/db/migration/V27__move_legacy_mediation_notices.sql" overwrite="true"/>
+                        <copy file="${project.basedir}/../docs/database/migration/037_20261030_add_dispute_refund_receipt_file.sql" tofile="${project.build.outputDirectory}/db/migration/V28__add_dispute_refund_receipt_file.sql" overwrite="true"/>
+                        <copy file="${project.basedir}/../docs/database/migration/038_20261105_add_payout_transfer_receipt.sql" tofile="${project.build.outputDirectory}/db/migration/V29__add_payout_transfer_receipt.sql" overwrite="true"/>
+                        <copy file="${project.basedir}/../docs/database/migration/039_20261105_add_payout_receipt_url.sql" tofile="${project.build.outputDirectory}/db/migration/V30__add_payout_receipt_url.sql" overwrite="true"/>
+                        <copy file="${project.basedir}/../docs/database/migration/040_20261105_add_mentor_dispute_response_tables.sql" tofile="${project.build.outputDirectory}/db/migration/V31__add_mentor_dispute_response_tables.sql" overwrite="true"/>
                     </target></configuration>
                 </execution></executions>
             </plugin>

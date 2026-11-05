@@ -56,17 +56,20 @@ public class MentorWalletService {
     private final String encryptionKey;
     private final SecurityTokenRepository securityTokens;
     private final EmailService emailService;
+    private final NotificationService notificationService;
     private final Clock clock;
 
     public MentorWalletService(@Autowired(required = false) JdbcTemplate jdbc,
                                @Value("${hpms.wallet.encryption-key:}") String encryptionKey,
                                SecurityTokenRepository securityTokens,
                                EmailService emailService,
+                               NotificationService notificationService,
                                Clock clock) {
         this.jdbc = jdbc;
         this.encryptionKey = encryptionKey;
         this.securityTokens = securityTokens;
         this.emailService = emailService;
+        this.notificationService = notificationService;
         this.clock = clock;
     }
 
@@ -90,13 +93,25 @@ public class MentorWalletService {
                 rs.getBigDecimal("amount"), rs.getString("merchant_reference"), rs.getTimestamp("created_at").toInstant()), mentorId);
         var requests = db.query("""
                 SELECT TOP (50) id,amount,fee_amount,bank_name,account_name,account_last4,status,transfer_reference,
-                    rejection_reason,requested_at,COALESCE(reviewed_at, approved_at) AS reviewed_at,receipt_file_id
+                    receipt_url,rejection_reason,requested_at,COALESCE(reviewed_at, approved_at) AS reviewed_at,receipt_file_id
                 FROM dbo.mentor_payout_requests WHERE mentor_id=? ORDER BY requested_at DESC,id DESC
-                """, (rs, n) -> new MentorWalletResponse.PayoutRequest(rs.getLong("id"), rs.getBigDecimal("amount"),
-                rs.getString("bank_name"), rs.getString("account_name"), rs.getString("account_last4"), rs.getString("status"),
-                rs.getString("transfer_reference"), rs.getString("rejection_reason"), rs.getTimestamp("requested_at").toInstant(),
-                rs.getTimestamp("reviewed_at") == null ? null : rs.getTimestamp("reviewed_at").toInstant(), rs.getBigDecimal("fee_amount"),
-                rs.getBigDecimal("amount").subtract(rs.getBigDecimal("fee_amount")), rs.getObject("receipt_file_id", Long.class)), mentorId);
+                """, (rs, n) -> {
+                    long id = rs.getLong("id");
+                    Long receiptFileId = rs.getObject("receipt_file_id", Long.class);
+                    String receiptUrl = rs.getString("receipt_url");
+                    if (receiptUrl == null && receiptFileId != null) {
+                        receiptUrl = "/api/mentors/me/payout-requests/" + id + "/receipt";
+                    }
+                    BigDecimal feeAmount = rs.getBigDecimal("fee_amount");
+                    BigDecimal amount = rs.getBigDecimal("amount");
+                    BigDecimal netAmount = feeAmount == null ? amount : amount.subtract(feeAmount);
+                    return new MentorWalletResponse.PayoutRequest(
+                            id, amount, rs.getString("bank_name"), rs.getString("account_name"),
+                            rs.getString("account_last4"), rs.getString("status"), rs.getString("transfer_reference"),
+                            receiptUrl, rs.getString("rejection_reason"), rs.getTimestamp("requested_at").toInstant(),
+                            rs.getTimestamp("reviewed_at") == null ? null : rs.getTimestamp("reviewed_at").toInstant(),
+                            feeAmount == null ? BigDecimal.ZERO : feeAmount, netAmount, receiptFileId);
+                }, mentorId);
         return new MentorWalletResponse(held, available.max(BigDecimal.ZERO), reserved, paid, entries, requests);
     }
 
@@ -207,7 +222,8 @@ public class MentorWalletService {
                 "Mentor requested a wallet payout.", remoteAddress);
         return db.queryForObject("""
                 SELECT id,amount,fee_amount,bank_name,account_name,account_last4,status,transfer_reference,
-                    rejection_reason,requested_at,reviewed_at,receipt_file_id FROM dbo.mentor_payout_requests WHERE id=?
+                    receipt_url,rejection_reason,requested_at,COALESCE(reviewed_at, approved_at) AS reviewed_at,receipt_file_id
+                FROM dbo.mentor_payout_requests WHERE id=?
                 """, (rs, n) -> payoutDto(rs), key.id());
     }
 
@@ -328,26 +344,36 @@ public class MentorWalletService {
         if ("PAID".equals(action)) {
             if (isStaff && !isAdmin)
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Staff members cannot mark payouts as paid. Only admin can record payments.");
-            if (!"APPROVED".equals(currentStatus))
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "Payout request must be approved by staff before payment.");
+            if (!"APPROVED".equals(currentStatus) && !"REQUESTED".equals(currentStatus))
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Payout request must be approved by staff or pending before payment.");
 
             lockMentor(db, mentorId);
             String transferReference = clean(decision.transferReference(), 150, "Enter the bank transfer reference before marking this payout paid.");
-            long receiptFileId = savePayoutReceipt(db, reviewerId, payoutId, decision);
+            Long receiptFileId = null;
+            if (decision.receiptBase64() != null && !decision.receiptBase64().isBlank()) {
+                receiptFileId = savePayoutReceipt(db, reviewerId, payoutId, decision);
+            }
+            String receiptUrl = optionalReceiptUrl(decision.receiptUrl());
+            if (receiptFileId == null && receiptUrl == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Upload the bank transfer receipt or provide a receipt link before marking this payout paid.");
+            }
             BigDecimal unreserved = releasedBalance(db, mentorId).subtract(paidBalance(db, mentorId))
                     .subtract(reservedBalance(db, mentorId, payoutId));
             if (unreserved.compareTo(amount) < 0)
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Released wallet balance is no longer sufficient for this payout.");
             db.update("""
-                    UPDATE dbo.mentor_payout_requests SET status='PAID',transfer_reference=?,receipt_file_id=?,reviewed_by=?,reviewed_at=?
-                    WHERE id=? AND status='APPROVED'
-                    """, transferReference, receiptFileId, reviewerId, Timestamp.from(now), payoutId);
+                    UPDATE dbo.mentor_payout_requests SET status='PAID',transfer_reference=?,receipt_file_id=?,receipt_url=?,reviewed_by=?,reviewed_at=?
+                    WHERE id=? AND status IN ('APPROVED','REQUESTED')
+                    """, transferReference, receiptFileId, receiptUrl, reviewerId, Timestamp.from(now), payoutId);
             allocatePayout(db, mentorId, payoutId, amount, reviewerId, now);
-            audit(db, reviewerId, "MENTOR_PAYOUT_PAID", payoutId, "{\"status\":\"APPROVED\"}",
+            audit(db, reviewerId, "MENTOR_PAYOUT_PAID", payoutId, "{\"status\":\"" + currentStatus + "\"}",
                     "{\"status\":\"PAID\",\"amount\":\"" + amount.toPlainString() + "\"}",
                     "Bank transfer reference: " + transferReference, remoteAddress);
             notifyUser(db, mentorId, "Payout transferred",
                     "Admin transferred payout #" + payoutId + ". Reference: " + transferReference + ". The receipt is available in your wallet.");
+            notifyMentor(mentorId, "Payout paid",
+                    "Your payout of " + amount.toPlainString() + " VND was transferred. Bank reference: " + transferReference + ".",
+                    "PAYOUT_PAID");
             return;
         }
 
@@ -367,6 +393,9 @@ public class MentorWalletService {
                     "{\"status\":\"REJECTED\"}", reason, remoteAddress);
             notifyUser(db, mentorId, "Payout request rejected",
                     "Payout request #" + payoutId + " was rejected. Reason: " + reason);
+            notifyMentor(mentorId, "Payout request rejected",
+                    "Your payout request #" + payoutId + " was rejected. Reason: " + reason, "PAYOUT_REJECTED");
+            return;
         }
     }
 
@@ -434,8 +463,20 @@ public class MentorWalletService {
                 """, userId, title, message);
     }
 
+    private void notifyMentor(long mentorId, String title, String message, String type) {
+        notificationService.create(mentorId, title, message, type, "/mentor/wallet");
+    }
+
+    private static String optionalReceiptUrl(String value) {
+        String normalized = value == null ? "" : value.trim();
+        if (normalized.isEmpty()) return null;
+        if (normalized.length() > 1000 || !normalized.matches("https?://\\S+"))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Enter a valid http(s) receipt link.");
+        return normalized;
+    }
+
     private static boolean isPng(byte[] bytes) {
-        return bytes.length >= 8 && bytes[0] == (byte) 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47;
+        return bytes.length >= 8 && bytes[0] == (byte) 0x89 && bytes[1] == (byte) 0x50 && bytes[2] == (byte) 0x4E && bytes[3] == (byte) 0x47;
     }
 
     private static boolean isJpeg(byte[] bytes) {
@@ -609,12 +650,21 @@ public class MentorWalletService {
     }
 
     private MentorWalletResponse.PayoutRequest payoutDto(java.sql.ResultSet rs) throws java.sql.SQLException {
+        long id = rs.getLong("id");
+        Long receiptFileId = rs.getObject("receipt_file_id", Long.class);
+        String receiptUrl = rs.getString("receipt_url");
+        if (receiptUrl == null && receiptFileId != null) {
+            receiptUrl = "/api/mentors/me/payout-requests/" + id + "/receipt";
+        }
         Timestamp reviewed = rs.getTimestamp("reviewed_at");
-        return new MentorWalletResponse.PayoutRequest(rs.getLong("id"), rs.getBigDecimal("amount"), rs.getString("bank_name"),
-                rs.getString("account_name"), rs.getString("account_last4"), rs.getString("status"), rs.getString("transfer_reference"),
-                rs.getString("rejection_reason"), rs.getTimestamp("requested_at").toInstant(), reviewed == null ? null : reviewed.toInstant(),
-                rs.getBigDecimal("fee_amount"), rs.getBigDecimal("amount").subtract(rs.getBigDecimal("fee_amount")),
-                rs.getObject("receipt_file_id", Long.class));
+        BigDecimal feeAmount = rs.getBigDecimal("fee_amount");
+        BigDecimal amount = rs.getBigDecimal("amount");
+        BigDecimal netAmount = feeAmount == null ? amount : amount.subtract(feeAmount);
+        return new MentorWalletResponse.PayoutRequest(id, amount, rs.getString("bank_name"),
+                rs.getString("account_name"), rs.getString("account_last4"), rs.getString("status"),
+                rs.getString("transfer_reference"), receiptUrl, rs.getString("rejection_reason"),
+                rs.getTimestamp("requested_at").toInstant(), reviewed == null ? null : reviewed.toInstant(),
+                feeAmount == null ? BigDecimal.ZERO : feeAmount, netAmount, receiptFileId);
     }
 
     private long requireRole(String role) {

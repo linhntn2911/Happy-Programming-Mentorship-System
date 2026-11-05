@@ -47,6 +47,7 @@ public class MentorReviewRepository {
                 review_row.comment AS comment,
                 COALESCE(mentee.full_name, 'A mentee') AS menteeName,
                 COALESCE(offering.name, 'Mentorship session') AS sessionLabel,
+                COALESCE(booking_row.service_type, 'MONTHLY') AS packageType,
                 review_row.created_at AS createdAt
             FROM dbo.reviews review_row
             LEFT JOIN dbo.bookings booking_row ON booking_row.id = review_row.booking_id
@@ -94,6 +95,7 @@ public class MentorReviewRepository {
                 rs.getString("comment"),
                 rs.getString("menteeName"),
                 rs.getString("sessionLabel"),
+                rs.getString("packageType"),
                 fromUtc(rs.getObject("createdAt", LocalDateTime.class)));
     }
 

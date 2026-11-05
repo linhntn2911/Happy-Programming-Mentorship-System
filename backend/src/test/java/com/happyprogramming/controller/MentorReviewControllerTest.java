@@ -34,7 +34,7 @@ class MentorReviewControllerTest {
     private static MentorReviewPage page(int page, int pageSize) {
         return new MentorReviewPage(new BigDecimal("4.50"), 12L, page, pageSize, List.of(
                 new MentorReviewResponse(101L, 5, "Very dedicated and clear explanations.",
-                        "Nguyen Van A", "Monthly Mentorship — Backend",
+                        "Nguyen Van A", "Monthly Mentorship — Backend", "MONTHLY",
                         Instant.parse("2026-10-10T03:15:00Z"))));
     }
 
@@ -50,6 +50,7 @@ class MentorReviewControllerTest {
                 .andExpect(jsonPath("$.data.items[0].id").value(101))
                 .andExpect(jsonPath("$.data.items[0].rating").value(5))
                 .andExpect(jsonPath("$.data.items[0].menteeName").value("Nguyen Van A"))
+                .andExpect(jsonPath("$.data.items[0].packageType").value("MONTHLY"))
                 .andExpect(jsonPath("$.data.items[0].createdAt").value("2026-10-10T03:15:00Z"));
     }
 
