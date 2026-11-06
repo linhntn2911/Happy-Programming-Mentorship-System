@@ -22,7 +22,7 @@ public record PayoutDecisionRequest(
     }
 
     public PayoutDecisionRequest(String decision, String transferReference, String rejectionReason,
-                                 String receiptFileName, String receiptBase64, String receiptMimeType) {
+            String receiptFileName, String receiptBase64, String receiptMimeType) {
         this(decision, transferReference, null, rejectionReason, receiptFileName, receiptBase64, receiptMimeType);
     }
 }

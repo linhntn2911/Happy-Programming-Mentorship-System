@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getPageNumbers, renderPagination } from './pagination.js';
+import { getPageNumbers, paginateItems, renderPagination } from './pagination.js';
+
+test('paginateItems slices ten records and clamps invalid pages', () => {
+  const records = Array.from({ length: 23 }, (_, index) => index + 1);
+  assert.deepEqual(paginateItems(records, 2).items, records.slice(10, 20));
+  assert.equal(paginateItems(records, 99).page, 3);
+  assert.deepEqual(paginateItems(records, 99).items, records.slice(20));
+});
 
 test('getPageNumbers returns all pages for 7 or fewer pages', () => {
   assert.deepEqual(getPageNumbers(0, 5), [0, 1, 2, 3, 4]);

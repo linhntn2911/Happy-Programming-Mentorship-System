@@ -46,6 +46,7 @@ import { wishlistService } from './roles/mentee/wishlistService.js';
 import { bindUserDropdown } from './shared/Header.js';
 import { mountMentorshipWorkspace } from './shared/MentorshipWorkspacePage.js';
 import { registerSupportContact } from './shared/SupportContact.js';
+import { bindPagination, paginateItems, renderPagination } from './shared/pagination.js';
 
 registerSupportContact();
 import { registerSystemOperations } from './shared/systemOperations.js';
@@ -629,10 +630,10 @@ async function mountMentorDirectory(initialFilters) {
     if (errorEl) errorEl.hidden = false;
     if (countEl) countEl.textContent = 'Mentor search unavailable';
   }
-  initMentorDirectory();
+  initMentorDirectory(mentors);
 }
 
-function initMentorDirectory() {
+function initMentorDirectory(initialMentors = []) {
   const form = document.querySelector('#directory-search');
   const panel = document.querySelector('#filter-panel');
   const results = document.querySelector('#mentor-results');
@@ -640,11 +641,15 @@ function initMentorDirectory() {
   const empty = document.querySelector('#directory-empty');
   const error = document.querySelector('#directory-error');
   const resultCount = document.querySelector('#result-count');
+  const paginationHost = document.querySelector('#mentor-pagination');
   const activeFilters = document.querySelector('#active-filters');
   const sort = document.querySelector('#sort');
   const mobileButton = document.querySelector('#mobile-filter-button');
   let requestNumber = 0;
   let toastTimer;
+  let page = 1;
+  let currentResults = initialMentors;
+  let unbindPagination = () => {};
 
   const getFilters = () => ({
     q: document.querySelector('#directory-query')?.value.trim() || '',
@@ -722,6 +727,20 @@ function initMentorDirectory() {
     });
   }
 
+  function renderMentorPage() {
+    const pagination = paginateItems(currentResults, page);
+    page = pagination.page;
+    results.innerHTML = pagination.items.map(DirectoryMentorCard).join('');
+    results.hidden = currentResults.length === 0;
+    empty.hidden = currentResults.length > 0;
+    if (paginationHost) {
+      paginationHost.innerHTML = renderPagination({ page, totalPages: pagination.totalPages, label: 'Mentor directory pages' });
+      unbindPagination();
+      unbindPagination = bindPagination(paginationHost, { onChange: nextPage => { page = nextPage; renderMentorPage(); } });
+    }
+    wireCards();
+  }
+
   async function search() {
     const activeRequest = ++requestNumber;
     const filters = getFilters();
@@ -733,11 +752,10 @@ function initMentorDirectory() {
     try {
       const mentors = await mentorService.searchMentors(filters);
       if (activeRequest !== requestNumber) return;
-      results.innerHTML = mentors.map(DirectoryMentorCard).join('');
-      results.hidden = mentors.length === 0;
-      empty.hidden = mentors.length > 0;
+      currentResults = mentors;
+      page = 1;
+      renderMentorPage();
       resultCount.textContent = `${mentors.length} mentor${mentors.length === 1 ? '' : 's'} found`;
-      wireCards();
     } catch {
       if (activeRequest !== requestNumber) return;
       error.hidden = false;
@@ -789,7 +807,7 @@ function initMentorDirectory() {
       });
     });
   });
-  wireCards();
+  renderMentorPage();
   bindUserDropdown(appEl, () => router());
   if (filterLabels(getFilters()).length > 0 || getFilters().sort !== 'recommended') search();
 }

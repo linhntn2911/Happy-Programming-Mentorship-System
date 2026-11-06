@@ -3,12 +3,14 @@ import { EmptyState } from '../../shared/EmptyState.js';
 import { StatCard, DataTable, Notice } from '../admin/AdminPrimitives.js';
 import { escapeHtml as e } from '../../shared/html.js';
 import { money, dateTime } from '../admin/admin.js';
+import { paginateItems, renderPagination } from '../../shared/pagination.js';
 
-export function StaffPayoutsPage(requests = [], user = null, notice = null) {
+export function StaffPayoutsPage(requests = [], user = null, notice = null, page = 1) {
   const pendingCount = requests.length;
   const totalAmount = requests.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+  const pagination = paginateItems(requests, page);
 
-  const rows = requests.map(item => [
+  const rows = pagination.items.map(item => [
     `${e(item.mentorName)}<small class="block text-muted mt-1">${e(item.mentorEmail)} · ID ${e(item.mentorId)}</small>`,
     `<div class="flex items-center gap-1.5">
       <span class="font-semibold text-ink">${money(item.amount)}</span>
@@ -92,6 +94,7 @@ export function StaffPayoutsPage(requests = [], user = null, notice = null) {
           rows,
           empty
         })}
+        <div data-staff-payout-pagination>${renderPagination({ page: pagination.page, totalPages: pagination.totalPages, label: 'Mentor payout pages' })}</div>
       </div>
     </section>
   `;

@@ -5,8 +5,9 @@
 import { StaffLayout } from './StaffLayout.js';
 import { StatusBadge, DataTable } from '../admin/AdminPrimitives.js';
 import { escapeHtml as e } from '../../shared/html.js';
+import { paginateItems, renderPagination } from '../../shared/pagination.js';
 
-export function StaffApplicationsPage(applications = [], activeTab = 'PENDING', user = null) {
+export function StaffApplicationsPage(applications = [], activeTab = 'PENDING', user = null, page = 1) {
   const staffName = user?.name || user?.email || 'Staff';
 
   const pendingCount = applications.filter(a => a.status === 'PENDING').length;
@@ -17,8 +18,9 @@ export function StaffApplicationsPage(applications = [], activeTab = 'PENDING', 
     if (activeTab === 'ALL') return true;
     return app.status === activeTab;
   });
+  const pagination = paginateItems(filteredApps, page);
 
-  const appRows = filteredApps.map(app => {
+  const appRows = pagination.items.map(app => {
     const initials = (app.applicantName || app.name || 'A').trim().split(/\s+/).map(p => p[0]).slice(0, 2).join('').toUpperCase();
     const personHtml = `
       <div class="admin-person">
@@ -93,6 +95,7 @@ export function StaffApplicationsPage(applications = [], activeTab = 'PENDING', 
         rows: appRows,
         empty: emptyHtml
       })}
+      <div data-staff-app-pagination>${renderPagination({ page: pagination.page, totalPages: pagination.totalPages, label: 'Mentor application pages' })}</div>
     </section>
 
     <!-- Review Modal Dialog -->

@@ -3,6 +3,7 @@ import { EmptyState } from '../../shared/EmptyState.js';
 import { StatCard, DataTable, Notice, StatusBadge } from '../admin/AdminPrimitives.js';
 import { escapeHtml as e } from '../../shared/html.js';
 import { money, dateTime } from '../admin/admin.js';
+import { paginateItems, renderPagination } from '../../shared/pagination.js';
 
 function disputeStatusBadge(status) {
   const tone = {
@@ -38,13 +39,14 @@ export function StaffReportsPage(reports = [], filters = {}, user = null, notice
     }
     return true;
   });
+  const pagination = paginateItems(filteredReports, filters.page || 1);
 
   const needsTriageCount = reports.filter(r => r.status === 'SUBMITTED').length;
   const inMediationCount = reports.filter(r => r.status === 'IN_MEDIATION').length;
   const awaitingCount = reports.filter(r => r.status === 'AWAITING_EVIDENCE').length;
   const resolvedCount = reports.filter(r => r.status === 'RESOLVED' || r.status === 'REJECTED').length;
 
-  const rows = filteredReports.map(item => [
+  const rows = pagination.items.map(item => [
     `<span class="font-mono font-semibold text-xs text-brand">${e(item.ticketCode)}</span>`,
     `<div>
       <span class="font-semibold text-ink">${e(item.title || 'Mentorship')}</span>
@@ -161,6 +163,7 @@ export function StaffReportsPage(reports = [], filters = {}, user = null, notice
           rows,
           empty
         })}
+        <div data-staff-report-pagination>${renderPagination({ page: pagination.page, totalPages: pagination.totalPages, label: 'Dispute report pages' })}</div>
       </div>
     </section>
 

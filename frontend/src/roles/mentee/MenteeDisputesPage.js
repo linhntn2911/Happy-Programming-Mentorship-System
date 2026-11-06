@@ -3,6 +3,7 @@ import { BrowseAllMentorsLink } from '../../shared/BrowseAllMentorsLink.js';
 import { bindUserDropdown, getInitials, renderNotificationBell, renderUserDropdown } from '../../shared/Header.js';
 import { authService } from '../auth/authService.js';
 import { menteeDisputesService } from './menteeDisputesService.js';
+import { bindPagination, paginateItems, renderPagination } from '../../shared/pagination.js';
 
 const MAX_SIZE = 5 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -107,15 +108,27 @@ export async function mountMenteeDisputes(root) {
   root.innerHTML = `<header class="directory-header"><div class="container flex h-[76px] items-center justify-between gap-4">${BrandLogo()}<nav class="flex items-center gap-3" aria-label="Main navigation">${BrowseAllMentorsLink()}${renderNotificationBell()}${renderUserDropdown({ currentUser: user, displayName: name, initials: getInitials(name) })}</nav></div></header><main class="min-h-screen bg-cream"><section class="container max-w-6xl py-12 sm:py-16"><div class="flex flex-wrap items-end justify-between gap-5"><div><p class="eyebrow">YOUR ACCOUNT</p><h1 class="mt-3 font-display text-4xl text-ink sm:text-5xl">My disputes</h1><p class="mt-4 text-sm text-muted">Submit complaints and track staff review in one place.</p></div><button type="button" class="btn btn-primary" data-file-dispute>File a dispute</button></div><div id="disputes-results" class="mt-8" role="status" aria-live="polite">Loading your disputes…</div></section></main>`;
   bindUserDropdown(root, () => { location.hash = '#/'; location.reload(); });
   const results = root.querySelector('#disputes-results');
-  let disputes = []; let targets = [];
+  let disputes = []; let targets = []; let status = ''; let page = 1; let unbindPagination = () => {};
 
-  const render = () => { results.innerHTML = disputes.length ? `<section class="mb-5 rounded-2xl border border-line bg-white p-5 shadow-sm"><label class="block max-w-56 text-xs font-semibold text-ink">Status<select data-status-filter class="mt-2 w-full rounded-lg border border-line bg-white px-3.5 py-2.5 text-sm focus:border-brand focus:outline-none"><option value="">All statuses</option>${Object.entries(statusLabels).map(([value,label]) => `<option value="${value}">${label}</option>`).join('')}</select></label></section><div data-dispute-table>${table(disputes)}</div>` : '<div class="rounded-2xl border border-line bg-white p-10 text-center shadow-sm"><h2 class="font-display text-2xl text-ink">No disputes submitted</h2><p class="mt-3 text-sm text-muted">If a paid service has a serious issue, use the dispute form and provide evidence.</p></div>'; };
+  const render = () => {
+    if (!disputes.length) {
+      results.innerHTML = '<div class="rounded-2xl border border-line bg-white p-10 text-center shadow-sm"><h2 class="font-display text-2xl text-ink">No disputes submitted</h2><p class="mt-3 text-sm text-muted">If a paid service has a serious issue, use the dispute form and provide evidence.</p></div>';
+      return;
+    }
+    const filtered = status ? disputes.filter(item => item.status === status) : disputes;
+    const pagination = paginateItems(filtered, page);
+    page = pagination.page;
+    results.innerHTML = `<section class="mb-5 rounded-2xl border border-line bg-white p-5 shadow-sm"><label class="block max-w-56 text-xs font-semibold text-ink">Status<select data-status-filter class="mt-2 w-full rounded-lg border border-line bg-white px-3.5 py-2.5 text-sm focus:border-brand focus:outline-none"><option value="">All statuses</option>${Object.entries(statusLabels).map(([value,label]) => `<option value="${value}" ${status === value ? 'selected' : ''}>${label}</option>`).join('')}</select></label></section><div data-dispute-table>${filtered.length ? table(pagination.items) : '<div class="rounded-2xl border border-line bg-white p-10 text-center text-sm text-muted">No disputes match this status.</div>'}</div><div data-dispute-pagination>${renderPagination({ page, totalPages: pagination.totalPages, label: 'Dispute history pages' })}</div>`;
+    unbindPagination();
+    unbindPagination = bindPagination(results.querySelector('[data-dispute-pagination]'), { onChange: nextPage => { page = nextPage; render(); } });
+  };
   async function reload() { [disputes, targets] = await Promise.all([menteeDisputesService.list(), menteeDisputesService.eligibleTargets()]); render(); }
 
   root.addEventListener('change', event => {
     if (!event.target.matches('[data-status-filter]')) return;
-    const filtered = event.target.value ? disputes.filter(item => item.status === event.target.value) : disputes;
-    root.querySelector('[data-dispute-table]').innerHTML = filtered.length ? table(filtered) : '<div class="rounded-2xl border border-line bg-white p-10 text-center text-sm text-muted">No disputes match this status.</div>';
+    status = event.target.value;
+    page = 1;
+    render();
   });
   root.addEventListener('click', async event => {
     if (event.target.closest('[data-file-dispute]')) {

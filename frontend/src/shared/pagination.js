@@ -23,6 +23,21 @@ export function getPageNumbers(currentZero, totalPages) {
   return result;
 }
 
+export function paginateItems(items = [], page = 1, pageSize = 10) {
+  const safeItems = Array.isArray(items) ? items : [];
+  const safePageSize = Math.max(1, Number(pageSize) || 10);
+  const totalPages = Math.max(1, Math.ceil(safeItems.length / safePageSize));
+  const currentPage = Math.min(Math.max(1, Number(page) || 1), totalPages);
+  const start = (currentPage - 1) * safePageSize;
+  return {
+    items: safeItems.slice(start, start + safePageSize),
+    page: currentPage,
+    pageSize: safePageSize,
+    totalItems: safeItems.length,
+    totalPages
+  };
+}
+
 function pageWindow(page, totalPages) {
   if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
   const pages = new Set([1, totalPages, page]);
@@ -118,7 +133,7 @@ export function renderPagination(arg1, arg2, options = {}) {
 }
 
 export function bindPagination(container, { onChange } = {}) {
-  if (!container || typeof onChange !== 'function') return () => {};
+  if (!container || typeof onChange !== 'function') return () => { };
   const handleClick = event => {
     const target = event.target instanceof Element ? event.target : null;
     if (!target) return;

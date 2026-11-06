@@ -5,6 +5,7 @@ import { MENTOR_CATEGORIES, mentorMatchesCategory, mentorSkillOptions } from './
 import { Footer } from '../../shared/Footer.js';
 import { renderUserDropdown } from '../../shared/Header.js';
 import { authService } from '../auth/authService.js';
+import { paginateItems, renderPagination } from '../../shared/pagination.js';
 
 const escapeHtml = value => String(value ?? '')
   .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
@@ -38,6 +39,7 @@ export function MentorSearchPage(mentors = [], state = {}) {
   const currentUser = authService.getCurrentUser();
   const displayName = currentUser?.name || currentUser?.email || '';
   const initials = displayName ? (displayName.trim().split(/\s+/).filter(Boolean).length > 1 ? (displayName.trim().split(/\s+/)[0][0] + displayName.trim().split(/\s+/).slice(-1)[0][0]).toUpperCase() : displayName.slice(0, 2).toUpperCase()) : 'U';
+  const pagination = paginateItems(mentors, 1);
 
   const groups = [
     filterSection({ title: 'Categories', name: 'categories', options: MENTOR_CATEGORIES.map(({ label }) => [label, mentors.filter(mentor => mentorMatchesCategory(mentor, label)).length]), selected: state.categories || [], searchable: false }),
@@ -129,7 +131,8 @@ export function MentorSearchPage(mentors = [], state = {}) {
           <div id="directory-loading" class="directory-loading" hidden><span></span><p>Finding the right mentors…</p></div>
           <div id="directory-error" class="directory-message" hidden><h2>We could not load mentors.</h2><p>Please check the API and try again.</p><button id="retry-search" class="btn btn-outline btn-sm mt-4">Try again</button></div>
           <div id="directory-empty" class="directory-message" ${mentors.length ? 'hidden' : ''}><span class="empty-icon">⌕</span><h2>No mentors match your search</h2><p>Remove a filter or try a broader keyword.</p><button id="empty-clear" class="btn btn-primary btn-sm mt-4">Clear search and filters</button></div>
-          <div id="mentor-results" class="space-y-5">${mentors.map(DirectoryMentorCard).join('')}</div>
+          <div id="mentor-results" class="space-y-5">${pagination.items.map(DirectoryMentorCard).join('')}</div>
+          <div id="mentor-pagination">${renderPagination({ page: 1, totalPages: pagination.totalPages, label: 'Mentor directory pages' })}</div>
         </div>
       </div>
     </section>

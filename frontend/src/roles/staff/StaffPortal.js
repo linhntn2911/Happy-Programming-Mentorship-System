@@ -19,6 +19,7 @@ import { Dialog } from '../../shared/Dialog.js';
 import { StatusBadge, Notice } from '../admin/AdminPrimitives.js';
 import { money, dateTime } from '../admin/admin.js';
 import { buildVietQrUrl } from './vietQrHelper.js';
+import { bindPagination, paginateItems, renderPagination } from '../../shared/pagination.js';
 
 async function checkStaffAccess(root) {
   try {
@@ -93,15 +94,20 @@ export async function mountStaffApplications(root, initialTab = 'PENDING') {
 
   let activeTab = initialTab;
   let applications = [];
+  let page = 1;
 
   const render = () => {
-    root.innerHTML = StaffApplicationsPage(applications, activeTab, user);
+    const matchingCount = activeTab === 'ALL' ? applications.length : applications.filter(app => app.status === activeTab).length;
+    page = Math.min(page, Math.max(1, Math.ceil(matchingCount / 10)));
+    root.innerHTML = StaffApplicationsPage(applications, activeTab, user, page);
     bindStaffGlobalEvents(root);
+    bindPagination(root.querySelector('[data-staff-app-pagination]'), { onChange: nextPage => { page = nextPage; render(); } });
 
     // Tab switching
     root.querySelectorAll('[data-app-tab]').forEach(btn => {
       btn.addEventListener('click', () => {
         activeTab = btn.dataset.appTab;
+        page = 1;
         render();
       });
     });
@@ -254,6 +260,7 @@ export async function mountStaffMentors(root) {
     const skillFilter = root.querySelector('#mentor-skill-filter');
     const statusFilter = root.querySelector('#mentor-status-filter');
     const container = root.querySelector('#mentor-table-container');
+    let page = 1;
 
     const filterMentors = () => {
       const q = (searchInput?.value || '').trim().toLowerCase();
@@ -267,7 +274,9 @@ export async function mountStaffMentors(root) {
         return matchesQ && matchesSkill && matchesStatus;
       });
 
-      const rows = filtered.map(m => {
+      const pagination = paginateItems(filtered, page);
+      page = pagination.page;
+      const rows = pagination.items.map(m => {
         const initials = (m.name || 'M').trim().split(/\s+/).map(p => p[0]).slice(0, 2).join('').toUpperCase();
         return [
           `<div class="admin-person"><span class="admin-avatar">${e(initials)}</span><div><strong>${e(m.name)}</strong><small>${e(m.jobTitle || 'Mentor')}</small></div></div>`,
@@ -302,9 +311,11 @@ export async function mountStaffMentors(root) {
                 </tbody>
               </table>
             </div>
+            <div data-staff-mentor-pagination>${renderPagination({ page, totalPages: pagination.totalPages, label: 'Mentor directory pages' })}</div>
           `;
         }
         bindMentorDetailButtons();
+        bindPagination(container.querySelector('[data-staff-mentor-pagination]'), { onChange: nextPage => { page = nextPage; filterMentors(); } });
       }
     };
 
@@ -345,10 +356,10 @@ export async function mountStaffMentors(root) {
       });
     }
 
-    searchInput?.addEventListener('input', filterMentors);
-    skillFilter?.addEventListener('change', filterMentors);
-    statusFilter?.addEventListener('change', filterMentors);
-    bindMentorDetailButtons();
+    searchInput?.addEventListener('input', () => { page = 1; filterMentors(); });
+    skillFilter?.addEventListener('change', () => { page = 1; filterMentors(); });
+    statusFilter?.addEventListener('change', () => { page = 1; filterMentors(); });
+    filterMentors();
 
   } catch (err) {
     staffError(root,err);
@@ -371,6 +382,7 @@ export async function mountStaffMentees(root) {
     const searchInput = root.querySelector('#mentee-search-input');
     const statusFilter = root.querySelector('#mentee-status-filter');
     const container = root.querySelector('#mentee-table-container');
+    let page = 1;
 
     const filterMentees = () => {
       const q = (searchInput?.value || '').trim().toLowerCase();
@@ -382,7 +394,9 @@ export async function mountStaffMentees(root) {
         return matchesQ && matchesStatus;
       });
 
-      const rows = filtered.map(m => {
+      const pagination = paginateItems(filtered, page);
+      page = pagination.page;
+      const rows = pagination.items.map(m => {
         const initials = (m.name || 'U').trim().split(/\s+/).map(p => p[0]).slice(0, 2).join('').toUpperCase();
         return [
           `<div class="admin-person"><span class="admin-avatar">${e(initials)}</span><div><strong>${e(m.name)}</strong><small>${m.emailVerified ? 'Email verified' : 'Unverified email'}</small></div></div>`,
@@ -417,9 +431,11 @@ export async function mountStaffMentees(root) {
                 </tbody>
               </table>
             </div>
+            <div data-staff-mentee-pagination>${renderPagination({ page, totalPages: pagination.totalPages, label: 'Mentee directory pages' })}</div>
           `;
         }
         bindMenteeDetailButtons();
+        bindPagination(container.querySelector('[data-staff-mentee-pagination]'), { onChange: nextPage => { page = nextPage; filterMentees(); } });
       }
     };
 
@@ -458,9 +474,9 @@ export async function mountStaffMentees(root) {
       });
     }
 
-    searchInput?.addEventListener('input', filterMentees);
-    statusFilter?.addEventListener('change', filterMentees);
-    bindMenteeDetailButtons();
+    searchInput?.addEventListener('input', () => { page = 1; filterMentees(); });
+    statusFilter?.addEventListener('change', () => { page = 1; filterMentees(); });
+    filterMentees();
 
   } catch (err) {
     staffError(root,err);
@@ -477,12 +493,19 @@ export async function mountStaffList(root, kind) {
   try {
     const records=await (kind==='skills'?staffService.getSkills():staffService.getRequests());
     const headings=kind==='skills'?['Name','Category','Status','Description']:['ID','Mentee','Mentor','Status','Learning goals','Created (UTC)'];
-    const rows=records.map(r=>kind==='skills'?[r.name,r.category,r.active?'Active':'Inactive',r.description]:[r.id,r.mentee,r.mentor,r.status,r.learningGoals,r.createdAt]);
     if (!root.isConnected) return;
-    root.innerHTML=StaffLayout(kind,`<div class="admin-page-heading"><div><p class="eyebrow">STAFF WORKSPACE</p><h1>${kind==='skills'?'Technical skills':'Mentorship requests'}</h1><p>Read-only directory</p></div></div>
+    let page = 1;
+    const render = () => {
+      const pagination = paginateItems(records, page);
+      page = pagination.page;
+      const rows=pagination.items.map(r=>kind==='skills'?[r.name,r.category,r.active?'Active':'Inactive',r.description]:[r.id,r.mentee,r.mentor,r.status,r.learningGoals,r.createdAt]);
+      root.innerHTML=StaffLayout(kind,`<div class="admin-page-heading"><div><p class="eyebrow">STAFF WORKSPACE</p><h1>${kind==='skills'?'Technical skills':'Mentorship requests'}</h1><p>Read-only directory</p></div></div>
       <section class="admin-panel"><div class="data-table-scroll"><table class="data-table"><caption class="sr-only">${e(kind)} directory</caption><thead><tr>${headings.map(h=>`<th scope="col">${e(h)}</th>`).join('')}</tr></thead><tbody>
-      ${rows.map(row=>`<tr>${row.map(v=>`<td>${e(v??'—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${!rows.length?'<p class="admin-panel-body">No records found.</p>':''}</section>`,user);
-    bindStaffGlobalEvents(root);
+      ${rows.map(row=>`<tr>${row.map(v=>`<td>${e(v??'—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${!rows.length?'<p class="admin-panel-body">No records found.</p>':''}<div data-staff-list-pagination>${renderPagination({ page, totalPages: pagination.totalPages, label: 'Mentorship request pages' })}</div></section>`,user);
+      bindStaffGlobalEvents(root);
+      bindPagination(root.querySelector('[data-staff-list-pagination]'), { onChange: nextPage => { page = nextPage; render(); } });
+    };
+    render();
   } catch(err) { staffError(root,err); }
 }
 
@@ -520,6 +543,7 @@ export async function mountStaffSkills(root) {
     const categoryFilter = root.querySelector('#skill-category-filter');
     const statusFilter = root.querySelector('#skill-status-filter');
     const container = root.querySelector('#skills-table-container');
+    let page = 1;
 
     const dialog = root.querySelector('#skill-form-dialog');
     const form = root.querySelector('#skill-modal-form');
@@ -544,7 +568,9 @@ export async function mountStaffSkills(root) {
         return matchesQ && matchesCategory && matchesStatus;
       });
 
-      const rows = filtered.map(s => {
+      const pagination = paginateItems(filtered, page);
+      page = pagination.page;
+      const rows = pagination.items.map(s => {
         return [
           `<div class="font-semibold text-ink">${e(s.name)} <span class="badge !text-[9px] !py-0.5 ml-1 text-muted font-normal">${e(s.slug || '')}</span></div>`,
           `<span class="badge !text-[10px] !py-0.5">${e(s.category || 'General')}</span>`,
@@ -581,9 +607,11 @@ export async function mountStaffSkills(root) {
                 </tbody>
               </table>
             </div>
+            <div data-staff-skill-pagination>${renderPagination({ page, totalPages: pagination.totalPages, label: 'Technical skill pages' })}</div>
           `;
         }
         bindTableActionButtons();
+        bindPagination(container.querySelector('[data-staff-skill-pagination]'), { onChange: nextPage => { page = nextPage; filterSkills(); } });
       }
     };
 
@@ -668,9 +696,9 @@ export async function mountStaffSkills(root) {
       });
     }
 
-    searchInput?.addEventListener('input', filterSkills);
-    categoryFilter?.addEventListener('change', filterSkills);
-    statusFilter?.addEventListener('change', filterSkills);
+    searchInput?.addEventListener('input', () => { page = 1; filterSkills(); });
+    categoryFilter?.addEventListener('change', () => { page = 1; filterSkills(); });
+    statusFilter?.addEventListener('change', () => { page = 1; filterSkills(); });
     filterSkills();
   };
 
@@ -686,6 +714,8 @@ export async function mountStaffPayouts(root) {
 
   let requests = [];
   let notice = null;
+  let payoutPage = 1;
+  let payoutQuery = '';
 
   async function loadData() {
     try {
@@ -697,8 +727,9 @@ export async function mountStaffPayouts(root) {
     }
   }
 
-  function render(query = '') {
+  function render(query = payoutQuery) {
     if (!root.isConnected) return;
+    payoutQuery = query;
     const q = query.trim().toLowerCase();
     const filtered = q
       ? requests.filter(r =>
@@ -709,14 +740,17 @@ export async function mountStaffPayouts(root) {
         )
       : requests;
 
-    root.innerHTML = StaffPayoutsPage(filtered, user, notice);
+    payoutPage = Math.min(payoutPage, Math.max(1, Math.ceil(filtered.length / 10)));
+    root.innerHTML = StaffPayoutsPage(filtered, user, notice, payoutPage);
     bindStaffGlobalEvents(root);
     bindCopyButtons(root);
+    bindPagination(root.querySelector('[data-staff-payout-pagination]'), { onChange: nextPage => { payoutPage = nextPage; render(); } });
 
     const searchInput = root.querySelector('#staff-payout-query');
     if (searchInput) {
       searchInput.value = query;
       searchInput.addEventListener('input', event => {
+        payoutPage = 1;
         render(event.target.value);
         const nextInput = root.querySelector('#staff-payout-query');
         if (nextInput) {
@@ -901,7 +935,7 @@ export async function mountStaffReports(root) {
   if (!user || !root.isConnected) return;
 
   let reports = [];
-  let filters = { query: '', status: 'ALL', category: 'ALL' };
+  let filters = { query: '', status: 'ALL', category: 'ALL', page: 1 };
   let notice = null;
 
   async function loadData() {
@@ -918,11 +952,13 @@ export async function mountStaffReports(root) {
     if (!root.isConnected) return;
     root.innerHTML = StaffReportsPage(reports, filters, user, notice);
     bindStaffGlobalEvents(root);
+    bindPagination(root.querySelector('[data-staff-report-pagination]'), { onChange: nextPage => { filters.page = nextPage; render(); } });
 
     const searchInput = root.querySelector('#staff-report-query');
     if (searchInput) {
       searchInput.addEventListener('input', (e) => {
         filters.query = e.target.value;
+        filters.page = 1;
         render();
         const nextInput = root.querySelector('#staff-report-query');
         if (nextInput) {
@@ -936,6 +972,7 @@ export async function mountStaffReports(root) {
     if (statusSelect) {
       statusSelect.addEventListener('change', (e) => {
         filters.status = e.target.value;
+        filters.page = 1;
         render();
       });
     }
@@ -944,6 +981,7 @@ export async function mountStaffReports(root) {
     if (categorySelect) {
       categorySelect.addEventListener('change', (e) => {
         filters.category = e.target.value;
+        filters.page = 1;
         render();
       });
     }
@@ -951,7 +989,7 @@ export async function mountStaffReports(root) {
     const resetBtn = root.querySelector('#staff-report-reset');
     if (resetBtn) {
       resetBtn.addEventListener('click', () => {
-        filters = { query: '', status: 'ALL', category: 'ALL' };
+        filters = { query: '', status: 'ALL', category: 'ALL', page: 1 };
         render();
       });
     }

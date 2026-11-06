@@ -108,3 +108,4 @@ export function createDemoService(storage) {
     async logout() {},
   };
 }
+
