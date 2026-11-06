@@ -4,7 +4,7 @@ import { StatCard, DataTable, Notice, StatusBadge } from '../admin/AdminPrimitiv
 import { escapeHtml as e } from '../../shared/html.js';
 import { money, dateTime } from '../admin/admin.js';
 
-function disputeStatusBadge(status) {
+export function disputeStatusBadge(status) {
   const tone = {
     SUBMITTED: 'neutral',
     IN_MEDIATION: 'warning',
