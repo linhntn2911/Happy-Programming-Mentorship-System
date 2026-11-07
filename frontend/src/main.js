@@ -138,6 +138,31 @@ let currentMentors = [...INITIAL_MENTORS];
 const appEl = document.querySelector('#app');
 let cleanupCurrentPage = () => {};
 let directoryRenderToken = 0;
+const HOME_SECTION_HASHES = new Set([
+  '#main',
+  '#how-it-works',
+  '#mentors',
+  '#services',
+  '#sessions',
+  '#become-mentor',
+  '#faq',
+  '#refund-faq'
+]);
+
+function scrollToHomeSection(hash) {
+  requestAnimationFrame(() => {
+    const target = document.querySelector(hash);
+    if (!target) return;
+    target.scrollIntoView({
+      behavior: hash === '#main' || window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+      block: 'start'
+    });
+    if (hash === '#main') {
+      target.setAttribute('tabindex', '-1');
+      target.focus({ preventScroll: true });
+    }
+  });
+}
 
 function openMentorDirectory(keyword = '') {
   const url = new URL(window.location.href);
@@ -457,11 +482,22 @@ function initInteractions() {
 
 let disposeAdmin;
 function router() {
+  const hash = window.location.hash;
+  if (HOME_SECTION_HASHES.has(hash)) {
+    if (!document.querySelector('#homepage-content')) {
+      disposeAdmin?.();
+      disposeAdmin = undefined;
+      cleanupCurrentPage();
+      cleanupCurrentPage = () => {};
+      renderApp(currentMentors);
+    }
+    scrollToHomeSection(hash);
+    return;
+  }
   disposeAdmin?.();
   disposeAdmin = undefined;
   cleanupCurrentPage();
   cleanupCurrentPage = () => {};
-  const hash = window.location.hash;
   if (hash === '#/admin' || hash.startsWith('#/admin/')) {
     disposeAdmin = mountAdmin(appEl, hash.split('/')[2] || 'overview');
     window.scrollTo({ top: 0, behavior: 'instant' });
