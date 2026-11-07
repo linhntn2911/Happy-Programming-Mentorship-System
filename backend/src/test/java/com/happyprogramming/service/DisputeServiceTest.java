@@ -85,6 +85,15 @@ class DisputeServiceTest {
         assertEquals(400, error.getStatusCode().value());
     }
 
+    @Test
+    void adminDecideRefund_requiresRejectionReasonWhenRejected() {
+        var adminUser = new AuthenticatedUser(1L, "Admin", "admin@example.test", "ADMIN");
+        var req = new RefundDecisionRequest("REJECTED", null, "   ", null, null, null);
+        ResponseStatusException error = assertThrows(ResponseStatusException.class, () ->
+                service.adminDecideRefund(1L, req, adminUser, "127.0.0.1"));
+        assertEquals(400, error.getStatusCode().value());
+    }
+
     private void authenticate(String role) {
         var user = new AuthenticatedUser(5L, "User", "user@example.test", role);
         SecurityContextHolder.getContext().setAuthentication(
