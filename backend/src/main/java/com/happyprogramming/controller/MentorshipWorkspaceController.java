@@ -41,8 +41,9 @@ public class MentorshipWorkspaceController {
 
     @GetMapping("/{conversationId}")
     public ApiResponse<MentorshipWorkspaceDetail> get(
-            @PathVariable long conversationId) {
-        return ApiResponse.ok(service.get(conversationId));
+            @PathVariable long conversationId,
+            @RequestParam(required = false) Long requestId) {
+        return ApiResponse.ok(service.get(conversationId, requestId));
     }
 
     @PostMapping("/{conversationId}/messages")

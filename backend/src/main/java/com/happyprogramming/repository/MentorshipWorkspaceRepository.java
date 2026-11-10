@@ -73,6 +73,19 @@ public class MentorshipWorkspaceRepository {
             /* The paid service provisions this conversation.  Do not hide its learning
                history merely because a monthly plan ended or all one-off sessions finished. */
             WHERE c.inquiry_status = 'APPROVED'
+              AND (
+                    c.conversation_type <> 'MENTORSHIP'
+                    OR c.id = (
+                        SELECT TOP (1) canonical.id
+                        FROM dbo.conversations canonical
+                        WHERE canonical.mentor_id = c.mentor_id
+                          AND canonical.mentee_id = c.mentee_id
+                          AND canonical.conversation_type = 'MENTORSHIP'
+                          AND canonical.inquiry_status = 'APPROVED'
+                        ORDER BY COALESCE(canonical.last_message_at, canonical.updated_at, canonical.created_at) DESC,
+                                 canonical.id DESC
+                    )
+                  )
             """;
     private static final String MESSAGE_SELECT = """
             SELECT m.id, m.sender_id, sender.full_name AS sender_name, sender.role_code AS sender_role,
@@ -112,9 +125,30 @@ public class MentorshipWorkspaceRepository {
         return rows.stream().findFirst();
     }
 
+    public Optional<WorkspaceRow> findAccessibleByConversationIdAndRequestId(
+            long conversationId, long requestId) {
+        String requestScopedSelect = WORKSPACE_SELECT.replace(
+                "WHERE s.mentor_id = c.mentor_id AND s.mentee_id = c.mentee_id",
+                """
+                WHERE s.mentor_id = c.mentor_id AND s.mentee_id = c.mentee_id
+                  AND (
+                        s.request_id = ?
+                        OR NOT EXISTS (
+                            SELECT 1 FROM dbo.subscriptions requested_subscription
+                            WHERE requested_subscription.request_id = ?
+                        )
+                      )
+                """);
+        List<WorkspaceRow> rows = jdbc.query(requestScopedSelect + " AND c.id = ?",
+                MentorshipWorkspaceRepository::mapWorkspace, requestId, requestId, conversationId);
+        return rows.stream().findFirst();
+    }
+
     public List<OneOffBookingRow> findOneOffBookings(long conversationId) {
         return jdbc.query("""
-                SELECT b.id, b.booking_code, b.service_id,
+                SELECT b.id,
+                       TRY_CONVERT(BIGINT, JSON_VALUE(b.terms_snapshot, '$.requestId')) AS request_id,
+                       b.booking_code, b.service_id,
                        COALESCE(so.name, N'One-off session') AS session_name,
                        b.agenda, b.start_at, b.end_at, b.price_snapshot, b.currency, b.status,
                        COALESCE(TRY_CONVERT(INT, JSON_VALUE(b.terms_snapshot, '$.numberOfParticipants')), 1) AS participants,
@@ -132,7 +166,7 @@ public class MentorshipWorkspaceRepository {
                          CASE WHEN b.status = 'CONFIRMED' AND b.end_at >= SYSUTCDATETIME() THEN b.start_at END ASC,
                          b.start_at DESC, b.id DESC
                 """, (rs, row) -> new OneOffBookingRow(
-                        rs.getLong("id"), rs.getString("booking_code"), rs.getLong("service_id"),
+                        rs.getLong("id"), nullableLong(rs, "request_id"), rs.getString("booking_code"), rs.getLong("service_id"),
                         rs.getString("session_name"), rs.getString("agenda"),
                         instant(rs.getTimestamp("start_at")), instant(rs.getTimestamp("end_at")),
                         rs.getBigDecimal("price_snapshot"), rs.getString("currency"),
@@ -356,7 +390,7 @@ public class MentorshipWorkspaceRepository {
     }
 
     public record OneOffBookingRow(
-            long id, String bookingCode, long serviceId, String sessionName, String agenda,
+            long id, Long requestId, String bookingCode, long serviceId, String sessionName, String agenda,
             Instant startAt, Instant endAt, java.math.BigDecimal price, String currency,
             String status, int participants,
             Long reviewId, Integer reviewRating, String reviewComment
@@ -366,7 +400,7 @@ public class MentorshipWorkspaceRepository {
                 Instant startAt, Instant endAt, java.math.BigDecimal price, String currency,
                 String status, int participants
         ) {
-            this(id, bookingCode, serviceId, sessionName, agenda, startAt, endAt, price, currency, status, participants, null, null, null);
+            this(id, null, bookingCode, serviceId, sessionName, agenda, startAt, endAt, price, currency, status, participants, null, null, null);
         }
     }
 

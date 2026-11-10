@@ -5,6 +5,8 @@ import java.time.LocalDateTime;
 public interface MentorDashboardRequestProjection {
     Long getId();
 
+    Long getMenteeId();
+
     String getMenteeName();
 
     String getPackageName();

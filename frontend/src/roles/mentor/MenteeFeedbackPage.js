@@ -16,8 +16,10 @@ function feedbackContent() {
     <div id="feedback-loading" class="text-sm text-muted" role="status">Loading your feedback…</div>
     <div id="feedback-error" class="admin-notice notice-error mb-4" role="alert" hidden></div>
     <button id="feedback-retry" class="btn btn-outline mb-4" type="button" hidden>Try again</button>
-    <div id="feedback-toolbar" class="admin-toolbar mb-5">
-      <label class="admin-field" for="feedback-search">Search<input id="feedback-search" class="w-full" type="search" placeholder="Mentee name or comment" autocomplete="off"></label>
+    <div id="feedback-content" class="admin-panel">
+    <div id="feedback-toolbar" class="admin-toolbar flex-wrap items-end gap-3 justify-between">
+      <div class="flex flex-wrap items-end gap-3 grow">
+      <label class="admin-field admin-search" for="feedback-search">Search feedback<input id="feedback-search" class="w-full" type="search" placeholder="Search by mentee, session or comment..." autocomplete="off"></label>
       <label class="admin-field" for="feedback-rating-filter">Rating
         <select id="feedback-rating-filter" class="w-full">
           <option value="ALL">All ratings</option>
@@ -35,15 +37,29 @@ function feedbackContent() {
           <option value="ONE_OFF">One-off</option>
         </select>
       </label>
-      <p id="feedback-result-count" class="text-xs text-muted" aria-live="polite"></p>
+      </div>
+      <p id="feedback-result-count" class="text-xs text-muted self-center" aria-live="polite"></p>
     </div>
-    <div id="feedback-empty" class="rounded-2xl border border-line bg-white p-8 text-center" hidden>
+    <div id="feedback-empty" class="admin-panel-body text-center" hidden>
       <p class="eyebrow mb-2">NO FEEDBACK YET</p>
       <h2 class="font-display text-2xl text-ink">No mentee reviews yet</h2>
       <p id="feedback-empty-detail" class="mx-auto mt-3 max-w-md text-sm leading-6 text-muted">Reviews from mentees you have mentored will appear here once a session is completed and published.</p>
     </div>
-    <div id="feedback-list" class="space-y-4"></div>
-    <div id="feedback-pagination"></div>`;
+    <div id="feedback-table-wrap" class="data-table-scroll hidden md:block">
+      <table class="data-table min-w-[860px]">
+        <thead><tr>
+          <th scope="col" class="px-4 py-3">Mentee</th>
+          <th scope="col" class="px-4 py-3">Session / package</th>
+          <th scope="col" class="px-4 py-3">Rating</th>
+          <th scope="col" class="px-4 py-3">Comment</th>
+          <th scope="col" class="px-4 py-3">Submitted</th>
+        </tr></thead>
+        <tbody id="feedback-rows" class="divide-y divide-line"></tbody>
+      </table>
+    </div>
+    <div id="feedback-list" class="grid gap-3 p-4 md:hidden"></div>
+    <div id="feedback-pagination"></div>
+    </div>`;
 }
 
 function reviewStars(rating) {
@@ -80,6 +96,18 @@ function renderReviewCard(item) {
   </article>`;
 }
 
+function renderReviewRow(item) {
+  const name = item.menteeName || 'A mentee';
+  const rating = Number(item.rating) || 0;
+  return `<tr>
+    <td class="px-4 py-4"><div class="flex items-center gap-3"><span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-lilac text-xs font-semibold text-brand" aria-hidden="true">${e(getInitials(name))}</span><strong class="text-sm text-ink">${e(name)}</strong></div></td>
+    <td class="px-4 py-4"><p class="text-sm font-semibold text-ink">${e(item.sessionLabel || 'Mentorship session')}</p><div class="mt-1">${packageBadge(item.packageType)}</div></td>
+    <td class="px-4 py-4"><p class="whitespace-nowrap text-sm" aria-label="Rated ${rating} out of 5"><span class="text-brand" aria-hidden="true">${reviewStars(rating)}</span> <strong class="text-ink">${rating.toFixed(1)}</strong></p></td>
+    <td class="max-w-md px-4 py-4"><p class="line-clamp-3 text-sm leading-6 text-muted" title="${e(item.comment || '')}">${e(item.comment || '—')}</p></td>
+    <td class="whitespace-nowrap px-4 py-4 text-xs text-muted">${e(dateTime(item.createdAt))}</td>
+  </tr>`;
+}
+
 function renderFeedbackSummary(summary) {
   const average = summary.averageRating == null ? '—' : Number(summary.averageRating).toFixed(1);
   const count = Number(summary.reviewCount) || 0;
@@ -112,6 +140,8 @@ export function initializeMenteeFeedbackPage(root) {
   const emptyTitle = empty.querySelector('h2');
   const emptyDetail = shell.querySelector('#feedback-empty-detail');
   const list = shell.querySelector('#feedback-list');
+  const rows = shell.querySelector('#feedback-rows');
+  const tableWrap = shell.querySelector('#feedback-table-wrap');
   const pagination = shell.querySelector('#feedback-pagination');
 
   let allReviews = [];
@@ -123,7 +153,7 @@ export function initializeMenteeFeedbackPage(root) {
   function matches(item) {
     const term = search.value.trim().toLowerCase();
     if (term) {
-      const haystack = `${item.menteeName || ''} ${item.comment || ''}`.toLowerCase();
+      const haystack = `${item.menteeName || ''} ${item.sessionLabel || ''} ${item.comment || ''}`.toLowerCase();
       if (!haystack.includes(term)) return false;
     }
     if (ratingFilter.value !== 'ALL' && Number(item.rating) !== Number(ratingFilter.value)) return false;
@@ -141,7 +171,9 @@ export function initializeMenteeFeedbackPage(root) {
     const start = (page - 1) * PAGE_SIZE;
     const paged = filtered.slice(start, start + PAGE_SIZE);
 
+    rows.innerHTML = paged.map(renderReviewRow).join('');
     list.innerHTML = paged.map(renderReviewCard).join('');
+    tableWrap.hidden = !filtered.length;
     pagination.innerHTML = renderPagination({ page, totalPages, label: 'Feedback pages' });
 
     if (!filtered.length) {
@@ -178,7 +210,7 @@ export function initializeMenteeFeedbackPage(root) {
     loading.hidden = false;
     error.hidden = true; retry.hidden = true;
     empty.hidden = true;
-    list.innerHTML = ''; pagination.innerHTML = ''; summary.innerHTML = '';
+    list.innerHTML = ''; rows.innerHTML = ''; pagination.innerHTML = ''; summary.innerHTML = '';
     try {
       const result = await fetchAllReviews();
       if (disposed || current !== request) return;

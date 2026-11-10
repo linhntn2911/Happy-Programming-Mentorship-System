@@ -344,7 +344,7 @@ public class MentorshipRequestService {
 
         String cte = """
                 WITH app_rows AS (
-                    SELECT r.id, mentor.full_name AS mentor_name,
+                    SELECT r.id, r.mentor_id, mentor.full_name AS mentor_name,
                            COALESCE(JSON_VALUE(r.offer_snapshot, '$.name'), offering.name, 'Monthly Mentorship') AS package_name,
                            r.learning_goals,
                            CASE
@@ -353,10 +353,19 @@ public class MentorshipRequestService {
                                    THEN 'EXPIRED'
                                WHEN r.service_type = 'ONE_OFF' AND booking_summary.bookingStatus IS NOT NULL
                                    THEN booking_summary.bookingStatus
+                               WHEN r.service_type = 'ONE_OFF' AND r.funded_at IS NULL
+                                    AND (
+                                        slot_hold.id IS NULL
+                                        OR slot_hold.status <> 'HELD'
+                                        OR slot_hold.expires_at <= SYSUTCDATETIME()
+                                        OR TRY_CONVERT(DATETIME2(3), JSON_VALUE(r.offer_snapshot, '$.startAt'), 127) <= SYSUTCDATETIME()
+                                    ) THEN 'EXPIRED'
                                WHEN r.service_type = 'ONE_OFF' AND r.funded_at IS NOT NULL
                                    THEN 'CONFIRMED'
                                WHEN r.service_type = 'MONTHLY' AND (sub.status = 'ENDED' OR (sub.current_period_end IS NOT NULL AND sub.current_period_end <= SYSUTCDATETIME()))
                                    THEN 'COMPLETED'
+                               WHEN r.service_type = 'MONTHLY' AND sub.status = 'CANCELLED'
+                                   THEN 'CANCELLED'
                                WHEN r.service_type = 'MONTHLY' AND r.funded_at IS NOT NULL
                                    THEN 'CONFIRMED'
                                ELSE r.status
@@ -369,6 +378,8 @@ public class MentorshipRequestService {
                     JOIN dbo.users mentor ON mentor.id = r.mentor_id
                     JOIN dbo.service_offerings offering ON offering.id = r.service_id
                     LEFT JOIN dbo.subscriptions sub ON sub.request_id = r.id
+                     LEFT JOIN dbo.slot_holds slot_hold
+                       ON slot_hold.id = TRY_CONVERT(BIGINT, JSON_VALUE(r.offer_snapshot, '$.slotHoldId'))
                     OUTER APPLY (
                         SELECT
                             MIN(booking_row.start_at) AS startAt,
@@ -405,7 +416,7 @@ public class MentorshipRequestService {
         long offset = (long) page * size;
 
         String sql = cte + """
-                 SELECT id, mentor_name, package_name, learning_goals, status,
+                 SELECT id, mentor_id, mentor_name, package_name, learning_goals, status,
                         submitted_at, responded_at, response_deadline, funded_at,
                         rejection_reason, payment_status, payment_expires_at
                  FROM app_rows
@@ -419,6 +430,7 @@ public class MentorshipRequestService {
         }
         List<MenteeApplicationDto> applications = template.query(sql, (rs, rowNum) -> new MenteeApplicationDto(
                 rs.getLong("id"),
+                rs.getLong("mentor_id"),
                 rs.getString("mentor_name"),
                 rs.getString("package_name"),
                 rs.getString("learning_goals"),

@@ -41,7 +41,11 @@ public interface MentorDashboardRepository extends JpaRepository<MentorshipReque
     @Query(value = """
             SELECT COUNT_BIG(*)
             FROM dbo.mentorship_requests
-            WHERE mentor_id = :mentorId AND status = 'PENDING'
+            WHERE mentor_id = :mentorId
+              AND status = 'PENDING'
+              AND CASE WHEN submitted_at > SYSUTCDATETIME()
+                       THEN DATEADD(HOUR, -7, response_deadline)
+                       ELSE response_deadline END > SYSUTCDATETIME()
             """, nativeQuery = true)
     long countPendingRequestsForMentor(@Param("mentorId") Long mentorId);
 
@@ -60,6 +64,7 @@ public interface MentorDashboardRepository extends JpaRepository<MentorshipReque
     @Query(value = """
             SELECT
                 request_row.id AS id,
+                mentee.id AS menteeId,
                 mentee.full_name AS menteeName,
                 COALESCE(JSON_VALUE(request_row.offer_snapshot, '$.name'), offering.name) AS packageName,
                 request_row.service_type AS serviceType,
@@ -80,6 +85,9 @@ public interface MentorDashboardRepository extends JpaRepository<MentorshipReque
              AND offering.service_type = request_row.service_type
             WHERE request_row.mentor_id = :mentorId
               AND request_row.status = 'PENDING'
+              AND CASE WHEN request_row.submitted_at > SYSUTCDATETIME()
+                       THEN DATEADD(HOUR, -7, request_row.response_deadline)
+                       ELSE request_row.response_deadline END > SYSUTCDATETIME()
             ORDER BY request_row.response_deadline, request_row.id
             """, nativeQuery = true)
     List<MentorDashboardRequestProjection> findPendingRequestsForMentor(
@@ -88,16 +96,29 @@ public interface MentorDashboardRepository extends JpaRepository<MentorshipReque
     @Query(value = """
             SELECT
                 request_row.id AS id,
+                mentee.id AS menteeId,
                 mentee.full_name AS menteeName,
                 COALESCE(JSON_VALUE(request_row.offer_snapshot, '$.name'), offering.name) AS packageName,
                 request_row.service_type AS serviceType,
                 request_row.learning_goals AS learningGoals,
                 request_row.status AS status,
                 CASE
-                    WHEN request_row.status = 'PENDING' THEN 'WAITING_DECISION'
                     WHEN request_row.status IN ('REJECTED','EXPIRED','CANCELLED') THEN request_row.status
+                    WHEN request_row.status = 'PENDING'
+                         AND CASE WHEN request_row.submitted_at > SYSUTCDATETIME()
+                                  THEN DATEADD(HOUR, -7, request_row.response_deadline)
+                                  ELSE request_row.response_deadline END <= SYSUTCDATETIME() THEN 'EXPIRED'
+                    WHEN request_row.status = 'PENDING' THEN 'WAITING_DECISION'
                     WHEN request_row.service_type = 'ONE_OFF' AND booking_summary.bookingStatus IS NOT NULL
                         THEN booking_summary.bookingStatus
+                    WHEN request_row.service_type = 'ONE_OFF'
+                         AND request_row.funded_at IS NULL
+                         AND (
+                             slot_hold.id IS NULL
+                             OR slot_hold.status <> 'HELD'
+                             OR slot_hold.expires_at <= SYSUTCDATETIME()
+                             OR TRY_CONVERT(DATETIME2(3), JSON_VALUE(request_row.offer_snapshot, '$.startAt'), 127) <= SYSUTCDATETIME()
+                         ) THEN 'EXPIRED'
                     WHEN request_row.service_type = 'ONE_OFF' AND request_row.funded_at IS NULL
                         THEN 'AWAITING_PAYMENT'
                     WHEN request_row.service_type = 'MONTHLY' AND request_row.status = 'ACCEPTED' AND request_row.funded_at IS NULL
@@ -118,6 +139,8 @@ public interface MentorDashboardRepository extends JpaRepository<MentorshipReque
               ON offering.id = request_row.service_id
              AND offering.mentor_id = request_row.mentor_id
              AND offering.service_type = request_row.service_type
+            LEFT JOIN dbo.slot_holds slot_hold
+              ON slot_hold.id = TRY_CONVERT(BIGINT, JSON_VALUE(request_row.offer_snapshot, '$.slotHoldId'))
             OUTER APPLY (
                 SELECT
                     MIN(booking_row.start_at) AS startAt,

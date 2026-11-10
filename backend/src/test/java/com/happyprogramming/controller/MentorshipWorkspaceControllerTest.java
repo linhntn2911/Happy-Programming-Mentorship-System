@@ -48,6 +48,14 @@ class MentorshipWorkspaceControllerTest {
     }
 
     @Test
+    void loadsWorkspaceForTheSelectedBookingRequest() throws Exception {
+        mvc.perform(get("/api/mentorship-workspaces/40").param("requestId", "16"))
+                .andExpect(status().isOk());
+
+        org.mockito.Mockito.verify(service).get(40L, 16L);
+    }
+
+    @Test
     void sendsValidatedMessage() throws Exception {
         when(service.send(org.mockito.ArgumentMatchers.eq(30L), any()))
                 .thenReturn(new WorkspaceMessageDto(7L, 10L, "Mentee", "TEXT", "Hello", null,

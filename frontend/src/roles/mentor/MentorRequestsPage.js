@@ -12,6 +12,27 @@ const normalize = value => String(value ?? '').normalize('NFD').replace(/[\u0300
 
 const REQUESTS_PAGE_SIZE = 8;
 
+export function filterMentorBookings(requests, { query = '', status = 'ALL', type = 'ALL' } = {}) {
+  const normalizedQuery = normalize(query);
+  return (Array.isArray(requests) ? requests : []).filter(request => {
+    const bookingStatus = request.lifecycleStatus || request.status;
+    const statusMatch = status === 'ALL' || bookingStatus === status;
+    const typeMatch = type === 'ALL' || request.serviceType === type;
+    if (!statusMatch || !typeMatch) return false;
+    if (!normalizedQuery) return true;
+    const searchableText = normalize([
+      request.menteeName,
+      request.menteeEmail,
+      request.packageName,
+      request.learningGoals,
+      request.learningGoalsSummary,
+      `#${request.id}`,
+      request.id,
+    ].join(' '));
+    return searchableText.includes(normalizedQuery);
+  });
+}
+
 export function MentorRequestsPage() {
   return MentorLayout(`
 <section id="mentor-requests" aria-labelledby="mentor-requests-title">
@@ -104,6 +125,7 @@ export function MentorRequestsPage() {
       <div class="flex flex-col-reverse gap-3 border-t border-line p-6 sm:flex-row sm:items-center sm:justify-between">
         <button type="button" data-close-dialog class="btn btn-outline">Close</button>
         <div class="flex flex-col-reverse gap-3 sm:flex-row">
+          <a id="request-dialog-workspace" class="btn btn-primary" href="#/workspace" hidden>Open workspace</a>
           <button type="button" id="request-dialog-reject" data-dialog-action="REJECTED" class="btn btn-outline">Decline request</button>
           <button type="button" id="request-dialog-accept" data-dialog-action="ACCEPTED" class="btn btn-primary">Accept request</button>
         </div>
@@ -159,6 +181,11 @@ const REQUEST_STATUS_STYLES = {
   EXPIRED: 'status-neutral',
   CANCELLED: 'status-neutral',
 };
+
+export function canOpenBookingWorkspace(request) {
+  const status = String(request?.lifecycleStatus || request?.status || '').toUpperCase();
+  return ['ACTIVE', 'UPCOMING', 'CONFIRMED', 'COMPLETED', 'NO_SHOW'].includes(status);
+}
 
 function createStatusElement(request) {
   const status = request.lifecycleStatus || request.status || 'UNKNOWN';
@@ -360,30 +387,16 @@ export function initializeMentorRequestsPage() {
   }
 
   function getFilteredRequests() {
-    const query = normalize(searchInput?.value || "");
-    return allRequests.filter(request => {
-      const status = request.lifecycleStatus || request.status;
-      const statusMatch = statusFilter.value === "ALL" || status === statusFilter.value;
-      const typeMatch = typeFilter.value === "ALL" || request.serviceType === typeFilter.value;
-      if (!statusMatch || !typeMatch) return false;
-      if (!query) return true;
-      const text = normalize([
-        request.menteeName,
-        request.menteeEmail,
-        request.packageName,
-        request.learningGoals,
-        request.learningGoalsSummary,
-        "#" + request.id,
-        request.id
-      ].join(" "));
-      return text.includes(query);
+    return filterMentorBookings(allRequests, {
+      query: searchInput?.value || '',
+      status: statusFilter.value,
+      type: typeFilter.value,
     });
   }
 
   function applyStatusFilter() {
     requestsPage = 1;
     applyRequests(getFilteredRequests());
-    applyRequests(requests);
   }
 
   async function loadRequests({ background = false } = {}) {
@@ -440,6 +453,12 @@ export function initializeMentorRequestsPage() {
     const actionable = isActionable(request);
     rejectButton.hidden = !actionable;
     acceptButton.hidden = !actionable;
+    const workspaceButton = root.querySelector('#request-dialog-workspace');
+    const workspaceAvailable = canOpenBookingWorkspace(request);
+    workspaceButton.hidden = !workspaceAvailable;
+    workspaceButton.href = workspaceAvailable
+      ? `#/workspace?requestId=${encodeURIComponent(request.id)}&partnerId=${encodeURIComponent(request.menteeId || '')}`
+      : '#/workspace';
     setDialogButtonsEnabled(actionable);
     dialogOverlay.classList.remove('hidden');
     dialogOverlay.classList.add('flex');

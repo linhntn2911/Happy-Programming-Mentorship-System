@@ -4,6 +4,7 @@ import java.time.Instant;
 
 public record MentorDashboardRequest(
         Long id,
+        Long menteeId,
         String menteeName,
         String packageName,
         String serviceType,

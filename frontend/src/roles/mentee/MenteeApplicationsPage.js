@@ -9,6 +9,11 @@ import { renderPagination } from '../../shared/pagination.js';
 
 const esc = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 const PAGE_SIZE = 10;
+export function menteeBookingWorkspaceUrl(booking) {
+  const requestId = encodeURIComponent(booking?.requestId || '');
+  const mentorId = encodeURIComponent(booking?.mentorId || '');
+  return `#/workspace?requestId=${requestId}&partnerId=${mentorId}`;
+}
 const STATUS_LABELS = {
   PENDING: 'Pending',
   ACCEPTED: 'Accepted',
@@ -355,9 +360,11 @@ export async function mountMenteeApplications(root) {
       const action = canPayApplication(booking)
         ? `<a class="btn btn-primary" href="#/checkout?requestId=${encodeURIComponent(booking.requestId)}">${booking.latestPaymentStatus === 'PENDING' ? 'Continue payment' : 'Pay now'} →</a>`
         : isCompleted
-          ? `<button type="button" class="btn btn-outline" data-open-report="${esc(booking.requestId)}">Report an issue</button><a class="btn btn-primary" href="#/workspace?requestId=${encodeURIComponent(booking.requestId)}">Review & workspace →</a>`
+          ? `<button type="button" class="btn btn-outline" data-open-report="${esc(booking.requestId)}">Report an issue</button><a class="btn btn-primary" href="${menteeBookingWorkspaceUrl(booking)}">Review & workspace →</a>`
           : isConfirmed
-            ? `<button type="button" class="btn btn-outline" data-open-report="${esc(booking.requestId)}">Report an issue</button><a class="btn btn-primary" href="#/workspace?requestId=${encodeURIComponent(booking.requestId)}">Open workspace →</a>`
+            ? `<button type="button" class="btn btn-outline" data-open-report="${esc(booking.requestId)}">Report an issue</button><a class="btn btn-primary" href="${menteeBookingWorkspaceUrl(booking)}">Open workspace →</a>`
+            : booking.fundedAt
+              ? `<a class="btn btn-primary" href="${menteeBookingWorkspaceUrl(booking)}">Open workspace history →</a>`
             : status === 'CANCELLED'
               ? '<a class="btn btn-outline" href="#/mentors">Browse mentors to apply again →</a>'
               : '';

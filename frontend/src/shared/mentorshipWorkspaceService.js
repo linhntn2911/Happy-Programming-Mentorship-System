@@ -12,8 +12,11 @@ export const mentorshipWorkspaceService = {
   list() {
     return apiClient('/api/mentorship-workspaces', { cache: 'no-store' });
   },
-  get(conversationId) {
-    return apiClient(`/api/mentorship-workspaces/${encodeURIComponent(conversationId)}`, { cache: 'no-store' });
+  get(conversationId, requestId = null) {
+    const query = Number(requestId) > 0
+      ? `?requestId=${encodeURIComponent(requestId)}`
+      : '';
+    return apiClient(`/api/mentorship-workspaces/${encodeURIComponent(conversationId)}${query}`, { cache: 'no-store' });
   },
   async send(conversationId, payload) {
     const headers = await withCsrf();

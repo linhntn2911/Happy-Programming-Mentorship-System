@@ -7,4 +7,6 @@ test('profile page loads real backend data without a development preview notice'
   assert.doesNotMatch(markup, /profile-demo-notice/);
   assert.match(markup, /profile-loading/);
   assert.match(markup, /mentor-profile-form/);
+  assert.match(markup, /id="profile-save-feedback"[^>]*role="status"[^>]*aria-live="polite"/);
+  assert.match(markup, /profile-save-feedback[\s\S]*profile-save/);
 });

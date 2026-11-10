@@ -2,13 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { MentorDisputesPage, renderDisputeDetail, statusLabel, reasonLabel, resolutionLabel } from './MentorDisputesPage.js';
 
-test('mentor disputes page renders the list shell with status filter and empty state', () => {
+test('mentor disputes page renders a searchable table with status filter and empty state', () => {
   const html = MentorDisputesPage();
   assert.match(html, /DISPUTE MANAGEMENT/);
   assert.match(html, /id="dispute-loading"/);
   assert.match(html, /id="dispute-error"/);
   assert.match(html, /id="dispute-retry"/);
   assert.match(html, /id="dispute-list"/);
+  assert.match(html, /id="dispute-search"/);
+  assert.match(html, /id="dispute-table-wrap"/);
+  assert.match(html, /id="dispute-rows"/);
+  assert.match(html, /<th[^>]*>Raised by<\/th>/);
+  assert.match(html, /<th[^>]*>Status<\/th>/);
   assert.match(html, /id="dispute-pagination"/);
   assert.match(html, /id="dispute-empty"[^>]*hidden/);
   assert.match(html, /id="dispute-detail-view"[^>]*hidden/);

@@ -30,8 +30,6 @@ export function MentorProfilePage() {
   </div>
   <div id="profile-error" class="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert" hidden></div>
   <button id="profile-retry" class="btn btn-outline mb-5" type="button" hidden>Try again</button>
-  <p id="profile-save-status" class="mb-5 text-sm font-medium text-brand" role="status" aria-live="polite"></p>
-
   <form id="mentor-profile-form" class="space-y-6" hidden novalidate>
     <section class="admin-panel p-5 sm:p-8" aria-labelledby="profile-details-title">
       <h2 id="profile-details-title" class="text-lg font-semibold text-ink">Profile details</h2>
@@ -81,6 +79,7 @@ export function MentorProfilePage() {
       </fieldset>
     </section>
 
+    <div id="profile-save-feedback" class="rounded-xl border p-4 text-sm font-medium" role="status" aria-live="polite" hidden></div>
     <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
       <a href="#/" class="btn btn-outline">Cancel</a>
       <button id="profile-save" type="submit" class="btn btn-primary" disabled>Save profile</button>
@@ -98,7 +97,7 @@ export function initializeMentorProfilePage() {
   const error = document.querySelector('#profile-error');
   const retry = document.querySelector('#profile-retry');
   const saveButton = document.querySelector('#profile-save');
-  const success = document.querySelector('#profile-save-status');
+  const saveFeedback = document.querySelector('#profile-save-feedback');
   const selectedSkillIds = new Set();
   let availableSkills = [];
   let disposed = false;
@@ -110,6 +109,24 @@ export function initializeMentorProfilePage() {
     error.textContent = message;
     error.hidden = false;
     retry.hidden = false;
+  }
+
+  function clearSaveFeedback() {
+    saveFeedback.hidden = true;
+    saveFeedback.textContent = '';
+    saveFeedback.className = 'rounded-xl border p-4 text-sm font-medium';
+  }
+
+  function showSaveFeedback(message, type) {
+    saveFeedback.textContent = message;
+    saveFeedback.className = type === 'success'
+      ? 'rounded-xl border border-green-200 bg-green-50 p-4 text-sm font-medium text-green-800'
+      : 'rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-800';
+    saveFeedback.hidden = false;
+    saveFeedback.scrollIntoView({
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+      block: 'nearest',
+    });
   }
 
   function updateSelection() {
@@ -182,7 +199,7 @@ export function initializeMentorProfilePage() {
     retry.hidden = true;
     form.hidden = true;
     saveButton.disabled = true;
-    success.textContent = '';
+    clearSaveFeedback();
 
     try {
       const [profile, skills] = await Promise.all([
@@ -224,12 +241,12 @@ export function initializeMentorProfilePage() {
   };
   const handleSubmit = async event => {
     event.preventDefault();
-    success.textContent = '';
+    clearSaveFeedback();
     error.hidden = true;
 
     if (!form.reportValidity()) return;
     if (selectedSkillIds.size === 0) {
-      showError('Choose at least one teaching skill before saving.');
+      showSaveFeedback('Choose at least one teaching skill before saving.', 'error');
       return;
     }
 
@@ -245,7 +262,7 @@ export function initializeMentorProfilePage() {
         portfolioUrl: form.elements.portfolioUrl.value.trim(),
         skillIds: [...selectedSkillIds],
       });
-      success.textContent = 'Your mentor profile has been saved.';
+      showSaveFeedback('Your mentor profile has been saved successfully.', 'success');
       if (updated.skills) {
         selectedSkillIds.clear();
         for (const item of updated.skills) selectedSkillIds.add(item.skill.id);
@@ -254,7 +271,7 @@ export function initializeMentorProfilePage() {
       }
     } catch (saveError) {
       if (disposed) return;
-      showError(saveError.message || 'Unable to save your profile. Please try again.');
+      showSaveFeedback(saveError.message || 'Unable to save your profile. Please try again.', 'error');
     } finally {
       if (!disposed) {
         saveButton.textContent = 'Save profile';

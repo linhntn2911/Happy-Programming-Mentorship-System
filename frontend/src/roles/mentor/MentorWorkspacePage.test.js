@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MentorWorkspacePage, upcomingOpenSlots } from './MentorWorkspacePage.js';
+import { isMonthlyPlanActive, MentorWorkspacePage, upcomingOpenSlots } from './MentorWorkspacePage.js';
 import { MentorDashboardPage } from './MentorDashboardPage.js';
 import { MentorProfilePage } from './MentorProfilePage.js';
 
@@ -65,6 +65,12 @@ test('packages module renders one card per tier with enable toggles', () => {
   assert.match(packages, /id="tier-standard-price"/);
   assert.match(packages, /id="tier-pro-description"/);
   assert.doesNotMatch(packages, /Package management is not available yet/);
+});
+
+test('package checkbox is selected only for an active plan', () => {
+  assert.equal(isMonthlyPlanActive({ status: 'ACTIVE' }), true);
+  assert.equal(isMonthlyPlanActive({ status: 'INACTIVE' }), false);
+  assert.equal(isMonthlyPlanActive(null), false);
 });
 
 test('packages module includes mentor-managed one-off session options', () => {

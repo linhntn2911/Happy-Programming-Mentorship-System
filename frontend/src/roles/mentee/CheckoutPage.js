@@ -180,7 +180,7 @@ function renderCheckoutDetails(root, container, user, info, paymentReturn) {
         <div class="mt-3 flex justify-between gap-4"><span class="text-muted">Payment state</span><strong class="text-emerald-700">Verified & Active</strong></div>
         ${oneOffConfirmation}
       </div>
-      <div class="mt-7 flex flex-wrap justify-center gap-3"><a href="${isOneOff ? '#/workspace' : `#/workspace?requestId=${encodeURIComponent(info.requestId)}`}" class="btn btn-primary">Open mentorship workspace</a><a href="#/applications" class="btn btn-outline">View my bookings</a></div>
+      <div class="mt-7 flex flex-wrap justify-center gap-3"><a href="#/workspace?requestId=${encodeURIComponent(info.requestId)}&partnerId=${encodeURIComponent(info.mentorId || '')}" class="btn btn-primary">Open mentorship workspace</a><a href="#/applications" class="btn btn-outline">View my bookings</a></div>
     </div>`;
     return;
   }

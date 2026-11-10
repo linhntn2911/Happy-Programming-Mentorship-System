@@ -70,8 +70,13 @@ public class MentorshipWorkspaceService {
 
     @Transactional(readOnly = true)
     public MentorshipWorkspaceDetail get(long conversationId) {
+        return get(conversationId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public MentorshipWorkspaceDetail get(long conversationId, Long requestId) {
         AuthenticatedUser user = currentUser();
-        WorkspaceRow row = requireWorkspace(conversationId, user);
+        WorkspaceRow row = requireWorkspace(conversationId, user, requestId);
         requireConversation(row);
         List<WorkspaceMessageDto> messages = repository.findLatestMessages(row.conversationId(), MESSAGE_LIMIT)
                 .stream().map(message -> toMessage(message, user.id())).toList();
@@ -173,10 +178,17 @@ public class MentorshipWorkspaceService {
     }
 
     private WorkspaceRow requireWorkspace(long conversationId, AuthenticatedUser user) {
+        return requireWorkspace(conversationId, user, null);
+    }
+
+    private WorkspaceRow requireWorkspace(
+            long conversationId, AuthenticatedUser user, Long requestId) {
         if (conversationId <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid mentorship workspace.");
         }
-        WorkspaceRow row = repository.findAccessibleByConversationId(conversationId)
+        WorkspaceRow row = (requestId != null && requestId > 0
+                ? repository.findAccessibleByConversationIdAndRequestId(conversationId, requestId)
+                : repository.findAccessibleByConversationId(conversationId))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Active mentorship workspace not found."));
         long userId = user.id();
@@ -250,7 +262,7 @@ public class MentorshipWorkspaceService {
 
     private static WorkspaceOneOffBookingDto toOneOffBooking(OneOffBookingRow row) {
         return new WorkspaceOneOffBookingDto(
-                row.id(), row.bookingCode(), row.serviceId(), row.sessionName(), row.agenda(),
+                row.id(), row.requestId(), row.bookingCode(), row.serviceId(), row.sessionName(), row.agenda(),
                 row.startAt(), row.endAt(), row.price(), row.currency(), row.status(), row.participants(),
                 row.reviewId(), row.reviewRating(), row.reviewComment());
     }

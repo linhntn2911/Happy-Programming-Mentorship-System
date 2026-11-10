@@ -22,6 +22,19 @@ const dateTimeLabel = value => value
   : 'Schedule unavailable';
 const moneyLabel = (value, currency = 'VND') => `${new Intl.NumberFormat('vi-VN').format(Number(value || 0))} ${currency}`;
 
+export function workspaceForBookingRequest(workspaces = [], requestId, partnerId = null) {
+  const normalizedRequestId = Number(requestId);
+  if (!normalizedRequestId) return null;
+  const learningWorkspaces = workspaces.filter(item => !item.isMediation);
+  const exactMatch = learningWorkspaces.find(item => (
+    Number(item.requestId) === normalizedRequestId
+  ));
+  if (exactMatch) return exactMatch;
+  const normalizedPartnerId = Number(partnerId);
+  if (!normalizedPartnerId) return null;
+  return learningWorkspaces.find(item => Number(item.partnerId) === normalizedPartnerId) || null;
+}
+
 function emptyState(isStaff = false) {
   if (isStaff) {
     return `<div class="rounded-2xl border border-line bg-white p-10 text-center shadow-sm">
@@ -189,7 +202,7 @@ export function workspaceListMarkup(workspaces, isMentor, status = 'ALL', query 
 const sessionStatusLabel = status => String(status || 'Completed')
   .toLocaleLowerCase().replaceAll('_', ' ').replace(/(^|\s)\S/g, letter => letter.toLocaleUpperCase());
 
-function oneOffSessionCard(session, displayStatus = session.status, isMentor = false, isStaff = false) {
+function oneOffSessionCard(session, displayStatus = session.status, isMentor = false, isStaff = false, selected = false) {
   const success = displayStatus === 'CONFIRMED' || displayStatus === 'COMPLETED';
   const isCompleted = displayStatus === 'COMPLETED' || session.status === 'COMPLETED';
   const hasReviewed = Boolean(session.reviewId || session.reviewRating);
@@ -214,17 +227,25 @@ function oneOffSessionCard(session, displayStatus = session.status, isMentor = f
     }
   }
 
-  return `<article class="rounded-xl border border-line bg-white p-3"><div class="flex items-start justify-between gap-2"><div><h4 class="text-xs font-semibold text-ink">${esc(session.sessionName)}</h4><p class="mt-1 text-[10px] leading-4 text-muted">${esc(dateTimeLabel(session.startAt))} – ${esc(new Date(session.endAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }))}</p></div><span class="status-badge ${success ? 'status-success' : 'status-neutral'}"><span aria-hidden="true">●</span>${esc(sessionStatusLabel(displayStatus))}</span></div><p class="mt-2 text-[10px] text-muted">${esc(moneyLabel(session.price, session.currency))} · ${esc(session.participants)} participant${Number(session.participants) === 1 ? '' : 's'}</p>${reviewMarkup}</article>`;
+  return `<article class="rounded-xl border ${selected ? 'border-brand bg-lilac/40 ring-1 ring-brand/20' : 'border-line bg-white'} p-3" ${selected ? 'data-selected-booking="true"' : ''}><div class="flex items-start justify-between gap-2"><div>${selected ? '<p class="mb-1 text-[9px] font-bold uppercase tracking-wider text-brand">Selected booking</p>' : ''}<h4 class="text-xs font-semibold text-ink">${esc(session.sessionName)}</h4><p class="mt-1 text-[10px] leading-4 text-muted">${esc(dateTimeLabel(session.startAt))} – ${esc(new Date(session.endAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }))}</p></div><span class="status-badge ${success ? 'status-success' : 'status-neutral'}"><span aria-hidden="true">●</span>${esc(sessionStatusLabel(displayStatus))}</span></div><p class="mt-2 text-[10px] text-muted">${esc(moneyLabel(session.price, session.currency))} · ${esc(session.participants)} participant${Number(session.participants) === 1 ? '' : 's'}</p>${reviewMarkup}</article>`;
 }
 
-export function workspaceEngagementsMarkup(detail, now = new Date(), isMentor = false, isStaff = false) {
+export function workspaceEngagementsMarkup(detail, now = new Date(), isMentor = false, isStaff = false, selectedRequestId = null) {
   const monthlyStatus = detail.subscriptionStatus === 'DISPUTED' ? 'On hold' : detail.subscriptionStatus;
   const monthlyStatusStyle = detail.subscriptionStatus === 'DISPUTED' ? 'status-neutral' : 'status-success';
   const monthly = detail.hasMonthly ? `<section class="rounded-xl border border-line bg-cream p-4"><div class="flex items-center justify-between gap-2"><h4 class="text-xs font-semibold text-ink">${esc(detail.packageName || 'Monthly mentorship')}</h4><span class="status-badge ${monthlyStatusStyle}"><span aria-hidden="true">●</span>${esc(monthlyStatus)}</span></div><dl class="mt-3 space-y-2 text-[11px]"><div><dt class="text-muted">Current period</dt><dd class="mt-0.5 font-semibold text-ink">${esc(dateLabel(detail.currentPeriodStart))} – ${esc(dateLabel(detail.currentPeriodEnd))}</dd></div><div class="grid grid-cols-2 gap-3"><div><dt class="text-muted">Sessions</dt><dd class="mt-0.5 font-semibold text-ink">${esc(detail.callsPerPeriod ?? '—')} / month</dd></div><div><dt class="text-muted">Length</dt><dd class="mt-0.5 font-semibold text-ink">${esc(detail.sessionDurationMinutes ?? '—')} min</dd></div></div></dl></section>` : '';
   const nowTime = now instanceof Date ? now.getTime() : new Date(now).getTime();
   const sessions = detail.oneOffSessions || [];
-  const upcoming = sessions.filter(session => session.status === 'CONFIRMED' && new Date(session.endAt).getTime() > nowTime);
-  const past = sessions.filter(session => !upcoming.includes(session));
+  const selectedSession = sessions.find(session => Number(session.requestId) === Number(selectedRequestId)) || null;
+  const remainingSessions = selectedSession ? sessions.filter(session => session !== selectedSession) : sessions;
+  const upcoming = remainingSessions.filter(session => session.status === 'CONFIRMED' && new Date(session.endAt).getTime() > nowTime);
+  const past = remainingSessions.filter(session => !upcoming.includes(session));
+  const selectedDisplayStatus = selectedSession?.status === 'CONFIRMED' && new Date(selectedSession.endAt).getTime() <= nowTime
+    ? 'COMPLETED'
+    : selectedSession?.status;
+  const selectedSection = selectedSession
+    ? `<section><h4 class="mb-2 text-xs font-semibold text-ink">Opened booking</h4>${oneOffSessionCard(selectedSession, selectedDisplayStatus, isMentor, isStaff, true)}</section>`
+    : '';
   const upcomingMarkup = upcoming.map(session => oneOffSessionCard(session, session.status, isMentor, isStaff)).join('');
   const pastMarkup = past.map(session => oneOffSessionCard(
     session,
@@ -235,22 +256,27 @@ export function workspaceEngagementsMarkup(detail, now = new Date(), isMentor = 
   const upcomingSection = upcomingMarkup ? `<section><div class="mb-2 flex items-center justify-between gap-2"><h4 class="text-xs font-semibold text-ink">One-off sessions</h4><span class="rounded-full bg-lilac px-2 py-0.5 text-[10px] font-semibold text-brand">${esc(upcoming.length)}</span></div><div class="space-y-2">${upcomingMarkup}</div></section>` : '';
   const historySection = pastMarkup ? `<details class="group rounded-xl border border-line bg-cream"><summary class="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-3 text-xs font-semibold text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"><span>Past sessions</span><span class="flex items-center gap-2"><span class="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-brand">${esc(past.length)}</span><span class="text-muted transition group-open:rotate-180" aria-hidden="true">⌄</span></span></summary><div class="space-y-2 border-t border-line p-2">${pastMarkup}</div></details>` : '';
   const oneOff = `${upcomingSection}${historySection}`;
-  return `${monthly}${oneOff}` || '<p class="text-[11px] text-muted">No paid engagement details are available.</p>';
+  return `${selectedSection}${monthly}${oneOff}` || '<p class="text-[11px] text-muted">No paid engagement details are available.</p>';
 }
 
-export function workspaceConversationMarkup(detail, workspaces, isMentor, status = 'ALL', query = '', isStaff = false) {
+export function workspaceConversationMarkup(detail, workspaces, isMentor, status = 'ALL', query = '', isStaff = false, selectedRequestId = null) {
   const detailWorkspaceId = workspaceIdOf(detail);
   const selectedSummary = workspaces.find(item => workspaceIdOf(item) === detailWorkspaceId);
   const initialUnreadCount = Number(selectedSummary?.unreadCount || 0);
   const isMediation = Boolean(detail.isMediation || selectedSummary?.isMediation);
   const ticketCode = detail.disputeTicketCode || selectedSummary?.disputeTicketCode || '';
   const staffModeratorName = detail.assignedStaffName || selectedSummary?.assignedStaffName || 'Nhân viên hòa giải';
+  const selectedSession = detail.oneOffSessions?.find(session => Number(session.requestId) === Number(selectedRequestId)) || null;
 
   const subtitle = isMediation
     ? `⚖ Phòng hòa giải khiếu nại ${ticketCode ? '#' + esc(ticketCode) + ' · ' : ''}3 bên (Mentee, Mentor & Staff)`
+    : selectedSession
+      ? `${esc(selectedSession.sessionName)} · One-off session`
     : `${detail.hasMonthly ? esc(detail.packageName) : 'One-off mentorship'} · Private conversation`;
   const badgeMarkup = isMediation
     ? '<span class="status-badge status-warning"><span aria-hidden="true">●</span>3-Party Mediation</span>'
+    : selectedSession
+      ? '<span class="status-badge status-success"><span aria-hidden="true">●</span>One-off session</span>'
     : `<span class="status-badge status-success"><span aria-hidden="true">●</span>${detail.hasMonthly && detail.oneOffSessions?.length ? 'Monthly + sessions' : detail.hasMonthly ? esc(detail.subscriptionStatus) : 'One-off'}</span>`;
 
   const mediationBanner = isMediation
@@ -307,7 +333,7 @@ export function workspaceConversationMarkup(detail, workspaces, isMentor, status
         <div id="workspace-messages" class="min-h-0 flex-1 space-y-4 overflow-y-auto p-5" aria-live="polite">${mediationBanner}${workspaceMessages(detail.messages, detailWorkspaceId, { unreadCount: initialUnreadCount })}</div>
         ${inputFormMarkup}
       </section>
-      <aside class="hidden overflow-y-auto border-l border-line bg-white p-5 xl:block" aria-label="Mentorship details"><p class="eyebrow">ENGAGEMENTS</p><div class="mt-4 space-y-4" data-engagements-container>${workspaceEngagementsMarkup(detail, new Date(), isMentor, isStaff)}</div>${detail.learningGoals ? `<div class="mt-5 border-t border-line pt-5"><h3 class="text-xs font-semibold text-ink">Learning goals</h3><p class="mt-2 whitespace-pre-wrap text-[11px] leading-5 text-muted">${esc(detail.learningGoals)}</p></div>` : ''}</aside>
+      <aside class="hidden overflow-y-auto border-l border-line bg-white p-5 xl:block" aria-label="Mentorship details"><p class="eyebrow">ENGAGEMENTS</p><div class="mt-4 space-y-4" data-engagements-container>${workspaceEngagementsMarkup(detail, new Date(), isMentor, isStaff, selectedRequestId)}</div>${detail.learningGoals ? `<div class="mt-5 border-t border-line pt-5"><h3 class="text-xs font-semibold text-ink">Learning goals</h3><p class="mt-2 whitespace-pre-wrap text-[11px] leading-5 text-muted">${esc(detail.learningGoals)}</p></div>` : ''}</aside>
     </div></section>`;
 }
 
@@ -338,6 +364,7 @@ export async function mountMentorshipWorkspace(root) {
   const routeParams = new URLSearchParams(location.hash.split('?')[1] || '');
   let selectedId = Number(routeParams.get('workspaceId') || routeParams.get('conversationId') || routeParams.get('subscriptionId')) || null;
   const requestedRequestId = Number(routeParams.get('requestId')) || null;
+  const requestedPartnerId = Number(routeParams.get('partnerId')) || null;
   let workspaces = [];
   let currentDetail = null;
   let pollTimer;
@@ -371,7 +398,7 @@ export async function mountMentorshipWorkspace(root) {
   async function refreshMessages() {
     if (!selectedId || disposed || document.hidden) return;
     try {
-      const detail = await mentorshipWorkspaceService.get(selectedId);
+      const detail = await mentorshipWorkspaceService.get(selectedId, requestedRequestId);
       if (disposed || workspaceIdOf(detail) !== selectedId) return;
       const newlyUnread = (detail.messages || [])
         .filter(message => !message.mine && Number(message.id) > lastReadMessageId).length;
@@ -723,7 +750,7 @@ export async function mountMentorshipWorkspace(root) {
 
         const engagementsContainers = container.querySelectorAll('[data-engagements-container]');
         engagementsContainers.forEach(el => {
-          el.innerHTML = workspaceEngagementsMarkup(currentDetail, new Date(), isMentor, isStaff);
+          el.innerHTML = workspaceEngagementsMarkup(currentDetail, new Date(), isMentor, isStaff, requestedRequestId);
         });
 
         close();
@@ -750,9 +777,9 @@ export async function mountMentorshipWorkspace(root) {
     if (pollTimer) clearInterval(pollTimer);
     container.innerHTML = '<div class="rounded-2xl border border-line bg-white p-8 text-sm text-muted">Loading conversation…</div>';
     try {
-      currentDetail = await mentorshipWorkspaceService.get(selectedId);
+      currentDetail = await mentorshipWorkspaceService.get(selectedId, requestedRequestId);
       if (disposed) return;
-      container.innerHTML = workspaceConversationMarkup(currentDetail, workspaces, isMentor, workspaceFilter, workspaceSearch, isStaff);
+      container.innerHTML = workspaceConversationMarkup(currentDetail, workspaces, isMentor, workspaceFilter, workspaceSearch, isStaff, requestedRequestId);
       bindDetail(currentDetail);
       renderMessages(currentDetail);
       await markCurrentRead(currentDetail);
@@ -778,7 +805,7 @@ export async function mountMentorshipWorkspace(root) {
     if (disposed) return () => {};
     if (!workspaces.length) { container.innerHTML = emptyState(isStaff); return () => cleanupLayout?.(); }
     if (!selectedId && requestedRequestId) {
-      selectedId = workspaceIdOf(workspaces.find(item => Number(item.requestId) === requestedRequestId)) || null;
+      selectedId = workspaceIdOf(workspaceForBookingRequest(workspaces, requestedRequestId, requestedPartnerId)) || null;
     }
     if (selectedId && workspaces.some(item => workspaceIdOf(item) === selectedId)) await openWorkspace(selectedId);
     else showWorkspaceList();

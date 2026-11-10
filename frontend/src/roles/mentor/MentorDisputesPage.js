@@ -83,6 +83,18 @@ function renderDisputeCard(item) {
   </article>`;
 }
 
+function renderDisputeRow(item) {
+  const needsResponse = item.status === 'SUBMITTED' || item.status === 'IN_MEDIATION';
+  return `<tr>
+    <td class="px-4 py-4"><p class="font-semibold text-ink">#${e(String(item.id))}</p><p class="mt-1 text-xs text-muted">${e(dateTime(item.createdAt))}</p></td>
+    <td class="px-4 py-4"><p class="text-sm font-semibold text-ink">${e(item.targetLabel || 'Mentorship')}</p><p class="mt-1 text-xs text-muted">${e(reasonLabel(item.reasonCode))}</p></td>
+    <td class="px-4 py-4 text-sm text-ink">${e(item.complainantName || 'A mentee')}</td>
+    <td class="max-w-md px-4 py-4"><p class="line-clamp-2 text-sm leading-6 text-muted" title="${e(item.description || '')}">${e(item.description || '—')}</p></td>
+    <td class="px-4 py-4">${statusBadge(item)}<p class="mt-2 text-xs ${needsResponse && !item.responded ? 'font-semibold text-brand' : 'text-muted'}">${needsResponse ? (item.responded ? 'Response sent' : 'Response needed') : 'Closed by staff'}</p></td>
+    <td class="px-4 py-4 text-right"><button class="btn btn-outline btn-sm whitespace-nowrap" type="button" data-dispute-id="${e(String(item.id))}">View details</button></td>
+  </tr>`;
+}
+
 function renderOutcome(detail) {
   if (detail.status !== 'RESOLVED' && detail.status !== 'REJECTED') return '';
   const outcome = detail.status === 'RESOLVED'
@@ -165,7 +177,12 @@ function disputesContent() {
         <h1>Disputes</h1>
         <p>Refund complaints raised by your mentees. Send your explanation and evidence; HappyProgramming staff decide the outcome.</p>
       </div></div>
-      <div class="admin-toolbar mb-5">
+      <div id="dispute-content" class="admin-panel">
+      <div class="admin-toolbar flex-wrap items-end gap-3 justify-between">
+        <div class="flex flex-wrap items-end gap-3 grow">
+        <label class="admin-field admin-search" for="dispute-search">Search disputes
+          <input id="dispute-search" class="w-full" type="search" placeholder="Search by ID, mentee, mentorship or reason..." autocomplete="off">
+        </label>
         <label class="admin-field" for="dispute-status-filter">Status
           <select id="dispute-status-filter" class="w-full">
             <option value="ALL">All disputes</option>
@@ -175,15 +192,30 @@ function disputesContent() {
             <option value="REJECTED">Rejected</option>
           </select>
         </label>
-        <p id="dispute-result-count" class="text-xs text-muted" aria-live="polite"></p>
+        </div>
+        <p id="dispute-result-count" class="text-xs text-muted self-center" aria-live="polite"></p>
       </div>
-      <div id="dispute-empty" class="rounded-2xl border border-line bg-white p-8 text-center" hidden>
+      <div id="dispute-empty" class="admin-panel-body text-center" hidden>
         <p class="eyebrow mb-2">NO DISPUTES</p>
         <h2 class="font-display text-2xl text-ink">No disputes to review</h2>
         <p id="dispute-empty-detail" class="mx-auto mt-3 max-w-md text-sm leading-6 text-muted">If a mentee raises a refund complaint about one of your sessions, it will appear here.</p>
       </div>
-      <div id="dispute-list" class="space-y-4"></div>
+      <div id="dispute-table-wrap" class="data-table-scroll hidden md:block">
+        <table class="data-table min-w-[920px]">
+          <thead><tr>
+            <th scope="col" class="px-4 py-3">Dispute</th>
+            <th scope="col" class="px-4 py-3">Mentorship / reason</th>
+            <th scope="col" class="px-4 py-3">Raised by</th>
+            <th scope="col" class="px-4 py-3">Description</th>
+            <th scope="col" class="px-4 py-3">Status</th>
+            <th scope="col" class="px-4 py-3"><span class="sr-only">Actions</span></th>
+          </tr></thead>
+          <tbody id="dispute-rows" class="divide-y divide-line"></tbody>
+        </table>
+      </div>
+      <div id="dispute-list" class="grid gap-3 p-4 md:hidden"></div>
       <div id="dispute-pagination"></div>
+      </div>
     </section>
     <section id="dispute-detail-view" hidden></section>`;
 }
@@ -202,15 +234,18 @@ export function initializeMentorDisputesPage(root) {
   const listView = shell.querySelector('#dispute-list-view');
   const detailView = shell.querySelector('#dispute-detail-view');
   const filter = shell.querySelector('#dispute-status-filter');
+  const search = shell.querySelector('#dispute-search');
   const resultCount = shell.querySelector('#dispute-result-count');
   const empty = shell.querySelector('#dispute-empty');
   const emptyEyebrow = empty.querySelector('.eyebrow');
   const emptyTitle = empty.querySelector('h2');
   const emptyDetail = shell.querySelector('#dispute-empty-detail');
   const list = shell.querySelector('#dispute-list');
+  const rows = shell.querySelector('#dispute-rows');
+  const tableWrap = shell.querySelector('#dispute-table-wrap');
   const pagination = shell.querySelector('#dispute-pagination');
 
-  let disputes = [];
+  let allDisputes = [];
   let detail = null;
   let page = 1;
   let request = 0;
@@ -223,18 +258,27 @@ export function initializeMentorDisputesPage(root) {
   }
 
   function renderList() {
+    const term = search.value.trim().toLocaleLowerCase();
+    const disputes = allDisputes.filter(item => {
+      if (filter.value !== 'ALL' && item.status !== filter.value) return false;
+      if (!term) return true;
+      const searchable = `#${item.id} ${item.id} ${item.targetLabel || ''} ${item.complainantName || ''} ${reasonLabel(item.reasonCode)} ${item.description || ''}`.toLocaleLowerCase();
+      return searchable.includes(term);
+    });
     const totalPages = Math.max(1, Math.ceil(disputes.length / PAGE_SIZE));
     page = Math.min(Math.max(1, page), totalPages);
     const slice = disputes.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+    rows.innerHTML = slice.map(renderDisputeRow).join('');
     list.innerHTML = slice.map(renderDisputeCard).join('');
+    tableWrap.hidden = !disputes.length;
     pagination.innerHTML = renderPagination({ page, totalPages, label: 'Dispute pages' });
     if (!disputes.length) {
-      const filtered = filter.value !== 'ALL';
+      const filtered = filter.value !== 'ALL' || Boolean(term);
       empty.hidden = false;
       emptyEyebrow.textContent = filtered ? 'NO MATCHES' : 'NO DISPUTES';
       emptyTitle.textContent = filtered ? 'No disputes with this status' : 'No disputes to review';
       emptyDetail.textContent = filtered
-        ? 'No disputes match the selected status. Choose “All disputes” to see everything.'
+        ? 'No disputes match your search or selected status. Clear the filters to see everything.'
         : 'If a mentee raises a refund complaint about one of your sessions, it will appear here.';
       resultCount.textContent = '';
     } else {
@@ -328,9 +372,9 @@ export function initializeMentorDisputesPage(root) {
     loading.hidden = false;
     error.hidden = true; retry.hidden = true;
     try {
-      const items = await mentorDisputeService.list(filter.value);
+      const items = await mentorDisputeService.list('ALL');
       if (disposed || current !== request) return;
-      disputes = Array.isArray(items) ? items : [];
+      allDisputes = Array.isArray(items) ? items : [];
       if (resetPage) page = 1;
       if (!detail) renderList();
     } catch (loadError) {
@@ -342,7 +386,8 @@ export function initializeMentorDisputesPage(root) {
   }
 
   const reload = () => { if (detail) void showDetail(detail.id); else void loadList(); };
-  const onFilter = () => { showList(); void loadList(); };
+  const onFilter = () => { page = 1; showList(); };
+  const onSearch = () => { page = 1; renderList(); };
   const onListClick = event => {
     const button = event.target.closest('[data-dispute-id]');
     if (!button) return;
@@ -352,14 +397,18 @@ export function initializeMentorDisputesPage(root) {
 
   retry.addEventListener('click', reload);
   filter.addEventListener('change', onFilter);
+  search.addEventListener('input', onSearch);
   list.addEventListener('click', onListClick);
+  rows.addEventListener('click', onListClick);
   void loadList();
 
   return () => {
     disposed = true;
     retry.removeEventListener('click', reload);
     filter.removeEventListener('change', onFilter);
+    search.removeEventListener('input', onSearch);
     list.removeEventListener('click', onListClick);
+    rows.removeEventListener('click', onListClick);
     unbindPagination();
     unbindLayout();
   };

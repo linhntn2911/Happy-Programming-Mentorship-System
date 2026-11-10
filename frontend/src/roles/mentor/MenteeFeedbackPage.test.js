@@ -7,6 +7,10 @@ test('mentor feedback page renders the read-only mentee feedback section', () =>
   assert.match(html, /MENTEE FEEDBACK/);
   assert.match(html, /id="feedback-summary"/);
   assert.match(html, /id="feedback-list"/);
+  assert.match(html, /id="feedback-table-wrap"/);
+  assert.match(html, /id="feedback-rows"/);
+  assert.match(html, /<th[^>]*>Mentee<\/th>/);
+  assert.match(html, /<th[^>]*>Rating<\/th>/);
   assert.match(html, /id="feedback-loading"/);
   assert.match(html, /id="feedback-empty"/);
   assert.match(html, /id="feedback-error"/);

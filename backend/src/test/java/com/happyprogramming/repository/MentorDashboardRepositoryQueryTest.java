@@ -35,9 +35,22 @@ class MentorDashboardRepositoryQueryTest {
         assertTrue(query.contains("mentor_id"));
         assertTrue(query.contains("'pending'"));
         assertTrue(query.contains("response_deadline"));
+        assertTrue(query.contains("else request_row.response_deadline end > sysutcdatetime()"));
         assertTrue(query.contains("offering.name"));
         assertTrue(query.contains("packagename"));
         assertTrue(!query.contains("offering.price"));
+    }
+
+    @Test
+    void bookingHistoryMarksOverdueDecisionsAndExpiredOneOffHoldsAsExpired() throws Exception {
+        String query = query("findRequestsForMentor");
+
+        assertTrue(query.contains("else request_row.response_deadline end <= sysutcdatetime()"));
+        assertTrue(query.contains("then 'expired'"));
+        assertTrue(query.contains("slot_holds"));
+        assertTrue(query.contains("slot_hold.expires_at <= sysutcdatetime()"));
+        assertTrue(query.contains("slot_hold.status <> 'held'"));
+        assertTrue(query.indexOf("then 'expired'") < query.indexOf("then 'awaiting_payment'"));
     }
 
     @Test

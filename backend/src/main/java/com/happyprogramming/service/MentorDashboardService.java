@@ -163,6 +163,7 @@ public class MentorDashboardService {
         String goals = request.getLearningGoals() == null ? "" : request.getLearningGoals();
         return new MentorDashboardRequest(
                 request.getId(),
+                request.getMenteeId(),
                 request.getMenteeName(),
                 request.getPackageName() == null ? "Offering unavailable" : request.getPackageName(),
                 request.getServiceType(),
