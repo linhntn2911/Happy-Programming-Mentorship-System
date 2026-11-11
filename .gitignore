@@ -38,3 +38,5 @@ backend/.env.local
 # Temp & scratch
 scratch/
 .system_generated/
+SWP/
+

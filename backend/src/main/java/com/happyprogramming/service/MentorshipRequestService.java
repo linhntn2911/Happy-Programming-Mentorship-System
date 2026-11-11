@@ -585,6 +585,7 @@ public class MentorshipRequestService {
                    r.offer_snapshot, r.funded_at, r.submitted_at,
                    mu.full_name AS mentor_name,
                    mp.job_title AS mentor_title,
+                   mp.slug AS mentor_slug,
                    so.name AS package_name,
                    so.price,
                    so.currency,
@@ -715,7 +716,9 @@ public class MentorshipRequestService {
                 toInstant(databaseNow),
                 row.get("payment_remaining_seconds") instanceof Number remaining
                         ? Math.max(0L, remaining.longValue())
-                        : null
+                        : null,
+                (String) row.get("mentor_slug"),
+                row.get("service_id") == null ? null : ((Number) row.get("service_id")).longValue()
         );
     }
 

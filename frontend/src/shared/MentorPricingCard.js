@@ -281,8 +281,7 @@ export function MentorPricingCard({
     </button>
 
     <p class="mt-3 text-xs text-muted">
-      Pay after your mentor accepts. Cancel anytime between billing cycles.
-      <a href="#/what-is-included" class="font-medium text-brand underline decoration-brand/40 underline-offset-2 hover:decoration-brand">What's included?</a>
+      You'll pay only after your mentor accepts your request.
     </p>
 
     ${showOneOff ? `
