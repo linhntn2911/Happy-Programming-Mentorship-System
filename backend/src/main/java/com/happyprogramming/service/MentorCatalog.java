@@ -119,12 +119,12 @@ public class MentorCatalog {
                     String portrait = rs.getObject("avatar_id") == null ? null : "/api/mentors/" + java.net.URLEncoder.encode(id, java.nio.charset.StandardCharsets.UTF_8) + "/avatar";
 
                     BigDecimal lowestMonthly = monthlyPriceByMentor.get(userId);
-                    long monthlyPriceLong = lowestMonthly != null ? lowestMonthly.setScale(0, java.math.RoundingMode.HALF_UP).longValue() : 2000000L;
-                    String monthly = String.format(Locale.US, "%,d", monthlyPriceLong);
+                    long monthlyPriceLong = lowestMonthly != null ? lowestMonthly.setScale(0, java.math.RoundingMode.HALF_UP).longValue() : 0L;
+                    String monthly = lowestMonthly != null ? String.format(Locale.US, "%,d", monthlyPriceLong) : null;
 
                     BigDecimal sessionPrice = sessionPriceByMentor.get(userId);
-                    long sessionPriceLong = sessionPrice != null ? sessionPrice.setScale(0, java.math.RoundingMode.HALF_UP).longValue() : 400000L;
-                    String session = String.format(Locale.US, "%,d", sessionPriceLong);
+                    long sessionPriceLong = sessionPrice != null ? sessionPrice.setScale(0, java.math.RoundingMode.HALF_UP).longValue() : 0L;
+                    String session = sessionPrice != null ? String.format(Locale.US, "%,d", sessionPriceLong) : null;
 
                     return new MentorCard(
                         id,

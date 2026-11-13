@@ -394,8 +394,8 @@ function initInteractions() {
     if (titleEl) titleEl.textContent = mentor.name;
     if (roleEl) roleEl.textContent = `${mentor.role} · ${mentor.experience}`;
     if (descEl) descEl.textContent = mentor.description;
-    if (monthlyEl) monthlyEl.textContent = `${mentor.monthly} VND`;
-    if (sessionEl) sessionEl.textContent = `${mentor.session} VND`;
+    if (monthlyEl) monthlyEl.textContent = mentor.monthly ? `${mentor.monthly} VND` : 'Not set yet';
+    if (sessionEl) sessionEl.textContent = mentor.session ? `${mentor.session} VND` : 'Not set yet';
     if (skillsEl) {
       skillsEl.replaceChildren(
         ...(mentor.skills || []).map(skill => {

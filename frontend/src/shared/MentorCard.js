@@ -22,11 +22,11 @@ export function MentorCard(mentor) {
   <div class="mt-auto border-t border-line pt-4 flex items-center justify-between text-[11px]">
     <div>
       <span class="text-muted">Monthly</span>
-      <p class="font-semibold text-ink">${mentor.monthly} VND</p>
+      <p class="font-semibold text-ink">${mentor.monthly ? `${mentor.monthly} VND` : 'Not set yet'}</p>
     </div>
     <div class="text-right">
       <span class="text-muted">1-off session</span>
-      <p class="font-semibold text-ink">${mentor.session} VND</p>
+      <p class="font-semibold text-ink">${mentor.session ? `${mentor.session} VND` : 'Not set yet'}</p>
     </div>
   </div>
 <a class="btn btn-outline btn-sm mt-4" href="#/mentors/${encodeURIComponent(mentor.id)}">View profile</a>

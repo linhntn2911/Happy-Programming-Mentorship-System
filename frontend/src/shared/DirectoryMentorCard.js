@@ -35,8 +35,13 @@ export function DirectoryMentorCard(mentor) {
         <div class="mt-4 flex flex-wrap gap-2">${skills}</div>
         <div class="mt-5 flex flex-wrap items-end justify-between gap-4 border-t border-line pt-4">
           <div>
-            <p class="text-[11px] text-muted">Monthly mentorship from</p>
-            <p class="mt-0.5 text-[17px] font-semibold">${escapeHtml(mentor.monthly)} VND <span class="text-[11px] font-normal text-muted">/ month</span></p>
+            ${mentor.monthly ? `
+              <p class="text-[11px] text-muted">Monthly mentorship from</p>
+              <p class="mt-0.5 text-[17px] font-semibold">${escapeHtml(mentor.monthly)} VND <span class="text-[11px] font-normal text-muted">/ month</span></p>
+            ` : `
+              <p class="text-[11px] text-muted">Monthly mentorship</p>
+              <p class="mt-0.5 text-[15px] font-medium text-muted">Not set yet</p>
+            `}
           </div>
           <a class="btn btn-primary btn-sm" href="#/mentors/${encodeURIComponent(mentor.id)}">View profile</a>
         </div>
