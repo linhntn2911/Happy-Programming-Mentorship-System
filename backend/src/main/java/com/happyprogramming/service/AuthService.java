@@ -34,10 +34,6 @@ public class AuthService {
     private final Clock clock;
     private final String dummyHash;
 
-    private static final Set<String> COMMON_PASSWORDS = Set.of(
-        "password", "password123", "12345678", "123456789", "qwerty123", "admin123", "letmein123"
-    );
-
     public AuthService(UserRepository users, AuthIdentityRepository identities, SecurityTokenRepository securityTokens,
                        EmailService emailService, PasswordEncoder passwords, Clock clock) {
         this.users = users;
@@ -207,9 +203,6 @@ public class AuthService {
         }
         if (!hasUpper) {
             throw new IllegalArgumentException("Password must include at least one uppercase character.");
-        }
-        if (COMMON_PASSWORDS.contains(password.toLowerCase(Locale.ROOT))) {
-            throw new IllegalArgumentException("Password is too common. Please choose a stronger password.");
         }
     }
 

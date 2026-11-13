@@ -62,7 +62,6 @@ export function MenteeSignupForm({ preview = false } = {}) {
         <li id="rule-min-length">– Must be at least 8 characters</li>
         <li id="rule-lowercase">– Must include one lowercase character</li>
         <li id="rule-uppercase">– Must include one uppercase character</li>
-        <li id="rule-not-common">– Can't be too common</li>
       </ul>
     </div>
 
