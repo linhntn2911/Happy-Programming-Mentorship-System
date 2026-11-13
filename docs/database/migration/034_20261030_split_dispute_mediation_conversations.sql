@@ -8,6 +8,10 @@ IF COL_LENGTH('dbo.conversations', 'dispute_id') IS NULL
     ALTER TABLE dbo.conversations ADD dispute_id BIGINT NULL;
 GO
 
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+GO
+
 BEGIN TRY
     BEGIN TRANSACTION;
 

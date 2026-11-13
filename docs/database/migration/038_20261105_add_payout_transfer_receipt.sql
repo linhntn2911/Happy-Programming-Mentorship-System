@@ -1,4 +1,8 @@
 SET XACT_ABORT ON;
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+GO
+
 BEGIN TRANSACTION;
 
 IF COL_LENGTH('dbo.mentor_payout_requests', 'receipt_file_id') IS NULL

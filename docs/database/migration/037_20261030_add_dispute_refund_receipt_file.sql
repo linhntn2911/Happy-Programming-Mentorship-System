@@ -1,4 +1,8 @@
 SET XACT_ABORT ON;
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+GO
+
 BEGIN TRANSACTION;
 
 -- Add receipt_file_id column to disputes for admin transfer proof / receipt
