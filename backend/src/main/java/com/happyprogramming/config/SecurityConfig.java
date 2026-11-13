@@ -73,7 +73,16 @@ public class SecurityConfig {
                     String redirectTarget = (frontendBaseUrl != null && !frontendBaseUrl.isBlank()) ? frontendBaseUrl : "";
                     if (user.isPresent()) {
                         SessionLogin.establish(user.get(), req, res);
-                        res.sendRedirect(redirectTarget + (returnMentor ? "/#/apply/mentor" : "/#/"));
+                        String roleCode = user.get().role();
+                        String destination = "/#/";
+                        if ("ADMIN".equals(roleCode)) {
+                            destination = "/#/admin";
+                        } else if ("STAFF".equals(roleCode)) {
+                            destination = "/#/staff/dashboard";
+                        } else if (returnMentor) {
+                            destination = "/#/apply/mentor";
+                        }
+                        res.sendRedirect(redirectTarget + destination);
                     } else {
                         SessionLogin.clear(req);
                         res.sendRedirect(redirectTarget + "/#/login?error=google");

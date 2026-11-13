@@ -273,10 +273,16 @@ public class AuthService {
         } else {
             user = users.findForLoginById(identity.getUserId()).orElse(null);
         }
-        if (user == null || !eligible(user, effectiveRole, now)) return Optional.empty();
+        if (user == null) return Optional.empty();
+        if ("INACTIVE".equals(user.getStatus())) {
+            user.activateEmail(now);
+            user = users.save(user);
+        }
+        String resolvedRole = (role != null && user.hasRole(role)) ? role : user.getRoleCode();
+        if (!eligible(user, resolvedRole, now)) return Optional.empty();
         user.recordLogin(now);
         identity.markUsed(now);
-        return Optional.of(AuthenticatedUser.from(user, effectiveRole));
+        return Optional.of(AuthenticatedUser.from(user, resolvedRole));
     }
 
     @Transactional
