@@ -465,40 +465,40 @@ IF COL_LENGTH('dbo.conversations', 'dispute_id') IS NULL
 BEGIN TRY
     BEGIN TRANSACTION;
 
+    EXEC(N'
     UPDATE dbo.conversations
-    SET conversation_type = 'MENTORSHIP'
+    SET conversation_type = ''MENTORSHIP''
     WHERE conversation_type IS NULL;
 
-    IF EXISTS (SELECT 1 FROM sys.key_constraints WHERE parent_object_id = OBJECT_ID(N'dbo.conversations') AND name = N'UQ_conversations_pair')
+    IF EXISTS (SELECT 1 FROM sys.key_constraints WHERE parent_object_id = OBJECT_ID(N''dbo.conversations'') AND name = N''UQ_conversations_pair'')
         ALTER TABLE dbo.conversations DROP CONSTRAINT UQ_conversations_pair;
 
-    IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE parent_object_id = OBJECT_ID(N'dbo.conversations') AND name = N'FK_conversations_dispute')
+    IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE parent_object_id = OBJECT_ID(N''dbo.conversations'') AND name = N''FK_conversations_dispute'')
         ALTER TABLE dbo.conversations ADD CONSTRAINT FK_conversations_dispute
             FOREIGN KEY(dispute_id) REFERENCES dbo.disputes(id);
 
-    IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id = OBJECT_ID(N'dbo.conversations') AND name = N'CK_conversations_type')
+    IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id = OBJECT_ID(N''dbo.conversations'') AND name = N''CK_conversations_type'')
         ALTER TABLE dbo.conversations DROP CONSTRAINT CK_conversations_type;
     ALTER TABLE dbo.conversations ADD CONSTRAINT CK_conversations_type CHECK (
-        (conversation_type = 'MENTORSHIP' AND dispute_id IS NULL)
-        OR (conversation_type = 'MEDIATION' AND dispute_id IS NOT NULL)
+        (conversation_type = ''MENTORSHIP'' AND dispute_id IS NULL)
+        OR (conversation_type = ''MEDIATION'' AND dispute_id IS NOT NULL)
     );
 
-    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.conversations') AND name = N'UX_conversations_mentorship_pair')
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N''dbo.conversations'') AND name = N''UX_conversations_mentorship_pair'')
         CREATE UNIQUE INDEX UX_conversations_mentorship_pair ON dbo.conversations(mentor_id, mentee_id)
-        WHERE conversation_type = 'MENTORSHIP';
-    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.conversations') AND name = N'UX_conversations_dispute')
+        WHERE conversation_type = ''MENTORSHIP'';
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N''dbo.conversations'') AND name = N''UX_conversations_dispute'')
         CREATE UNIQUE INDEX UX_conversations_dispute ON dbo.conversations(dispute_id)
         WHERE dispute_id IS NOT NULL;
 
-    /* Existing official notices are moved out of the learning workspace. */
     INSERT INTO dbo.conversations(mentor_id, mentee_id, conversation_type, dispute_id, inquiry_status, created_at, updated_at)
-    SELECT d.respondent_id, d.complainant_id, 'MEDIATION', d.id, 'APPROVED', SYSUTCDATETIME(), SYSUTCDATETIME()
+    SELECT d.respondent_id, d.complainant_id, ''MEDIATION'', d.id, ''APPROVED'', SYSUTCDATETIME(), SYSUTCDATETIME()
     FROM dbo.disputes d
     WHERE EXISTS (
         SELECT 1 FROM dbo.messages m
         JOIN dbo.conversations c ON c.id = m.conversation_id
         WHERE c.mentor_id = d.respondent_id AND c.mentee_id = d.complainant_id
-          AND m.body LIKE N'%OFFICIAL DISPUTE MEDIATION NOTICE - CASE #' + d.ticket_code + N'%'
+          AND m.body LIKE N''%OFFICIAL DISPUTE MEDIATION NOTICE - CASE #'' + d.ticket_code + N''%''
     )
     AND NOT EXISTS (SELECT 1 FROM dbo.conversations c WHERE c.dispute_id = d.id);
 
@@ -506,26 +506,27 @@ BEGIN TRY
     FROM dbo.conversations c
     JOIN dbo.messages m ON m.id = c.mentor_last_read_message_id
     JOIN dbo.disputes d ON c.mentor_id = d.respondent_id AND c.mentee_id = d.complainant_id
-    WHERE c.conversation_type = 'MENTORSHIP'
-      AND m.body LIKE N'%OFFICIAL DISPUTE MEDIATION NOTICE - CASE #' + d.ticket_code + N'%';
+    WHERE c.conversation_type = ''MENTORSHIP''
+      AND m.body LIKE N''%OFFICIAL DISPUTE MEDIATION NOTICE - CASE #'' + d.ticket_code + N''%'';
     UPDATE c SET mentee_last_read_message_id = NULL
     FROM dbo.conversations c
     JOIN dbo.messages m ON m.id = c.mentee_last_read_message_id
     JOIN dbo.disputes d ON c.mentor_id = d.respondent_id AND c.mentee_id = d.complainant_id
-    WHERE c.conversation_type = 'MENTORSHIP'
-      AND m.body LIKE N'%OFFICIAL DISPUTE MEDIATION NOTICE - CASE #' + d.ticket_code + N'%';
+    WHERE c.conversation_type = ''MENTORSHIP''
+      AND m.body LIKE N''%OFFICIAL DISPUTE MEDIATION NOTICE - CASE #'' + d.ticket_code + N''%'';
 
     UPDATE m SET conversation_id = mediation.id
     FROM dbo.messages m
-    JOIN dbo.conversations learning ON learning.id = m.conversation_id AND learning.conversation_type = 'MENTORSHIP'
+    JOIN dbo.conversations learning ON learning.id = m.conversation_id AND learning.conversation_type = ''MENTORSHIP''
     JOIN dbo.disputes d ON learning.mentor_id = d.respondent_id AND learning.mentee_id = d.complainant_id
-    JOIN dbo.conversations mediation ON mediation.dispute_id = d.id AND mediation.conversation_type = 'MEDIATION'
-    WHERE m.body LIKE N'%OFFICIAL DISPUTE MEDIATION NOTICE - CASE #' + d.ticket_code + N'%';
+    JOIN dbo.conversations mediation ON mediation.dispute_id = d.id AND mediation.conversation_type = ''MEDIATION''
+    WHERE m.body LIKE N''%OFFICIAL DISPUTE MEDIATION NOTICE - CASE #'' + d.ticket_code + N''%'';
 
     UPDATE c
     SET last_message_at = (SELECT MAX(m.sent_at) FROM dbo.messages m WHERE m.conversation_id = c.id),
         updated_at = SYSUTCDATETIME()
     FROM dbo.conversations c;
+    ');
 
     COMMIT TRANSACTION;
 END TRY
@@ -543,19 +544,19 @@ SET XACT_ABORT ON;
 BEGIN TRY
     BEGIN TRANSACTION;
 
-    /* V25 split future rooms by dispute.  This backfills any existing open
-       dispute that was created before the split and therefore has no room. */
+    EXEC(N'
     INSERT INTO dbo.conversations(
         mentor_id, mentee_id, conversation_type, dispute_id,
         inquiry_status, created_at, updated_at)
-    SELECT d.respondent_id, d.complainant_id, 'MEDIATION', d.id,
-           'APPROVED', SYSUTCDATETIME(), SYSUTCDATETIME()
+    SELECT d.respondent_id, d.complainant_id, ''MEDIATION'', d.id,
+           ''APPROVED'', SYSUTCDATETIME(), SYSUTCDATETIME()
     FROM dbo.disputes d
-    WHERE d.status IN ('SUBMITTED', 'IN_MEDIATION', 'AWAITING_EVIDENCE', 'APPROVED')
+    WHERE d.status IN (''SUBMITTED'', ''IN_MEDIATION'', ''AWAITING_EVIDENCE'', ''APPROVED'')
       AND NOT EXISTS (
           SELECT 1 FROM dbo.conversations c WITH (UPDLOCK, HOLDLOCK)
-          WHERE c.dispute_id = d.id AND c.conversation_type = 'MEDIATION'
+          WHERE c.dispute_id = d.id AND c.conversation_type = ''MEDIATION''
       );
+    ');
 
     COMMIT TRANSACTION;
 END TRY
@@ -573,39 +574,39 @@ SET XACT_ABORT ON;
 BEGIN TRY
     BEGIN TRANSACTION;
 
-    /* Move legacy Staff mediation notices out of the learning conversation.
-       Ordinary mentor/mentee learning messages remain in the mentorship room. */
+    EXEC(N'
     UPDATE learning SET mentor_last_read_message_id = NULL
     FROM dbo.conversations learning
     JOIN dbo.messages m ON m.id = learning.mentor_last_read_message_id
-    WHERE learning.conversation_type = 'MENTORSHIP'
-      AND (m.body LIKE N'%OFFICIAL%DISPUTE%MEDIATION%'
-           OR m.client_message_key LIKE 'MEDIATION_NOTICE_%');
+    WHERE learning.conversation_type = ''MENTORSHIP''
+      AND (m.body LIKE N''%OFFICIAL%DISPUTE%MEDIATION%''
+           OR m.client_message_key LIKE ''MEDIATION_NOTICE_%'');
 
     UPDATE learning SET mentee_last_read_message_id = NULL
     FROM dbo.conversations learning
     JOIN dbo.messages m ON m.id = learning.mentee_last_read_message_id
-    WHERE learning.conversation_type = 'MENTORSHIP'
-      AND (m.body LIKE N'%OFFICIAL%DISPUTE%MEDIATION%'
-           OR m.client_message_key LIKE 'MEDIATION_NOTICE_%');
+    WHERE learning.conversation_type = ''MENTORSHIP''
+      AND (m.body LIKE N''%OFFICIAL%DISPUTE%MEDIATION%''
+           OR m.client_message_key LIKE ''MEDIATION_NOTICE_%'');
 
     UPDATE m SET conversation_id = mediation.id
     FROM dbo.messages m
     JOIN dbo.conversations learning
-      ON learning.id = m.conversation_id AND learning.conversation_type = 'MENTORSHIP'
+      ON learning.id = m.conversation_id AND learning.conversation_type = ''MENTORSHIP''
     JOIN dbo.disputes d
       ON d.respondent_id = learning.mentor_id AND d.complainant_id = learning.mentee_id
     JOIN dbo.conversations mediation
-      ON mediation.dispute_id = d.id AND mediation.conversation_type = 'MEDIATION'
-    WHERE ((m.body LIKE N'%OFFICIAL%DISPUTE%MEDIATION%'
-            AND m.body LIKE N'%' + d.ticket_code + N'%')
-           OR m.client_message_key LIKE 'MEDIATION_NOTICE_' + d.ticket_code + '%');
+      ON mediation.dispute_id = d.id AND mediation.conversation_type = ''MEDIATION''
+    WHERE ((m.body LIKE N''%OFFICIAL%DISPUTE%MEDIATION%''
+            AND m.body LIKE N''%'' + d.ticket_code + N''%'')
+           OR m.client_message_key LIKE ''MEDIATION_NOTICE_'' + d.ticket_code + ''%'');
 
     UPDATE c
     SET last_message_at = (SELECT MAX(m.sent_at) FROM dbo.messages m WHERE m.conversation_id = c.id),
         updated_at = SYSUTCDATETIME()
     FROM dbo.conversations c
-    WHERE c.conversation_type IN ('MENTORSHIP', 'MEDIATION');
+    WHERE c.conversation_type IN (''MENTORSHIP'', ''MEDIATION'');
+    ');
 
     COMMIT TRANSACTION;
 END TRY
