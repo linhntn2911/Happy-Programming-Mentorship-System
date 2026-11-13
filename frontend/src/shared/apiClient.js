@@ -1,4 +1,4 @@
-const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 
 export class ApiClientError extends Error {
   constructor(message, status) {
