@@ -2,15 +2,15 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://BACKEND_PLACEHOLDER.onrender.com/api/:path*"
+      "destination": "https://happy-programming-mentorship-system.onrender.com/api/:path*"
     },
     {
       "source": "/oauth2/:path*",
-      "destination": "https://BACKEND_PLACEHOLDER.onrender.com/oauth2/:path*"
+      "destination": "https://happy-programming-mentorship-system.onrender.com/oauth2/:path*"
     },
     {
       "source": "/login/oauth2/:path*",
-      "destination": "https://BACKEND_PLACEHOLDER.onrender.com/login/oauth2/:path*"
+      "destination": "https://happy-programming-mentorship-system.onrender.com/login/oauth2/:path*"
     },
     {
       "source": "/(.*)",
