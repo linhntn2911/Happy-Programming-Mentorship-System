@@ -59,7 +59,15 @@ export function mountLogin(root) {
     submit.textContent = value ? 'Logging in…' : 'Log in';
     form.querySelectorAll('input').forEach(input => { input.disabled = value; });
   };
-  if (location.hash.includes('error=google')) showError('Google login could not be completed. Use the Google account already linked to your account.');
+  const errorMatch = location.hash.match(/[?&]error=([^&]*)/);
+  if (errorMatch) {
+    const errorVal = decodeURIComponent(errorMatch[1]);
+    if (errorVal === 'google' || errorVal === 'account_ineligible') {
+      showError('Google login could not be completed. Use the Google account already linked to your account.');
+    } else {
+      showError('Google login failed: ' + errorVal);
+    }
+  }
   bindAuthInfo(root);
   authService.options().then(options => {
     if (!form.isConnected) return;
