@@ -74,9 +74,16 @@ public class AuthService {
         var token = com.happyprogramming.entity.SecurityToken.createVerifyEmail(user.getId(), otp, now, config.otpExpiryMinutes());
         securityTokens.save(token);
 
-        emailService.sendOtpEmail(user.getEmail(), user.getFirstName(), otp, config.otpExpiryMinutes());
-
-        return new SignupResponse(user.getEmail(), true, "Verification code sent to " + user.getEmail());
+        try {
+            emailService.sendOtpEmail(user.getEmail(), user.getFirstName(), otp, config.otpExpiryMinutes());
+            return new SignupResponse(user.getEmail(), true, "Verification code sent to " + user.getEmail());
+        } catch (Exception ex) {
+            // On hosting environments where outbound SMTP is blocked (e.g. Render Free tier blocking port 587),
+            // auto-activate the account so the user can immediately log in without being blocked.
+            user.activateEmail(now);
+            users.save(user);
+            return new SignupResponse(user.getEmail(), false, "Registration successful! You can now log in with your password.");
+        }
     }
 
     @Transactional
