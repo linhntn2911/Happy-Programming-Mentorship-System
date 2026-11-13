@@ -1,0 +1,253 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.1 Chrome/142.0.7444.265 Electron/39.8.0 Safari/537.36" version="24.7.17" type="device">
+
+  <diagram id="booking-process" name="2.1 Mentorship Booking Process">
+    <mxGraphModel dx="1422" dy="880" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1300" pageHeight="1950" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Title -->
+        <mxCell id="title_21" value="Monthly Mentorship Booking Process" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=18;fontStyle=1;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="20" y="15" width="1200" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Swimlanes Pool -->
+        <mxCell id="pool_21" value="" style="swimlane;html=1;childLayout=stackLayout;resizeParent=1;resizeParentMax=0;startSize=0;horizontal=0;horizontalStack=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.5;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="20" y="55" width="1200" height="1840" as="geometry" />
+        </mxCell>
+
+        <!-- Lanes -->
+        <mxCell id="lane_mentee" value="Mentee" style="swimlane;html=1;startSize=35;swimlaneLine=1;strokeColor=#000000;strokeWidth=1;collapsible=0;rounded=0;shadow=0;fillColor=#ffffff;align=center;verticalAlign=middle;fontSize=13;fontStyle=1;fontColor=#000000;" vertex="1" parent="pool_21">
+          <mxGeometry width="300" height="1840" as="geometry" />
+        </mxCell>
+        <mxCell id="lane_gateway" value="Payment Gateway (SePay)" style="swimlane;html=1;startSize=35;swimlaneLine=1;strokeColor=#000000;strokeWidth=1;collapsible=0;rounded=0;shadow=0;fillColor=#ffffff;align=center;verticalAlign=middle;fontSize=13;fontStyle=1;fontColor=#000000;" vertex="1" parent="pool_21">
+          <mxGeometry x="300" width="300" height="1840" as="geometry" />
+        </mxCell>
+        <mxCell id="lane_system" value="HappyProgramming" style="swimlane;html=1;startSize=35;swimlaneLine=1;strokeColor=#000000;strokeWidth=1;collapsible=0;rounded=0;shadow=0;fillColor=#ffffff;align=center;verticalAlign=middle;fontSize=13;fontStyle=1;fontColor=#000000;" vertex="1" parent="pool_21">
+          <mxGeometry x="600" width="320" height="1840" as="geometry" />
+        </mxCell>
+        <mxCell id="lane_mentor" value="Mentor" style="swimlane;html=1;startSize=35;swimlaneLine=1;strokeColor=#000000;strokeWidth=1;collapsible=0;rounded=0;shadow=0;fillColor=#ffffff;align=center;verticalAlign=middle;fontSize=13;fontStyle=1;fontColor=#000000;" vertex="1" parent="pool_21">
+          <mxGeometry x="920" width="280" height="1840" as="geometry" />
+        </mxCell>
+
+        <!-- NODES IN PAGE 1 -->
+        <!-- Start -->
+        <mxCell id="p1_start" value="" style="ellipse;html=1;shape=startState;fillColor=#000000;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="155" y="105" width="30" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Mentee Step 1 -->
+        <mxCell id="p1_select_skill" value="Select target skill" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=12;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="90" y="165" width="160" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- System: Display Mentor list -->
+        <mxCell id="p1_disp_list" value="Display Mentor list" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=12;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="700" y="235" width="160" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Mentee: Select preferred Mentor -->
+        <mxCell id="p1_select_mentor" value="Select preferred Mentor" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=12;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="90" y="305" width="160" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- System: Display Mentor profile -->
+        <mxCell id="p1_disp_profile" value="Display Mentor profile" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=12;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="700" y="375" width="160" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Mentee: Select service package -->
+        <mxCell id="p1_select_pkg" value="Select service package" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=12;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="90" y="445" width="160" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Mentee: Input goals & requirements -->
+        <mxCell id="p1_input_goals" value="Input goals &amp; requirements" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=12;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="90" y="515" width="160" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Mentee: Click submit application -->
+        <mxCell id="p1_submit_app" value="Click submit application" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=12;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="90" y="585" width="160" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- System: Forward application -->
+        <mxCell id="p1_forward_app" value="Forward application" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=12;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="700" y="655" width="160" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Mentor: Review profile & goals -->
+        <mxCell id="p1_review_goals" value="Review profile &amp; goals" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=12;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="980" y="725" width="160" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Decision: Respond in 48h? (System) -->
+        <mxCell id="p1_dec_48h" value="Respond in 48h?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="720" y="785" width="120" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Expiry branch -->
+        <mxCell id="p1_notify_expiry" value="Notify expiry" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=12;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="715" y="875" width="130" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_end_expiry" value="" style="ellipse;html=1;shape=endState;fillColor=#000000;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="765" y="940" width="30" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Decision: Accept Mentee? (Mentor) -->
+        <mxCell id="p1_dec_accept" value="Accept Mentee?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1000" y="875" width="120" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Rejection branch -->
+        <mxCell id="p1_notify_reject" value="Notify rejection" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=12;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="715" y="995" width="130" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_end_reject" value="" style="ellipse;html=1;shape=endState;fillColor=#000000;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="765" y="1060" width="30" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- System: Send payment info -->
+        <mxCell id="p1_send_pay_info" value="Send payment info" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=12;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="705" y="1095" width="150" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Mentee: Click pay -->
+        <mxCell id="p1_click_pay" value="Click pay" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=12;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="95" y="1155" width="150" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- System: Display SePay QR -->
+        <mxCell id="p1_disp_qr" value="Display SePay QR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=12;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="705" y="1215" width="150" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Mentee: Scan QR code -->
+        <mxCell id="p1_scan_qr" value="Scan QR code" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=12;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="95" y="1275" width="150" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Payment Gateway: Confirm payment -->
+        <mxCell id="p1_confirm_pay1" value="Confirm payment" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=12;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="380" y="1335" width="140" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- System: Payment valid? -->
+        <mxCell id="p1_dec_valid1" value="Payment valid?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="720" y="1327.5" width="120" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Mentee: Pay again? -->
+        <mxCell id="p1_dec_again" value="Pay again?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="110" y="1410" width="120" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- Mentee: Cancel application -->
+        <mxCell id="p1_cancel_app" value="Cancel application" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=12;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="100" y="1510" width="140" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_end_cancel" value="" style="ellipse;html=1;shape=endState;fillColor=#000000;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="155" y="1575" width="30" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- System: Generate new QR -->
+        <mxCell id="p1_gen_new_qr" value="Generate new QR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=12;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="710" y="1435" width="140" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Mentee: Scan new QR -->
+        <mxCell id="p1_scan_new_qr" value="Scan new QR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=12;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="100" y="1485" width="140" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Payment Gateway: Confirm payment 2 -->
+        <mxCell id="p1_confirm_pay2" value="Confirm payment" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=12;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="380" y="1525" width="140" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- System: Payment valid 2? -->
+        <mxCell id="p1_dec_valid2" value="Payment valid?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="725" y="1517.5" width="110" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- System: Payment failed -->
+        <mxCell id="p1_pay_failed" value="Payment failed" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=12;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="880" y="1525" width="110" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_end_failed" value="" style="ellipse;html=1;shape=endState;fillColor=#000000;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="920" y="1590" width="30" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- System: Hold funds & open workspace -->
+        <mxCell id="p1_hold_funds" value="Hold funds &amp; open workspace" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=12;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="690" y="1635" width="180" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Mentor: Send meeting link -->
+        <mxCell id="p1_send_meet" value="Send meeting link" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=12;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="980" y="1695" width="160" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Mentee: Access Chat workspace -->
+        <mxCell id="p1_access_chat" value="Access Chat workspace" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=12;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="90" y="1725" width="160" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Mentee: Start mentorship session -->
+        <mxCell id="p1_start_session" value="Start mentorship session" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FC0DE;strokeColor=#0E6B82;strokeWidth=1.5;fontColor=#000000;fontSize=12;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="90" y="1795" width="160" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_end_session" value="" style="ellipse;html=1;shape=endState;fillColor=#000000;strokeColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="155" y="1860" width="30" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- EDGES IN PAGE 1 -->
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_start" target="p1_select_skill"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_select_skill" target="p1_disp_list"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_disp_list" target="p1_select_mentor"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_select_mentor" target="p1_disp_profile"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_disp_profile" target="p1_select_pkg"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_select_pkg" target="p1_input_goals"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_input_goals" target="p1_submit_app"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_submit_app" target="p1_forward_app"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_forward_app" target="p1_review_goals"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_review_goals" target="p1_dec_48h"><mxGeometry relative="1" as="geometry" /></mxCell>
+        
+        <mxCell id="e11_no" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_dec_48h" target="p1_notify_expiry"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_notify_expiry" target="p1_end_expiry"><mxGeometry relative="1" as="geometry" /></mxCell>
+        
+        <mxCell id="e11_yes" value="Yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_dec_48h" target="p1_dec_accept"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e13_no" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_dec_accept" target="p1_notify_reject"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_notify_reject" target="p1_end_reject"><mxGeometry relative="1" as="geometry" /></mxCell>
+        
+        <mxCell id="e13_yes" value="Yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_dec_accept" target="p1_send_pay_info"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_send_pay_info" target="p1_click_pay"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_click_pay" target="p1_disp_qr"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e17" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_disp_qr" target="p1_scan_qr"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_scan_qr" target="p1_confirm_pay1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e19" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_confirm_pay1" target="p1_dec_valid1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        
+        <mxCell id="e20_yes" value="Yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_dec_valid1" target="p1_hold_funds"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e20_no" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_dec_valid1" target="p1_dec_again"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="780" y="1400"/><mxPoint x="170" y="1400"/></Array></mxGeometry></mxCell>
+        
+        <mxCell id="e21_no" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_dec_again" target="p1_cancel_app"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e22" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_cancel_app" target="p1_end_cancel"><mxGeometry relative="1" as="geometry" /></mxCell>
+        
+        <mxCell id="e21_yes" value="Yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_dec_again" target="p1_gen_new_qr"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e23" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_gen_new_qr" target="p1_scan_new_qr"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e24" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_scan_new_qr" target="p1_confirm_pay2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e25" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_confirm_pay2" target="p1_dec_valid2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        
+        <mxCell id="e26_no" value="No" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_dec_valid2" target="p1_pay_failed"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e27" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_pay_failed" target="p1_end_failed"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e26_yes" value="Yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_dec_valid2" target="p1_hold_funds"><mxGeometry relative="1" as="geometry" /></mxCell>
+        
+        <mxCell id="e28" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_hold_funds" target="p1_send_meet"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e29" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_hold_funds" target="p1_access_chat"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e30" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_access_chat" target="p1_start_session"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e31" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.4;fontSize=11;fontColor=#000000;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="p1_start_session" target="p1_end_session"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

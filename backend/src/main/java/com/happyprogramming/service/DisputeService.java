@@ -526,7 +526,7 @@ public class DisputeService {
         }
         if (adminRepository != null) {
             adminRepository.audit(staffId, "DISPUTE_INTAKE", "DISPUTE", String.valueOf(disputeId),
-                    "SUBMITTED", "IN_MEDIATION", "Staff assigned and opened mediation room", "127.0.0.1");
+                    Map.of("status", "SUBMITTED"), Map.of("status", "IN_MEDIATION"), "Staff assigned and opened mediation room", "127.0.0.1");
         }
         return staffDisputeDetail(disputeId);
     }
@@ -590,7 +590,7 @@ public class DisputeService {
 
             if (adminRepository != null) {
                 adminRepository.audit(staffId, "DISPUTE_REFUND_APPROVED", "DISPUTE", String.valueOf(disputeId),
-                        currentStatus, newDisputeStatus, "Staff approved refund of " + refundAmount + " VND for Admin transfer: " + request.resolutionNote().trim(), ip != null ? ip : "127.0.0.1");
+                        Map.of("status", currentStatus), Map.of("status", newDisputeStatus), "Staff approved refund of " + refundAmount + " VND for Admin transfer: " + request.resolutionNote().trim(), ip != null ? ip : "127.0.0.1");
             }
         } else {
             jdbc.update("""
@@ -615,7 +615,7 @@ public class DisputeService {
 
             if (adminRepository != null) {
                 adminRepository.audit(staffId, "DISPUTE_RESOLVED", "DISPUTE", String.valueOf(disputeId),
-                        currentStatus, newDisputeStatus, request.resolutionNote().trim(), ip != null ? ip : "127.0.0.1");
+                        Map.of("status", currentStatus), Map.of("status", newDisputeStatus), request.resolutionNote().trim(), ip != null ? ip : "127.0.0.1");
             }
         }
 
@@ -775,7 +775,7 @@ public class DisputeService {
 
             if (adminRepository != null) {
                 adminRepository.audit(adminId, "DISPUTE_REFUND_PAID", "DISPUTE", String.valueOf(disputeId),
-                        "APPROVED", "RESOLVED", "Bank transfer reference: " + transferReference, ip != null ? ip : "127.0.0.1");
+                        Map.of("status", "APPROVED"), Map.of("status", "RESOLVED"), "Bank transfer reference: " + transferReference, ip != null ? ip : "127.0.0.1");
             }
         } else if ("REJECTED".equals(action)) {
             String reason = decision.rejectionReason() == null ? "" : decision.rejectionReason().trim();
@@ -801,7 +801,7 @@ public class DisputeService {
 
             if (adminRepository != null) {
                 adminRepository.audit(adminId, "DISPUTE_REFUND_REJECTED", "DISPUTE", String.valueOf(disputeId),
-                        "APPROVED", "REJECTED", reason, ip != null ? ip : "127.0.0.1");
+                        Map.of("status", "APPROVED"), Map.of("status", "REJECTED"), reason, ip != null ? ip : "127.0.0.1");
             }
         }
     }

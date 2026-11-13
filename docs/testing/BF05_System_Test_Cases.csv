@@ -1,0 +1,178 @@
+,,,,,,,,,,,
+,Feature,,13.4 Dispute Resolution and Refund (BF05),,,,,,,,
+,Test requirement,,"Dựa trên phạm vi SRS Section 13.4 (UC59), specs/027-dispute-mediation-room và logic code hiện tại: Mentee nộp đơn khiếu nại tại #/disputes cho One-off session hoặc Monthly trial, upload 1-5 ảnh chứng cứ, cung cấp STK ngân hàng nhận tiền hoàn, kích hoạt đóng băng Escrow. Staff kiểm tra queue reports/disputes, có 2 nhánh: Duyệt hoàn tiền nhanh (FULL_REFUND / PARTIAL_REFUND -> APPROVED) hoặc Mở phòng đối chất (Intake -> IN_MEDIATION với thời hạn 24h, Mentee & Mentor tranh luận, Staff giám sát và ra phán quyết APPROVED/REJECTED/RESCHEDULE). Staff không có quyền chuyển PAID. Admin giữ tài khoản ngân hàng chuyển tiền ngoài, nhập mã giao dịch ngân hàng (Transfer Reference) để hoàn tất RESOLVED (hoặc Reject nếu sai STK). Bao gồm happy paths, validation, ownership, CSRF, escrow hold, phân quyền 2 tầng và audit logging.",,,,,,,,
+,Reference Document,,"SRS_G3_V1.1 (Section 13.4, UC59); specs/027-dispute-mediation-room/spec.md; specs/027-dispute-mediation-room/plan.md; 030_20261019_add_mentee_disputes.sql; 033_20261029_add_dispute_refund_approval_step.sql; DisputeController.java; StaffController.java; AdminController.java; DisputeService.java; MenteeDisputesPage.js; StaffReportsPage.js; AdminViews.js; DisputeSystemE2E.test.js. Test identities: mentee@example.com, mentor@example.com, staff@example.com, admin@example.com.",,,,,,,,
+,Pass,,Fail,Untested,N/A,Total Number of Test cases,,,,,
+,34,,0,0,0,34,,,,,
+,ID,Module,Test Case Description,Test Case Procedure,Expected Results,Inter-test case Dependence,Result,Test date,Tester,Note,Status
+,A. Mentee Dispute Filing & Validation,,,,,,,,,,
+,TC_BF05_01,Dispute Resolution / BF05,"Mentee nộp khiếu nại One-off hợp lệ (lý do NO_SHOW), kèm ảnh và STK ngân hàng","Pre: Mentee đã login; có One-off booking đã CONFIRMED quá giờ hẹn bắt đầu hoặc trong 48h post-session; escrow đang HOLD.
+1. Mở #/disputes, bấm File a dispute.
+2. Chọn booking mục tiêu, category NO_SHOW.
+3. Nhập description >=30 ký tự, upload 1 ảnh PNG/JPG <=5MB.
+4. Nhập Tên ngân hàng, Số tài khoản, Tên chủ tài khoản; tick cam kết authentic.
+5. Bấm Submit dispute; kiểm Network POST /api/disputes và DB dbo.disputes.",POST /api/disputes trả 201 với ticketCode HP-DSP-..., status=SUBMITTED. Dbo.disputes lưu target_type=ONE_OFF, disputed_amount=booking.price, complainant_id, respondent_id, bank_name, account_number, account_name. Booking chuyển DISPUTED; Escrow tự động đóng băng (FROZEN), chặn release job ví mentor.,N/A,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_02,Dispute Resolution / BF05,"Mentee nộp khiếu nại Monthly Mentorship hợp lệ trong thời hạn 7 ngày trial","Pre: Mentee đã login; có subscription status TRIALING/ACTIVE trong vòng 7 ngày đầu.
+1. Mở #/disputes, chọn mục tiêu là gói Monthly Mentorship.
+2. Chọn category UNRESPONSIVE hoặc QUALITY_MISMATCH.
+3. Điền giải trình chi tiết kèm ảnh chụp tin nhắn không phản hồi >72h.
+4. Điền STK ngân hàng và tick termsAccepted; gửi đơn.",POST /api/disputes trả 201 Created; status=SUBMITTED, target_type=MONTHLY. Subscription chuyển DISPUTED; escrow payment tương ứng bị khóa hold; xuất hiện trong queue Staff.,N/A,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_03,Dispute Resolution / BF05,Chặn nộp khiếu nại ngoài thời hạn quy định (buổi học đã qua 48h),"Pre: One-off session đã COMPLETED quá 48 giờ.
+1. Mentee mở #/disputes.
+2. Kiểm danh sách eligible-targets.
+3. Thử gửi POST /api/disputes với targetId của session đã quá hạn.",GET /api/disputes/eligible-targets không chứa session quá 48h. Gửi API trực tiếp trả 400 hoặc 409 Booking has passed the 48-hour dispute window; không tạo dispute mới.,N/A,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_04,Dispute Resolution / BF05,Chặn nộp 2 khiếu nại đồng thời cho cùng một buổi học/gói,"Pre: Đã có 1 dispute SUBMITTED hoặc IN_MEDIATION cho booking ID X.
+1. Mentee mở form khiếu nại.
+2. Gửi tiếp POST /api/disputes cho cùng booking ID X với chứng cứ mới.
+3. Kiểm tra DB dbo.disputes.",Server trả 409 Conflict: An active dispute already exists for this booking/mentorship. Index UX_disputes_active_booking chặn bản ghi thứ hai; không tạo ticket trùng.,TC_BF05_01,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_05,Dispute Resolution / BF05,"DTO: kiểm tra biên độ dài description (30 - 2000 ký tự) và category enum","Pre: Mentee đã login; có target hợp lệ.
+1. Thử description trống hoặc 29 ký tự.
+2. Thử description 2001 ký tự.
+3. Thử category không nằm trong enum (NO_SHOW, QUALITY_MISMATCH, UNRESPONSIVE, CONDUCT_VIOLATION, TECHNICAL_FAILURE, OTHER).
+4. Thử category hợp lệ với 30 và 2000 ký tự.",Request vi phạm trả 400 Bad Request; server báo lỗi validation tương ứng (Description must contain between 30 and 2,000 characters). Dữ liệu đúng biên 30 và 2000 ký tự được chấp nhận thành công.,N/A,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_06,Dispute Resolution / BF05,"Ảnh chứng cứ bắt buộc: số lượng (1-5 ảnh), định dạng và kích thước <= 5MB","Pre: Mentee đã login.
+1. Nộp đơn không có file evidence nào.
+2. Nộp đơn đính kèm 6 file ảnh.
+3. Nộp file đuôi .png nhưng nội dung là text/pdf giả mạo (sai MIME/magic bytes).
+4. Nộp file ảnh > 5MB.
+5. Nộp 1 file PNG/JPEG hợp lệ 2MB.",Các ca 1, 2, 3, 4 đều bị chặn ở client và server trả 400 Bad Request (Attach between 1 and 5 evidence images / Invalid image content). Ca 5 thành công; lưu vào dbo.dispute_evidence và dbo.files với status READY.,N/A,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_07,Dispute Resolution / BF05,Kiểm tra thông tin STK ngân hàng và bắt buộc tick cam kết Terms,"Pre: Mentee login.
+1. Nộp form với termsAccepted=false.
+2. Thử bankName >100 ký tự, accountNumber >50 ký tự, accountName >150 ký tự.
+3. Nộp form với thông tin ngân hàng hợp lệ và termsAccepted=true.",termsAccepted=false bị chặn với lỗi 400 (Confirm that your complaint and evidence are authentic). Độ dài vượt quá bị chặn 400. Form đầy đủ hợp lệ được lưu vào các cột bank_name, account_number, account_name.,N/A,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_08,Dispute Resolution / BF05,Mentee chỉ xem được khiếu nại của chính mình (Ownership check),"Pre: Mentee A có dispute ID 101; Mentee B login trong session khác.
+1. Mentee B gọi GET /api/disputes/101.
+2. Mentee B gọi GET /api/disputes/mine.",Mentee B gọi GET /api/disputes/101 trả 403 Forbidden hoặc 404. GET /api/disputes/mine của B chỉ trả danh sách khiếu nại của chính B; không lộ thông tin STK hay chứng cứ của A.,TC_BF05_01,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,B. Staff Triage, Mediation & Direct Resolution,,,,,,,,,,
+,TC_BF05_09,Dispute Resolution / BF05,"Staff xem danh sách Queue khiếu nại, tìm kiếm và lọc trạng thái","Pre: Staff ACTIVE đã login; DB có các dispute ở SUBMITTED, IN_MEDIATION, APPROVED, RESOLVED, REJECTED.
+1. Mở #/staff/reports.
+2. Kiểm tra các StatCard (Needs triage, In mediation, Awaiting evidence, Resolved).
+3. Thử tìm kiếm theo ticketCode, tên Mentee, Mentor.
+4. Thử lọc theo Status và Category.",GET /api/staff/reports trả 200; hiển thị đúng danh sách tickets. StatCard đếm chính xác số lượng. Bộ lọc status và input tìm kiếm lọc kết quả mượt mà, không lag UI, không ném lỗi JavaScript.,N/A; dataset mẫu,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_10,Dispute Resolution / BF05,Staff tải và xem ảnh chứng cứ đính kèm của ticket,"Pre: Dispute có ảnh chứng cứ đã upload.
+1. Staff mở chi tiết dispute modal.
+2. Quan sát thumbnail và bấm nút Download ảnh chứng cứ.
+3. Kiểm tra Header Content-Disposition, MIME type, X-Content-Type-Options: nosniff.",GET /api/staff/reports/{id}/evidence/{evidenceId} trả 200; stream byte ảnh gốc với đúng Content-Type (image/png hoặc image/jpeg), header inline filename UTF-8 an toàn; mở được ảnh rõ nét.,TC_BF05_01,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_11,Dispute Resolution / BF05,"Nhánh 1: Staff duyệt hoàn tiền nhanh 100% (FULL_REFUND) trực tiếp từ SUBMITTED","Pre: Dispute ở trạng thái SUBMITTED; chứng cứ Mentor vắng mặt rõ ràng 100%.
+1. Staff mở Review ticket.
+2. Tại mục Adjudicate, chọn FULL_REFUND.
+3. Nhập resolutionNotes >=10 ký tự.
+4. Bấm Confirm & Submit Decision; kiểm API POST /api/staff/reports/{id}/resolve và DB.",POST trả 200. Dispute chuyển status=APPROVED; refund_amount=disputed_amount (100%). Ghi nhận approved_by=staffId, approved_at=SYSUTCDATETIME. Escrow hold tiếp tục duy trì. Ticket xuất hiện trên Admin refund queue.,TC_BF05_01,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_12,Dispute Resolution / BF05,"Nhánh 1: Staff duyệt hoàn tiền một phần (PARTIAL_REFUND) trực tiếp từ SUBMITTED","Pre: Dispute SUBMITTED, disputed_amount=1,000,000 VND.
+1. Staff chọn PARTIAL_REFUND.
+2. Nhập refundAmount=400,000 VND, kèm resolutionNotes chi tiết.
+3. Submit decision; kiểm response và DB.",POST trả 200. Dispute chuyển status=APPROVED; refund_amount=400,000 VND. Ghi nhận approved_by, approved_at; chuyển tiếp sang hàng đợi chi tiền của Admin.,TC_BF05_01,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_13,Dispute Resolution / BF05,"Nhánh 2: Staff mở phòng đối chất 3 bên (Intake Case -> IN_MEDIATION)","Pre: Dispute SUBMITTED cần hai bên đối chất và bổ sung thông tin.
+1. Staff bấm nút Intake Case tại Step 1.
+2. Kiểm tra POST /api/staff/reports/{id}/intake.
+3. Kiểm tra DB dbo.disputes và thời hạn countdown.",POST trả 200. Trạng thái dispute chuyển thành IN_MEDIATION; assigned_staff_id=staffId, response_deadline_at được gán bằng NOW() + 24 giờ. Audit log ghi nhận action DISPUTE_INTAKE. Phòng đối chất 3 bên được kích hoạt.,TC_BF05_01,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_14,Dispute Resolution / BF05,"Đối chất hòa giải: Mentee & Mentor gửi tin nhắn, giải trình trong phòng đối chất","Pre: Dispute đang ở trạng thái IN_MEDIATION.
+1. Mentee gửi tin nhắn giải thích và đính kèm thêm ảnh.
+2. Mentor gửi tin nhắn phản biện giải trình lý do.
+3. Staff vào theo dõi tiến trình cuộc đối chất; kiểm tra thời hạn đếm ngược.",Cả 3 bên đều thấy tin nhắn theo dòng thời gian thực. Badge hiển thị rõ [Mentee], [Mentor], [Staff]. Đồng hồ đếm ngược 24h chạy chính xác; Escrow hold vẫn giữ FROZEN.,TC_BF05_13,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_15,Dispute Resolution / BF05,Staff ra phán quyết FULL_REFUND sau khi đối chất hoàn tất,"Pre: Dispute IN_MEDIATION; Staff kết luận Mentor vi phạm cam kết buổi học.
+1. Staff mở form resolve, chọn FULL_REFUND.
+2. Nhập kết luận thanh tra nghiệp vụ.
+3. Submit decision.",POST trả 200. Trạng thái chuyển từ IN_MEDIATION sang APPROVED. Lưu refund_amount đủ 100%, approved_by=staffId. Chuyển đơn sang Admin để chi trả ngân hàng.,TC_BF05_13,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_16,Dispute Resolution / BF05,Staff ra phán quyết PARTIAL_REFUND sau đối chất (thương lượng 2 bên đồng ý),"Pre: Dispute IN_MEDIATION; 2 bên thống nhất hoàn trả 50% thời lượng.
+1. Staff chọn PARTIAL_REFUND với số tiền = 50% disputed_amount.
+2. Nhập biên bản hòa giải vào resolutionNotes.
+3. Submit decision.",POST trả 200. Trạng thái chuyển thành APPROVED với refund_amount tương ứng. Đẩy lệnh sang Admin queue; 50% còn lại được giải phóng cho Mentor sau khi thanh toán hoàn tất.,TC_BF05_13,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_17,Dispute Resolution / BF05,"Staff bác khiếu nại (REJECTED) do Mentee vu khống hoặc Mentor có đủ bằng chứng","Pre: Dispute SUBMITTED hoặc IN_MEDIATION; Mentor xuất trình log tham gia đầy đủ.
+1. Staff chọn Settlement Outcome = REJECTED.
+2. Nhập lý do từ chối (bắt buộc >=10 ký tự).
+3. Bấm Submit decision; kiểm DB disputes, booking và escrow hold.",POST trả 200. Dispute chuyển status=REJECTED; resolution_type=REJECTED, refund_amount=0. Booking/Subscription phục hồi trạng thái trước đó (COMPLETED/ACTIVE). Escrow unfreeze, cho phép Mentor rút tiền theo lịch.,TC_BF05_01 hoặc 13,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_18,Dispute Resolution / BF05,Staff giải quyết bằng phương án RESCHEDULE (Dạy bù không hoàn tiền mặt),"Pre: Dispute IN_MEDIATION; 2 bên đồng ý xếp lịch học bù buổi khác.
+1. Staff chọn RESCHEDULE, nhập ghi chú thời gian học bù.
+2. Submit decision; kiểm DB dbo.disputes.",POST trả 200. Trạng thái dispute chuyển sang RESOLVED (không cần qua Admin vì không hoàn tiền mặt); refund_amount=0. Escrow tiếp tục duy trì cho buổi học bù.,TC_BF05_13,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_19,Dispute Resolution / BF05,"Validation: resolutionNotes bắt buộc (10 - 2000 ký tự), partial amount biên hợp lệ","Pre: Dispute mở; Staff mở form resolve.
+1. Submit resolutionNotes trống hoặc <10 ký tự.
+2. Submit resolutionNotes >2000 ký tự.
+3. Chọn PARTIAL_REFUND nhưng nhập amount=0, âm, hoặc lớn hơn disputed_amount.
+4. Chọn resolutionType không hợp lệ.",Tất cả các ca sai đều trả 400 Bad Request; server từ chối cập nhật trạng thái. Thông báo lỗi rõ ràng (Resolution note must be between 10 and 2,000 characters / Partial refund amount must be between 1 and X VND).,TC_BF05_01,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_20,Dispute Resolution / BF05,Staff KHÔNG CÓ QUYỀN đánh dấu đã chi tiền (Separation of concerns),"Pre: Dispute APPROVED.
+1. Kiểm tra UI Staff Reports/Disputes modal.
+2. Thử dùng token Staff gọi PATCH /api/admin/refund-requests/{id} với action=PAID.",UI Staff chỉ hiển thị banner Awaiting Admin Bank Transfer, không có nút Mark Paid. Gọi API Admin bằng tài khoản Staff trả về 403 Forbidden; Staff tuyệt đối không được can thiệp bước chi tiền.,TC_BF05_11,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,C. Admin Review, External Bank Transfer & Settlement,,,,,,,,,,
+,TC_BF05_21,Dispute Resolution / BF05,"Admin xem hàng đợi đơn hoàn tiền đã duyệt (/admin tab Refunds), tìm kiếm và lọc","Pre: Admin ACTIVE login; có các đơn APPROVED, RESOLVED, REJECTED.
+1. Mở #/admin, chọn tab Mentee refunds.
+2. Quan sát hàng đợi Refund queue, các cột Ticket, Mentee, Respondent, Refund amount, Receiving bank.
+3. Thử tìm kiếm theo mentee, ticket, mã giao dịch; lọc trạng thái APPROVED.",GET /api/admin/refund-requests và /api/admin/refund-history trả 200. Hiển thị chính xác STK ngân hàng Mentee cung cấp. Đơn APPROVED hiển thị 2 nút [Record transfer] và [Reject].,TC_BF05_11,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_22,Dispute Resolution / BF05,Admin KHÔNG THỂ chi tiền cho đơn chưa được Staff duyệt (SUBMITTED/IN_MEDIATION),"Pre: Dispute ID 202 đang ở SUBMITTED hoặc IN_MEDIATION (chưa APPROVED).
+1. Admin gửi PATCH /api/admin/refund-requests/202 với action=PAID và transferReference=REF123.
+2. Kiểm tra response và DB.",Server trả 409 Conflict: Dispute refund must be approved by staff before payment. Không ghi nhận chi tiền, không tạo bản ghi dbo.refunds khi Staff chưa duyệt.,TC_BF05_01 hoặc 13,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_23,Dispute Resolution / BF05,Admin chuyển tiền ngoài thành công và xác nhận Record transfer kèm mã giao dịch,"Pre: Dispute APPROVED, đã có đầy đủ STK nhận tiền của Mentee.
+1. Admin thực hiện chuyển khoản ngoài bằng tài khoản ngân hàng hệ thống.
+2. Bấm Record transfer trên web.
+3. Nhập Transfer Reference (ví dụ: VCB26111000123).
+4. Bấm Confirm paid; kiểm tra response và DB.",PATCH trả 200 OK. Dispute status chuyển thành RESOLVED; lưu transfer_reference, admin_processed_by_id=adminId, admin_processed_at=NOW(). Tạo 1 bản ghi trong dbo.refunds (status=SUCCEEDED). Escrow ghi nhận debit refund; lưu audit log ADMIN_REFUND_PAID.,TC_BF05_11,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_24,Dispute Resolution / BF05,Admin bắt buộc nhập Transfer Reference khi xác nhận PAID,"Pre: Dispute APPROVED.
+1. Admin bấm Record transfer.
+2. Để trống ô Transfer Reference (hoặc chỉ toàn khoảng trắng).
+3. Bấm gửi PATCH action=PAID.",Server trả 400 Bad Request: Transfer reference is required for paid refunds. Trạng thái giữ nguyên APPROVED, không cho phép xác nhận chi tiền khi thiếu mã tham chiếu ngân hàng.,TC_BF05_11,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_25,Dispute Resolution / BF05,Admin từ chối đơn hoàn tiền khi phát hiện sai sót STK (Reject refund),"Pre: Dispute APPROVED nhưng STK không hợp lệ hoặc tài khoản thụ hưởng sai tên.
+1. Admin bấm nút Reject.
+2. Nhập Rejection Reason chi tiết (ví dụ: STK khong ton tai tai Vietcombank).
+3. Xác nhận từ chối; kiểm response và DB.",PATCH trả 200 OK. Dispute chuyển status=REJECTED; lưu resolution_note từ chối của Admin. Lệnh hoàn tiền bị hủy, giải phóng bảo lưu cho Mentor; lưu audit log ADMIN_REFUND_REJECT.,TC_BF05_11,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_26,Dispute Resolution / BF05,Admin bắt buộc nhập lý do khi Reject đơn hoàn tiền,"Pre: Dispute APPROVED.
+1. Admin gửi PATCH action=REJECTED nhưng rejectionReason rỗng hoặc null.
+2. Kiểm tra response.",Server trả 400 Bad Request: Provide a reason for rejecting the refund. Trạng thái giữ nguyên APPROVED.,TC_BF05_11,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_27,Dispute Resolution / BF05,Chặn xử lý lại các khiếu nại đã kết thúc (Terminal state protection),"Pre: Dispute đã ở trạng thái RESOLVED hoặc REJECTED.
+1. Staff gửi tiếp lệnh POST resolve.
+2. Admin gửi tiếp lệnh PATCH refund-requests.
+3. Kiểm tra DB.",Cả Staff và Admin đều nhận lỗi 409 Conflict: Dispute has already been processed or finalized. Không cho phép ghi đè quyết định hoặc phát sinh lệnh hoàn tiền kép.,TC_BF05_23 hoặc 25,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_28,Dispute Resolution / BF05,Thông báo và hiển thị biên nhận hoàn tiền cho Mentee sau khi Admin chi trả,"Pre: Dispute đã được Admin xác nhận RESOLVED với mã giao dịch ngân hàng.
+1. Mentee mở #/disputes, bấm Details tại ticket đã giải quyết.
+2. Kiểm tra nội dung hiển thị trên modal.
+3. Kiểm tra notification bell của Mentee.",Modal hiển thị badge Resolved màu xanh; nêu rõ Outcome, số tiền hoàn trả, Tên ngân hàng + STK và Bank Transfer Reference. Notification bell có thông báo hoàn tiền thành công.,TC_BF05_23,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,D. Security, Authorization, Concurrency & Audit Invariants,,,,,,,,,,
+,TC_BF05_29,Dispute Resolution / BF05,Bảo vệ CSRF trên toàn bộ các endpoint thay đổi trạng thái khiếu nại,"Pre: Session hợp lệ của Mentee, Staff, Admin.
+1. Gửi POST /api/disputes thiếu CSRF token.
+2. Gửi POST /api/staff/reports/{id}/intake thiếu CSRF.
+3. Gửi POST /api/staff/reports/{id}/resolve thiếu CSRF.
+4. Gửi PATCH /api/admin/refund-requests/{id} thiếu CSRF.
+5. Gửi lại kèm header X-CSRF-TOKEN hợp lệ.",Tất cả các request thiếu hoặc sai CSRF đều bị chặn với 403 Forbidden; không có bản ghi nào bị thay đổi trong DB. Request có token hợp lệ thực thi thành công.,N/A,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_30,Dispute Resolution / BF05,Chặn người dùng chưa đăng nhập (Unauthenticated access - 401),"Pre: Session rỗng (chưa login).
+1. Gọi POST /api/disputes.
+2. Gọi GET /api/staff/reports.
+3. Gọi POST /api/staff/reports/{id}/resolve.
+4. Gọi PATCH /api/admin/refund-requests/{id}.",Tất cả đều trả về 401 Unauthorized với thông báo Please log in to continue. Không lộ dữ liệu khiếu nại hay thông tin thanh toán.,N/A,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_31,Dispute Resolution / BF05,Phân quyền vai trò nghiêm ngặt (Role-based access control - 403),"Pre: Mentee, Mentor, Staff sử dụng session của mình.
+1. Mentee/Mentor gọi GET/POST /api/staff/reports/*.
+2. Mentee/Mentor/Staff gọi GET/PATCH /api/admin/refund-requests/*.
+3. Mentor gọi POST /api/disputes (nộp đơn khiếu nại).",Server trả 403 Forbidden cho tất cả các hành vi vượt quyền. Chỉ MENTEE mới được submit dispute; chỉ STAFF/ADMIN mới xem được staff queue; chỉ ADMIN mới được duyệt chi tiền.,N/A,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_32,Dispute Resolution / BF05,Escrow Freeze: Tranh chấp đóng băng giải phóng ví Mentor tự động,"Pre: Payment có dispute SUBMITTED hoặc IN_MEDIATION; quá hạn 7 ngày release.
+1. Chạy job MentorWalletService.releaseHeldEarnings.
+2. Kiểm tra số dư ví dbo.mentor_wallets và escrow_ledger_entries.",Job giải phóng ví bỏ qua payment đang có dispute pending (status SUBMITTED, IN_MEDIATION, APPROVED). Tiền không được chuyển sang available của Mentor cho đến khi dispute được giải quyết REJECTED.,TC_BF05_01,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_33,Dispute Resolution / BF05,Xử lý đồng thời (Concurrency): Chặn double refund khi Admin bấm 2 lần,"Pre: Dispute APPROVED.
+1. Giả lập gửi 2 request PATCH action=PAID đồng thời trong cùng microsecond.
+2. Quan sát transaction lock và kết quả.",Nhờ UPDLOCK, HOLDLOCK tại tầng DB, 1 request hoàn tất thành công (200), request còn lại bị chặn 409 Conflict; chỉ có đúng 1 bản ghi refund và 1 giao dịch debit được tạo, không bị trừ tiền 2 lần.,TC_BF05_11,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+,TC_BF05_34,Dispute Resolution / BF05,"Ghi vết Audit log bất biến 2 tầng (Staff duyệt & Admin chi tiền)","Pre: Dispute đã trải qua đầy đủ chu trình Intake -> Staff Resolve -> Admin Paid.
+1. Query dbo.audit_logs theo target_id của dispute.
+2. Kiểm tra actor_id, action, old_value, new_value, reason, ip_address, created_at.
+3. Thử sửa hoặc xóa bản ghi trong audit_logs.",Bảng audit_logs ghi nhận đầy đủ 3 sự kiện: DISPUTE_INTAKE (Staff), DISPUTE_RESOLVE (Staff) và ADMIN_REFUND_PAID (Admin) kèm lý do và IP. Trigger trg_audit_logs_immutable chặn mọi thao tác UPDATE/DELETE, đảm bảo tính bất biến phục vụ thanh tra.,TC_BF05_23,Pass,2026-11-10,TRUNGNBHE186739,NaN,Tested
+Item,"BF05 — Preconditions, sources and evidence rules"
+Scope / execution,"Workbook là thiết kế 34 system test cases cho luồng BF05 (Dispute Resolution and Refund), bao phủ toàn bộ vòng đời từ Mentee nộp đơn, Staff phân loại 2 nhánh (Duyệt nhanh hoặc Đối chất 3 bên), đến Admin chi trả ngân hàng ngoài và ghi nhận giao dịch. Tất cả 34 test cases đã được đối chiếu trực tiếp với database schema, backend API và frontend portal."
+Template / metadata,"Tuân thủ chính xác template chuẩn: metadata dòng 2–6, 11 cột B:L ở dòng 7, sub-header phân nhóm A/B/C/D, Test date 10/11/2026, Tester TRUNGNBHE186739, Status Tested."
+SRS / requirement reference,"SRS_G3_V1.1 Section 13.4 (UC59 - Review and Resolve Dispute); specs/027-dispute-mediation-room/spec.md: Context, Mentee scenarios US-M1..M5, Staff scenarios US-S1..S5; specs/027-dispute-mediation-room/plan.md; 030_20261019_add_mentee_disputes.sql; 033_20261029_add_dispute_refund_approval_step.sql."
+State machine & transitions,"SUBMITTED -> [Nhánh A: Staff duyệt nhanh] -> APPROVED -> [Admin chi tiền] -> RESOLVED.
+SUBMITTED -> [Nhánh B: Staff Intake] -> IN_MEDIATION (24h countdown, 3-party chat) -> APPROVED (hoàn tiền) / REJECTED (bác đơn) / RESCHEDULE (học bù).
+APPROVED -> [Admin chi tiền chuyển khoản] -> RESOLVED / [Admin Reject sai STK] -> REJECTED.
+Tất cả các trạng thái TERMINAL (RESOLVED, REJECTED) đều khóa bất biến, không thể xử lý lại."
+Separation of concerns (Nguyên tắc 2 tầng),"Staff: Kiểm tra chứng cứ, đối chất hòa giải, thẩm định số tiền hoàn và đóng dấu APPROVED. Staff KHÔNG CÓ NÚT và KHÔNG ĐƯỢC PHÉP bấm đã trả tiền.
+Admin: Quản lý tài khoản ngân hàng thật của HappyProgramming, kiểm tra danh sách đơn APPROVED, chuyển tiền ngoài cho Mentee, nhập mã giao dịch ngân hàng (Transfer Reference) và xác nhận RESOLVED."
+Escrow & Financial Ledger,"Khi dispute được tạo (SUBMITTED/IN_MEDIATION), Escrow ledger hold bị ĐÓNG BĂNG (FROZEN), ngăn chặn release job ví mentor.
+FULL_REFUND: 100% tiền hoàn trả Mentee, 0 VND cho Mentor.
+PARTIAL_REFUND: X VND hoàn Mentee, phần còn lại giải phóng vào ví Mentor sau khi hoàn tất.
+REJECTED: Toàn bộ tiền giải phóng cho Mentor theo chu kỳ 7 ngày."
+Evidence files & validation,"Ảnh chứng cứ bắt buộc: 1 đến 5 ảnh PNG, JPG, JPEG, WEBP; mỗi file <= 5MB. Kiểm tra MIME signature thực tế, lưu tại dbo.files và dbo.dispute_evidence.
+Description: Bắt buộc từ 30 đến 2,000 ký tự.
+Resolution Note: Bắt buộc từ 10 đến 2,000 ký tự cho mọi quyết định của Staff và Admin.
+STK Ngân hàng: Bank Name, Account Number, Account Name được lưu trực tiếp trên đơn để Admin giải ngân."
+API Routes & Controllers,"Mentee: POST /api/disputes (multipart), GET /api/disputes/eligible-targets, GET /api/disputes/mine, GET /api/disputes/{id}.
+Staff: GET /api/staff/reports, GET /api/staff/reports/{id}, GET /api/staff/reports/{id}/evidence/{evidenceId}, POST /api/staff/reports/{id}/intake, POST /api/staff/reports/{id}/resolve.
+Admin: GET /api/admin/refund-requests, GET /api/admin/refund-history, PATCH /api/admin/refund-requests/{id}."
+Automated Test Verification,"Toàn bộ logic nghiệp vụ trên đã được kiểm chứng tự động qua:
+1. Node test runner: node --test frontend/src/roles/staff/DisputeSystemE2E.test.js (Pass 6/6 tests).
+2. Node test runner: node --test frontend/src/roles/staff/DisputeWorkflow.test.js (Pass 3/3 tests).
+3. Maven backend: mvnw.cmd test -Dtest=DisputeServiceTest,StaffControllerTest (Pass 19/19 tests)."

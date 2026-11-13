@@ -107,6 +107,20 @@ public class AdminRepository {
     public void audit(long actor, String action, String entity, String id, Object before, Object after, String reason, String ip) {
         jdbc.update("INSERT INTO dbo.audit_logs(actor_id,action,entity_type,entity_id,old_values,new_values,reason,ip_address) VALUES(?,?,?,?,?,?,?,?)", actor, action, entity, id, serialize(before), serialize(after), reason, ip);
     }
-    private String serialize(Object value) { try { return json.writeValueAsString(value); } catch (JsonProcessingException e) { throw new IllegalStateException("Cannot record administration change", e); } }
+    private String serialize(Object value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            String raw = json.writeValueAsString(value);
+            String trimmed = raw.trim();
+            if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+                return trimmed;
+            }
+            return json.writeValueAsString(java.util.Map.of("value", value));
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Cannot record administration change", e);
+        }
+    }
     private static Instant instant(Timestamp value) { return value == null ? null : value.toLocalDateTime().toInstant(java.time.ZoneOffset.UTC); }
 }
