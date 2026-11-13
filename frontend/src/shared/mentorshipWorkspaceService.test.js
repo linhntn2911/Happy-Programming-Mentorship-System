@@ -2,6 +2,22 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mentorshipWorkspaceService } from './mentorshipWorkspaceService.js';
 
+test('get scopes workspace details to the booking request when provided', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url, options });
+    return { ok: true, json: async () => ({ data: { workspaceId: 40, requestId: 16 } }) };
+  };
+  try {
+    const result = await mentorshipWorkspaceService.get(40, 16);
+    assert.equal(result.requestId, 16);
+    assert.equal(calls[0].url, '/api/mentorship-workspaces/40?requestId=16');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('send obtains CSRF and posts an idempotent workspace message', async () => {
   const originalFetch = globalThis.fetch;
   const calls = [];

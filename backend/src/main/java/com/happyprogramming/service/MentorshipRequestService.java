@@ -10,6 +10,7 @@ import com.happyprogramming.dto.MentorshipRequestResponse;
 import com.happyprogramming.dto.MenteeApplicationDto;
 import com.happyprogramming.dto.MenteeApplicationPageDto;
 import com.happyprogramming.dto.MenteeTransactionDto;
+import com.happyprogramming.dto.MenteeTransactionPageDto;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -343,7 +344,7 @@ public class MentorshipRequestService {
 
         String cte = """
                 WITH app_rows AS (
-                    SELECT r.id, mentor.full_name AS mentor_name,
+                    SELECT r.id, r.mentor_id, mentor.full_name AS mentor_name,
                            COALESCE(JSON_VALUE(r.offer_snapshot, '$.name'), offering.name, 'Monthly Mentorship') AS package_name,
                            r.learning_goals,
                            CASE
@@ -352,10 +353,19 @@ public class MentorshipRequestService {
                                    THEN 'EXPIRED'
                                WHEN r.service_type = 'ONE_OFF' AND booking_summary.bookingStatus IS NOT NULL
                                    THEN booking_summary.bookingStatus
+                               WHEN r.service_type = 'ONE_OFF' AND r.funded_at IS NULL
+                                    AND (
+                                        slot_hold.id IS NULL
+                                        OR slot_hold.status <> 'HELD'
+                                        OR slot_hold.expires_at <= SYSUTCDATETIME()
+                                        OR TRY_CONVERT(DATETIME2(3), JSON_VALUE(r.offer_snapshot, '$.startAt'), 127) <= SYSUTCDATETIME()
+                                    ) THEN 'EXPIRED'
                                WHEN r.service_type = 'ONE_OFF' AND r.funded_at IS NOT NULL
                                    THEN 'CONFIRMED'
                                WHEN r.service_type = 'MONTHLY' AND (sub.status = 'ENDED' OR (sub.current_period_end IS NOT NULL AND sub.current_period_end <= SYSUTCDATETIME()))
                                    THEN 'COMPLETED'
+                               WHEN r.service_type = 'MONTHLY' AND sub.status = 'CANCELLED'
+                                   THEN 'CANCELLED'
                                WHEN r.service_type = 'MONTHLY' AND r.funded_at IS NOT NULL
                                    THEN 'CONFIRMED'
                                ELSE r.status
@@ -368,6 +378,8 @@ public class MentorshipRequestService {
                     JOIN dbo.users mentor ON mentor.id = r.mentor_id
                     JOIN dbo.service_offerings offering ON offering.id = r.service_id
                     LEFT JOIN dbo.subscriptions sub ON sub.request_id = r.id
+                     LEFT JOIN dbo.slot_holds slot_hold
+                       ON slot_hold.id = TRY_CONVERT(BIGINT, JSON_VALUE(r.offer_snapshot, '$.slotHoldId'))
                     OUTER APPLY (
                         SELECT
                             MIN(booking_row.start_at) AS startAt,
@@ -404,7 +416,7 @@ public class MentorshipRequestService {
         long offset = (long) page * size;
 
         String sql = cte + """
-                 SELECT id, mentor_name, package_name, learning_goals, status,
+                 SELECT id, mentor_id, mentor_name, package_name, learning_goals, status,
                         submitted_at, responded_at, response_deadline, funded_at,
                         rejection_reason, payment_status, payment_expires_at
                  FROM app_rows
@@ -418,6 +430,7 @@ public class MentorshipRequestService {
         }
         List<MenteeApplicationDto> applications = template.query(sql, (rs, rowNum) -> new MenteeApplicationDto(
                 rs.getLong("id"),
+                rs.getLong("mentor_id"),
                 rs.getString("mentor_name"),
                 rs.getString("package_name"),
                 rs.getString("learning_goals"),
@@ -433,7 +446,7 @@ public class MentorshipRequestService {
     }
 
     @Transactional(readOnly = true)
-    public List<MenteeTransactionDto> getMyTransactions() {
+    public MenteeTransactionPageDto getMyTransactions(int page, int size, String status, String serviceType) {
         AuthenticatedUser user = currentUser();
         if (user == null || user.id() == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Please log in to view your transactions.");
@@ -441,7 +454,30 @@ public class MentorshipRequestService {
         if (user.roles() == null || !user.roles().contains("MENTEE")) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only mentees can view their transactions.");
         }
-        return jdbc().query("""
+        if (page < 0 || size < 1 || size > 50) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid transaction page or size.");
+        }
+        String normalizedStatus = status == null ? "" : status.trim().toUpperCase(java.util.Locale.ROOT);
+        String normalizedServiceType = serviceType == null ? "" : serviceType.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!normalizedStatus.isEmpty()
+                && !Set.of("SUCCEEDED", "PENDING", "EXPIRED", "CANCELLED", "FAILED").contains(normalizedStatus)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid payment status.");
+        }
+        if (!normalizedServiceType.isEmpty()
+                && !Set.of("MONTHLY", "ONE_OFF").contains(normalizedServiceType)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid service type.");
+        }
+        long totalElements = jdbc().queryForObject("""
+                SELECT COUNT(1)
+                FROM dbo.payments p
+                JOIN dbo.mentorship_requests r ON r.id = p.request_id
+                WHERE r.mentee_id = ?
+                  AND (? = '' OR p.status = ?)
+                  AND (? = '' OR r.service_type = ?)
+                """, Long.class, user.id(), normalizedStatus, normalizedStatus,
+                normalizedServiceType, normalizedServiceType);
+        int totalPages = totalElements == 0 ? 0 : (int) Math.ceil((double) totalElements / size);
+        List<MenteeTransactionDto> transactions = jdbc().query("""
                 SELECT p.id AS payment_id, p.request_id, mentor.full_name AS mentor_name,
                        COALESCE(JSON_VALUE(r.offer_snapshot, '$.name'), offering.name, 'Mentorship') AS package_name,
                        r.service_type, p.amount, p.currency, p.status, p.merchant_reference,
@@ -451,13 +487,18 @@ public class MentorshipRequestService {
                 JOIN dbo.users mentor ON mentor.id = r.mentor_id
                 LEFT JOIN dbo.service_offerings offering ON offering.id = r.service_id
                 WHERE r.mentee_id = ?
+                  AND (? = '' OR p.status = ?)
+                  AND (? = '' OR r.service_type = ?)
                 ORDER BY p.created_at DESC, p.id DESC
+                OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
                 """, (rs, rowNum) -> new MenteeTransactionDto(
                 rs.getLong("payment_id"), rs.getLong("request_id"), rs.getString("mentor_name"),
                 rs.getString("package_name"), rs.getString("service_type"), rs.getBigDecimal("amount"),
                 rs.getString("currency"), rs.getString("status"), rs.getString("merchant_reference"),
                 rs.getString("gateway_transaction_id"), toInstant(rs.getTimestamp("created_at")),
-                toInstant(rs.getTimestamp("paid_at"))), user.id());
+                toInstant(rs.getTimestamp("paid_at"))), user.id(), normalizedStatus, normalizedStatus,
+                normalizedServiceType, normalizedServiceType, page * size, size);
+        return new MenteeTransactionPageDto(transactions, totalElements, totalPages, page, size);
     }
 
     @Transactional
@@ -544,6 +585,7 @@ public class MentorshipRequestService {
                    r.offer_snapshot, r.funded_at, r.submitted_at,
                    mu.full_name AS mentor_name,
                    mp.job_title AS mentor_title,
+                   mp.slug AS mentor_slug,
                    so.name AS package_name,
                    so.price,
                    so.currency,
@@ -674,7 +716,9 @@ public class MentorshipRequestService {
                 toInstant(databaseNow),
                 row.get("payment_remaining_seconds") instanceof Number remaining
                         ? Math.max(0L, remaining.longValue())
-                        : null
+                        : null,
+                (String) row.get("mentor_slug"),
+                row.get("service_id") == null ? null : ((Number) row.get("service_id")).longValue()
         );
     }
 

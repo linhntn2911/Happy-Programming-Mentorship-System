@@ -26,6 +26,20 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class MentorshipWorkspaceService {
+    private static boolean isStaffOrAdmin(AuthenticatedUser user) {
+        if (user == null) return false;
+        if ("STAFF".equalsIgnoreCase(user.role()) || "ADMIN".equalsIgnoreCase(user.role())) return true;
+        if (user.roles() != null) {
+            for (String r : user.roles()) {
+                if ("STAFF".equalsIgnoreCase(r) || "ADMIN".equalsIgnoreCase(r)
+                        || "ROLE_STAFF".equalsIgnoreCase(r) || "ROLE_ADMIN".equalsIgnoreCase(r)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private static final int MESSAGE_LIMIT = 100;
     private static final long MAX_FILE_BYTES = 10L * 1024 * 1024;
     private static final Set<String> ALLOWED_FILE_TYPES = Set.of(
@@ -42,28 +56,44 @@ public class MentorshipWorkspaceService {
 
     @Transactional(readOnly = true)
     public List<MentorshipWorkspaceSummary> listMine() {
-        long userId = currentUserId();
-        return repository.findForUser(userId).stream()
-                .map(row -> toSummary(row, userId))
+        AuthenticatedUser user = currentUser();
+        boolean staff = isStaffOrAdmin(user);
+        if (staff) {
+            return repository.findDisputedWorkspaces().stream()
+                    .map(row -> toSummary(row, user))
+                    .toList();
+        }
+        return repository.findForUser(user.id()).stream()
+                .map(row -> toSummary(row, user))
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public MentorshipWorkspaceDetail get(long conversationId) {
-        long userId = currentUserId();
-        WorkspaceRow row = requireWorkspace(conversationId, userId);
+        return get(conversationId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public MentorshipWorkspaceDetail get(long conversationId, Long requestId) {
+        AuthenticatedUser user = currentUser();
+        WorkspaceRow row = requireWorkspace(conversationId, user, requestId);
         requireConversation(row);
         List<WorkspaceMessageDto> messages = repository.findLatestMessages(row.conversationId(), MESSAGE_LIMIT)
-                .stream().map(message -> toMessage(message, userId)).toList();
+                .stream().map(message -> toMessage(message, user.id())).toList();
         List<WorkspaceOneOffBookingDto> oneOffSessions = repository.findOneOffBookings(row.conversationId())
                 .stream().map(MentorshipWorkspaceService::toOneOffBooking).toList();
-        return toDetail(row, userId, oneOffSessions, messages);
+        return toDetail(row, user, oneOffSessions, messages);
     }
 
     @Transactional
     public WorkspaceMessageDto send(long conversationId, SendWorkspaceMessageRequest request) {
-        long userId = currentUserId();
-        WorkspaceRow row = requireWorkspace(conversationId, userId);
+        AuthenticatedUser user = currentUser();
+        if (isStaffOrAdmin(user)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Staff is only authorized to monitor dispute mediation and cannot post messages.");
+        }
+        long userId = user.id();
+        WorkspaceRow row = requireWorkspace(conversationId, user);
         requireConversation(row);
 
         String body = request.body().trim();
@@ -90,8 +120,13 @@ public class MentorshipWorkspaceService {
 
     @Transactional
     public WorkspaceMessageDto upload(long conversationId, String clientMessageKey, MultipartFile file) {
-        long userId = currentUserId();
-        WorkspaceRow row = requireWorkspace(conversationId, userId);
+        AuthenticatedUser user = currentUser();
+        if (isStaffOrAdmin(user)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Staff is only authorized to monitor dispute mediation and cannot upload files.");
+        }
+        long userId = user.id();
+        WorkspaceRow row = requireWorkspace(conversationId, user);
         requireConversation(row);
         String clientKey = requiredClientKey(clientMessageKey);
 
@@ -121,8 +156,8 @@ public class MentorshipWorkspaceService {
 
     @Transactional(readOnly = true)
     public WorkspaceFileDownload download(long conversationId, long messageId) {
-        long userId = currentUserId();
-        WorkspaceRow row = requireWorkspace(conversationId, userId);
+        AuthenticatedUser user = currentUser();
+        WorkspaceRow row = requireWorkspace(conversationId, user);
         requireConversation(row);
         if (messageId <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid workspace file.");
@@ -134,20 +169,36 @@ public class MentorshipWorkspaceService {
 
     @Transactional
     public void markRead(long conversationId) {
-        long userId = currentUserId();
-        WorkspaceRow row = requireWorkspace(conversationId, userId);
+        AuthenticatedUser user = currentUser();
+        WorkspaceRow row = requireWorkspace(conversationId, user);
         requireConversation(row);
-        repository.markRead(row.conversationId(), userId, row.mentorId() == userId);
+        if (row.mentorId() == user.id() || row.menteeId() == user.id()) {
+            repository.markRead(row.conversationId(), user.id(), row.mentorId() == user.id());
+        }
     }
 
-    private WorkspaceRow requireWorkspace(long conversationId, long userId) {
+    private WorkspaceRow requireWorkspace(long conversationId, AuthenticatedUser user) {
+        return requireWorkspace(conversationId, user, null);
+    }
+
+    private WorkspaceRow requireWorkspace(
+            long conversationId, AuthenticatedUser user, Long requestId) {
         if (conversationId <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid mentorship workspace.");
         }
-        WorkspaceRow row = repository.findAccessibleByConversationId(conversationId)
+        WorkspaceRow row = (requestId != null && requestId > 0
+                ? repository.findAccessibleByConversationIdAndRequestId(conversationId, requestId)
+                : repository.findAccessibleByConversationId(conversationId))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Active mentorship workspace not found."));
-        if (row.mentorId() != userId && row.menteeId() != userId) {
+        long userId = user.id();
+        boolean staff = isStaffOrAdmin(user);
+        if (staff) {
+            if (!"MEDIATION".equalsIgnoreCase(row.conversationType())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        "Staff is only authorized to access conversations involved in dispute mediation.");
+            }
+        } else if (row.mentorId() != userId && row.menteeId() != userId) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                     "You are not a member of this mentorship workspace.");
         }
@@ -161,46 +212,64 @@ public class MentorshipWorkspaceService {
         }
     }
 
-    private MentorshipWorkspaceSummary toSummary(WorkspaceRow row, long userId) {
+    private MentorshipWorkspaceSummary toSummary(WorkspaceRow row, AuthenticatedUser user) {
+        long userId = user.id();
         boolean mentor = row.mentorId() == userId;
+        boolean mentee = row.menteeId() == userId;
+        boolean staff = isStaffOrAdmin(user);
+
+        String partnerName = mentor ? row.menteeName() : (mentee ? row.mentorName() : row.menteeName() + " (Mentee) & " + row.mentorName() + " (Mentor)");
+        String partnerRole = mentor ? "MENTOR" : (mentee ? "MENTEE" : "STAFF");
+        Long partnerId = mentor ? row.menteeId() : row.mentorId();
+        long unread = staff && !mentor && !mentee ? 0L : repository.countUnread(row.conversationId(), userId);
+
+        boolean isMediation = "MEDIATION".equalsIgnoreCase(row.conversationType());
+
         return new MentorshipWorkspaceSummary(
                 row.conversationId(), row.conversationId(), row.subscriptionId(), row.requestId(),
-                mentor ? row.menteeId() : row.mentorId(),
-                mentor ? row.menteeName() : row.mentorName(),
-                mentor ? "MENTOR" : "MENTEE",
+                partnerId, partnerName, partnerRole,
                 row.packageName(), row.subscriptionStatus(),
                 row.currentPeriodStart(), row.currentPeriodEnd(),
                 row.callsPerPeriod(), row.sessionDurationMinutes(),
                 row.hasMonthly(), row.oneOffSessionCount(), row.upcomingSessionCount(), row.nextSessionAt(),
-                repository.countUnread(row.conversationId(), userId));
+                unread, isMediation, row.disputeTicketCode(), row.assignedStaffName());
     }
 
     private static MentorshipWorkspaceDetail toDetail(
-            WorkspaceRow row, long userId, List<WorkspaceOneOffBookingDto> oneOffSessions,
+            WorkspaceRow row, AuthenticatedUser user, List<WorkspaceOneOffBookingDto> oneOffSessions,
             List<WorkspaceMessageDto> messages) {
+        long userId = user.id();
         boolean mentor = row.mentorId() == userId;
+        boolean mentee = row.menteeId() == userId;
+        String partnerName = mentor ? row.menteeName() : (mentee ? row.mentorName() : row.menteeName() + " (Mentee) & " + row.mentorName() + " (Mentor)");
+        String partnerRole = mentor ? "MENTOR" : (mentee ? "MENTEE" : "STAFF");
+        Long partnerId = mentor ? row.menteeId() : row.mentorId();
+
+        boolean isMediation = "MEDIATION".equalsIgnoreCase(row.conversationType());
+
         return new MentorshipWorkspaceDetail(
                 row.conversationId(), row.conversationId(), row.subscriptionId(), row.requestId(),
                 row.mentorId(), row.mentorName(), row.menteeId(), row.menteeName(),
-                mentor ? row.menteeId() : row.mentorId(),
-                mentor ? row.menteeName() : row.mentorName(),
-                mentor ? "MENTOR" : "MENTEE",
+                partnerId,
+                partnerName,
+                partnerRole,
                 row.packageName(), row.subscriptionStatus(),
                 row.currentPeriodStart(), row.currentPeriodEnd(),
                 row.callsPerPeriod(), row.sessionDurationMinutes(),
-                row.learningGoals(), row.hasMonthly(), oneOffSessions, messages);
+                row.learningGoals(), row.hasMonthly(), oneOffSessions, messages,
+                isMediation, row.disputeTicketCode(), row.assignedStaffName());
     }
 
     private static WorkspaceOneOffBookingDto toOneOffBooking(OneOffBookingRow row) {
         return new WorkspaceOneOffBookingDto(
-                row.id(), row.bookingCode(), row.serviceId(), row.sessionName(), row.agenda(),
+                row.id(), row.requestId(), row.bookingCode(), row.serviceId(), row.sessionName(), row.agenda(),
                 row.startAt(), row.endAt(), row.price(), row.currency(), row.status(), row.participants(),
                 row.reviewId(), row.reviewRating(), row.reviewComment());
     }
 
     private static WorkspaceMessageDto toMessage(MessageRow row, long userId) {
         return new WorkspaceMessageDto(
-                row.id(), row.senderId(), row.senderName(), row.messageType(),
+                row.id(), row.senderId(), row.senderName(), row.senderRole(), row.messageType(),
                 row.body(), row.codeLanguage(), row.sentAt(), row.senderId() == userId,
                 row.fileId(), row.fileName(), row.fileMimeType(), row.fileSizeBytes());
     }
@@ -233,11 +302,15 @@ public class MentorshipWorkspaceService {
         return value.trim();
     }
 
-    private static long currentUserId() {
+    private static AuthenticatedUser currentUser() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.getPrincipal() instanceof AuthenticatedUser user
-                && user.id() != null) return user.id();
+                && user.id() != null) return user;
         throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
                 "Please log in to open your mentorship workspace.");
+    }
+
+    private static long currentUserId() {
+        return currentUser().id();
     }
 }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MentorRequestsPage } from './MentorRequestsPage.js';
+import { canOpenBookingWorkspace, filterMentorBookings, MentorRequestsPage } from './MentorRequestsPage.js';
 
 test('bookings page combines monthly applications and one-off session controls', () => {
   const markup = MentorRequestsPage();
@@ -26,7 +26,42 @@ test('bookings page combines monthly applications and one-off session controls',
   assert.match(markup, /id="requests-error" class="admin-notice notice-error mb-5"/);
   assert.match(markup, /data-dialog-action="ACCEPTED"/);
   assert.match(markup, /data-dialog-action="REJECTED"/);
+  assert.match(markup, /id="request-dialog-workspace"/);
   assert.doesNotMatch(markup, /absolute top-0 left-0/);
   // Rows are populated at runtime; the static shell must not bake in inline Accept/Reject buttons.
   assert.doesNotMatch(markup, /data-details-id/);
+});
+
+test('paid or completed bookings can open their learning workspace', () => {
+  assert.equal(canOpenBookingWorkspace({ lifecycleStatus: 'ACTIVE' }), true);
+  assert.equal(canOpenBookingWorkspace({ lifecycleStatus: 'CONFIRMED' }), true);
+  assert.equal(canOpenBookingWorkspace({ lifecycleStatus: 'COMPLETED' }), true);
+  assert.equal(canOpenBookingWorkspace({ lifecycleStatus: 'AWAITING_PAYMENT' }), false);
+  assert.equal(canOpenBookingWorkspace({ lifecycleStatus: 'REJECTED' }), false);
+});
+
+test('booking filters return loaded bookings without relying on an undefined request list', () => {
+  const bookings = [
+    {
+      id: 11,
+      menteeName: 'Nguyen Van An',
+      packageName: 'Lite',
+      serviceType: 'MONTHLY',
+      status: 'PENDING',
+    },
+    {
+      id: 12,
+      menteeName: 'Tran Linh',
+      packageName: 'Code Review',
+      serviceType: 'ONE_OFF',
+      lifecycleStatus: 'CONFIRMED',
+    },
+  ];
+
+  assert.deepEqual(filterMentorBookings(bookings), bookings);
+  assert.deepEqual(
+    filterMentorBookings(bookings, { query: 'tran linh', status: 'CONFIRMED', type: 'ONE_OFF' }),
+    [bookings[1]],
+  );
+  assert.deepEqual(filterMentorBookings(undefined), []);
 });

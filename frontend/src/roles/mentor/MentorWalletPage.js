@@ -2,11 +2,13 @@ import { apiClient } from '../../shared/apiClient.js';
 import { MentorLayout, bindMentorLayout } from './MentorLayout.js';
 import { authService } from '../auth/authService.js';
 import { mentorWalletService } from './mentorWalletService.js';
+import { renderPagination, bindPagination } from '../../shared/pagination.js';
 import { escapeHtml as e } from '../../shared/html.js';
 import { StatusBadge } from '../admin/AdminPrimitives.js';
 
 const money = value => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Number(value || 0)) + ' VND';
 const dateTime = value => value ? new Date(value).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }) + ' UTC' : '—';
+const TABLE_PAGE_SIZE = 8;
 
 function walletContent() {
   return `
@@ -21,10 +23,12 @@ function walletContent() {
           <section class="admin-panel" aria-labelledby="wallet-history-title">
             <div class="admin-panel-heading"><div><p class="eyebrow mb-2">ACCOUNTING</p><h2 id="wallet-history-title">Wallet activity</h2><p>Each release and payout is recorded in the payment ledger.</p></div></div>
             <div id="wallet-entries" class="admin-panel-body"></div>
+            <div id="wallet-entries-pagination" class="admin-panel-body pt-0"></div>
           </section>
           <section class="admin-panel" aria-labelledby="payout-history-title">
             <div class="admin-panel-heading"><div><p class="eyebrow mb-2">HISTORY</p><h2 id="payout-history-title">Payout requests</h2></div></div>
             <div id="payout-history" class="admin-panel-body"></div>
+            <div id="payout-history-pagination" class="admin-panel-body pt-0"></div>
           </section>
         </div>
         <div class="space-y-5">
@@ -100,9 +104,32 @@ function renderEntries(entries = []) {
   return `<div class="data-table-scroll"><table class="data-table"><thead><tr><th>Activity</th><th>Amount</th><th>Reference</th><th>Date (UTC)</th></tr></thead><tbody>${entries.map(entry => `<tr><td>${e(entry.type.replaceAll('_', ' '))}</td><td>${money(entry.amount)}</td><td>${e(entry.reference)}</td><td>${e(dateTime(entry.createdAt))}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
-function renderPayouts(requests = []) {
+const PAYOUT_STATUS_LABELS = { REQUESTED: 'Pending review', APPROVED: 'Approved', PAID: 'Paid', REJECTED: 'Rejected' };
+const PAYOUT_STATUS_TONES = { REQUESTED: 'warning', APPROVED: 'neutral', PAID: 'success', REJECTED: 'danger' };
+
+function payoutStatusBadge(status) {
+  const tone = PAYOUT_STATUS_TONES[status] || 'neutral';
+  const label = PAYOUT_STATUS_LABELS[status] || status || 'Unknown';
+  return `<span class="status-badge status-${tone}"><span aria-hidden="true">●</span> ${e(label)}</span>`;
+}
+
+function payoutReceipt(receiptUrl) {
+  if (!receiptUrl || !/^https?:\/\//i.test(receiptUrl)) return '<span class="text-muted">—</span>';
+  return `<a class="font-semibold text-brand underline" href="${e(receiptUrl)}" target="_blank" rel="noopener noreferrer">View receipt</a>`;
+}
+
+export function renderPayouts(requests = []) {
   if (!requests.length) return '<p class="text-sm text-muted">No payout requests yet.</p>';
-  return `<div class="data-table-scroll"><table class="data-table"><thead><tr><th>Requested</th><th>Amount</th><th>Destination</th><th>Status</th><th>Transfer / note</th></tr></thead><tbody>${requests.map(item => `<tr><td>${e(dateTime(item.requestedAt))}</td><td>${money(item.amount)}<small class="block text-muted">Fee: ${money(item.feeAmount)} · Net: ${money(item.netAmount ?? item.amount)}</small></td><td>${e(item.bankName)} ···· ${e(item.accountLast4)}</td><td>${StatusBadge(item.status)}${item.status === 'REQUESTED' ? '<small class="block text-muted">Under review by staff</small>' : item.status === 'APPROVED' ? '<small class="block text-brand">Approved by staff · awaiting transfer</small>' : ''}</td><td>${e(item.transferReference || item.rejectionReason || '—')}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<div class="data-table-scroll"><table class="data-table"><thead><tr><th>Requested</th><th>Amount</th><th>Destination</th><th>Status</th><th>Transfer / note</th><th>Receipt</th></tr></thead><tbody>${requests.map(item => {
+    const feeText = item.feeAmount != null ? `<small class="block text-muted">Fee: ${money(item.feeAmount)} · Net: ${money(item.netAmount ?? item.amount)}</small>` : '';
+    const reviewNote = item.status === 'REQUESTED' ? '<small class="block text-muted">Under review by staff</small>' : item.status === 'APPROVED' ? '<small class="block text-brand">Approved by staff · awaiting transfer</small>' : '';
+    const receiptCell = item.receiptUrl && /^https?:\/\//i.test(item.receiptUrl)
+      ? payoutReceipt(item.receiptUrl)
+      : item.receiptFileId
+      ? `<a class="font-semibold text-brand underline" href="/api/mentors/me/payout-requests/${e(item.id)}/receipt" target="_blank" rel="noopener noreferrer">View receipt</a>`
+      : '<span class="text-muted">—</span>';
+    return `<tr><td>${e(dateTime(item.requestedAt))}</td><td>${money(item.amount)}${feeText}</td><td>${e(item.bankName)} ···· ${e(item.accountLast4)}</td><td>${payoutStatusBadge(item.status)}${reviewNote}</td><td>${e(item.transferReference || item.rejectionReason || '—')}</td><td>${receiptCell}</td></tr>`;
+  }).join('')}</tbody></table></div>`;
 }
 
 export function MentorWalletPage() {
@@ -133,6 +160,10 @@ export function initializeMentorWalletPage(root) {
   const otpClose = shell.querySelector('#payout-otp-close');
   const otpSummary = shell.querySelector('#payout-otp-summary');
   const otpMessage = shell.querySelector('#payout-otp-message');
+  const entriesEl = shell.querySelector('#wallet-entries');
+  const entriesPag = shell.querySelector('#wallet-entries-pagination');
+  const payoutsEl = shell.querySelector('#payout-history');
+  const payoutsPag = shell.querySelector('#payout-history-pagination');
 
   let currentWallet = null;
   let savedBank = null;
@@ -151,8 +182,28 @@ export function initializeMentorWalletPage(root) {
     updateResend();
   }
   let operations = null;
+  let entriesPage = 1;
+  let payoutsPage = 1;
   let toastTimer;
   let disposed = false;
+
+  function drawEntries() {
+    const entries = currentWallet?.entries || [];
+    const totalPages = Math.max(1, Math.ceil(entries.length / TABLE_PAGE_SIZE));
+    entriesPage = Math.min(Math.max(1, entriesPage), totalPages);
+    const slice = entries.slice((entriesPage - 1) * TABLE_PAGE_SIZE, entriesPage * TABLE_PAGE_SIZE);
+    entriesEl.innerHTML = renderEntries(slice);
+    entriesPag.innerHTML = renderPagination({ page: entriesPage, totalPages, label: 'Wallet activity pages' });
+  }
+
+  function drawPayouts() {
+    const requests = currentWallet?.payoutRequests || [];
+    const totalPages = Math.max(1, Math.ceil(requests.length / TABLE_PAGE_SIZE));
+    payoutsPage = Math.min(Math.max(1, payoutsPage), totalPages);
+    const slice = requests.slice((payoutsPage - 1) * TABLE_PAGE_SIZE, payoutsPage * TABLE_PAGE_SIZE);
+    payoutsEl.innerHTML = renderPayouts(slice);
+    payoutsPag.innerHTML = renderPagination({ page: payoutsPage, totalPages, label: 'Payout request pages' });
+  }
 
   function showToast(text) {
     const toast = shell.querySelector('#toast') || document.querySelector('#toast');
@@ -207,8 +258,8 @@ export function initializeMentorWalletPage(root) {
       operations = config;
       savedBank = bank;
       shell.querySelector('#wallet-stats').innerHTML = renderStats(wallet);
-      shell.querySelector('#wallet-entries').innerHTML = renderEntries(wallet.entries);
-      shell.querySelector('#payout-history').innerHTML = renderPayouts(wallet.payoutRequests);
+      drawEntries();
+      drawPayouts();
       renderBank();
       content.hidden = false;
     } catch (loadError) {
@@ -327,6 +378,8 @@ export function initializeMentorWalletPage(root) {
   otpResend.addEventListener('click', resendOtp);
   otpClose.addEventListener('click', closeDialog);
   dialog.addEventListener('click', event => { if (event.target === dialog) closeDialog(); });
+  const unbindEntriesPag = bindPagination(entriesPag, { onChange: next => { entriesPage = next; drawEntries(); } });
+  const unbindPayoutsPag = bindPagination(payoutsPag, { onChange: next => { payoutsPage = next; drawPayouts(); } });
   void load();
 
   return () => {
@@ -339,6 +392,8 @@ export function initializeMentorWalletPage(root) {
     otpForm.removeEventListener('submit', confirmPayout);
     otpResend.removeEventListener('click', resendOtp);
     otpClose.removeEventListener('click', closeDialog);
+    unbindEntriesPag();
+    unbindPayoutsPag();
     if (dialog.open) dialog.close();
     unbind();
   };

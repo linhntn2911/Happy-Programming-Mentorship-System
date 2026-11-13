@@ -1,4 +1,5 @@
 import { mentorDashboardService } from './mentorDashboardService.js';
+import { renderPagination, bindPagination } from '../../shared/pagination.js';
 import {
   formatSlaRemaining,
   formatUtcDate,
@@ -8,6 +9,29 @@ import { MentorLayout, bindMentorLayout } from './MentorLayout.js';
 import { authService } from '../auth/authService.js';
 
 const normalize = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLowerCase().trim();
+
+const REQUESTS_PAGE_SIZE = 8;
+
+export function filterMentorBookings(requests, { query = '', status = 'ALL', type = 'ALL' } = {}) {
+  const normalizedQuery = normalize(query);
+  return (Array.isArray(requests) ? requests : []).filter(request => {
+    const bookingStatus = request.lifecycleStatus || request.status;
+    const statusMatch = status === 'ALL' || bookingStatus === status;
+    const typeMatch = type === 'ALL' || request.serviceType === type;
+    if (!statusMatch || !typeMatch) return false;
+    if (!normalizedQuery) return true;
+    const searchableText = normalize([
+      request.menteeName,
+      request.menteeEmail,
+      request.packageName,
+      request.learningGoals,
+      request.learningGoalsSummary,
+      `#${request.id}`,
+      request.id,
+    ].join(' '));
+    return searchableText.includes(normalizedQuery);
+  });
+}
 
 export function MentorRequestsPage() {
   return MentorLayout(`
@@ -78,6 +102,7 @@ export function MentorRequestsPage() {
       </table>
     </div>
     <div id="requests-cards" class="grid gap-3 p-4 md:hidden"></div>
+    <div id="requests-pagination"></div>
   </div>
 
   <div id="request-dialog-overlay" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
@@ -100,6 +125,7 @@ export function MentorRequestsPage() {
       <div class="flex flex-col-reverse gap-3 border-t border-line p-6 sm:flex-row sm:items-center sm:justify-between">
         <button type="button" data-close-dialog class="btn btn-outline">Close</button>
         <div class="flex flex-col-reverse gap-3 sm:flex-row">
+          <a id="request-dialog-workspace" class="btn btn-primary" href="#/workspace" hidden>Open workspace</a>
           <button type="button" id="request-dialog-reject" data-dialog-action="REJECTED" class="btn btn-outline">Decline request</button>
           <button type="button" id="request-dialog-accept" data-dialog-action="ACCEPTED" class="btn btn-primary">Accept request</button>
         </div>
@@ -155,6 +181,11 @@ const REQUEST_STATUS_STYLES = {
   EXPIRED: 'status-neutral',
   CANCELLED: 'status-neutral',
 };
+
+export function canOpenBookingWorkspace(request) {
+  const status = String(request?.lifecycleStatus || request?.status || '').toUpperCase();
+  return ['ACTIVE', 'UPCOMING', 'CONFIRMED', 'COMPLETED', 'NO_SHOW'].includes(status);
+}
 
 function createStatusElement(request) {
   const status = request.lifecycleStatus || request.status || 'UNKNOWN';
@@ -286,6 +317,7 @@ export function initializeMentorRequestsPage() {
   const typeFilter = root.querySelector('#request-type-filter');
   const requestCount = root.querySelector('#requests-count');
   const empty = root.querySelector('#requests-empty');
+  const requestsPagination = root.querySelector('#requests-pagination');
   const dialog = root.querySelector('#request-dialog');
   const dialogOverlay = root.querySelector('#request-dialog-overlay');
   const acceptButton = root.querySelector('#request-dialog-accept');
@@ -294,6 +326,7 @@ export function initializeMentorRequestsPage() {
   const requestsById = new Map();
   let allRequests = [];
   let activeRequestId = null;
+  let requestsPage = 1;
   let busy = false;
   let disposed = false;
   let actionStatusTimer;
@@ -341,7 +374,11 @@ export function initializeMentorRequestsPage() {
     for (const request of requests) {
       requestsById.set(String(request.id), request);
     }
-    renderRows(root, requests);
+    const totalPages = Math.max(1, Math.ceil(requests.length / REQUESTS_PAGE_SIZE));
+    requestsPage = Math.min(Math.max(1, requestsPage), totalPages);
+    const start = (requestsPage - 1) * REQUESTS_PAGE_SIZE;
+    renderRows(root, requests.slice(start, start + REQUESTS_PAGE_SIZE));
+    requestsPagination.innerHTML = renderPagination({ page: requestsPage, totalPages, label: 'Request pages' });
     requestCount.textContent = `${requests.length} booking${requests.length === 1 ? '' : 's'}`;
     empty.textContent = (statusFilter.value === "ALL" && (!searchInput || !searchInput.value.trim()))
       ? "No bookings have been created yet."
@@ -349,26 +386,17 @@ export function initializeMentorRequestsPage() {
     updateSlaTimers();
   }
 
-  function applyStatusFilter() {
-    const query = normalize(searchInput?.value || "");
-    const requests = allRequests.filter(request => {
-      const status = request.lifecycleStatus || request.status;
-      const statusMatch = statusFilter.value === "ALL" || status === statusFilter.value;
-      const typeMatch = typeFilter.value === "ALL" || request.serviceType === typeFilter.value;
-      if (!statusMatch || !typeMatch) return false;
-      if (!query) return true;
-      const text = normalize([
-        request.menteeName,
-        request.menteeEmail,
-        request.packageName,
-        request.learningGoals,
-        request.learningGoalsSummary,
-        "#" + request.id,
-        request.id
-      ].join(" "));
-      return text.includes(query);
+  function getFilteredRequests() {
+    return filterMentorBookings(allRequests, {
+      query: searchInput?.value || '',
+      status: statusFilter.value,
+      type: typeFilter.value,
     });
-    applyRequests(requests);
+  }
+
+  function applyStatusFilter() {
+    requestsPage = 1;
+    applyRequests(getFilteredRequests());
   }
 
   async function loadRequests({ background = false } = {}) {
@@ -425,6 +453,12 @@ export function initializeMentorRequestsPage() {
     const actionable = isActionable(request);
     rejectButton.hidden = !actionable;
     acceptButton.hidden = !actionable;
+    const workspaceButton = root.querySelector('#request-dialog-workspace');
+    const workspaceAvailable = canOpenBookingWorkspace(request);
+    workspaceButton.hidden = !workspaceAvailable;
+    workspaceButton.href = workspaceAvailable
+      ? `#/workspace?requestId=${encodeURIComponent(request.id)}&partnerId=${encodeURIComponent(request.menteeId || '')}`
+      : '#/workspace';
     setDialogButtonsEnabled(actionable);
     dialogOverlay.classList.remove('hidden');
     dialogOverlay.classList.add('flex');
@@ -507,6 +541,12 @@ export function initializeMentorRequestsPage() {
   searchInput?.addEventListener('input', applyStatusFilter);
   statusFilter.addEventListener('change', applyStatusFilter);
   typeFilter.addEventListener('change', applyStatusFilter);
+  const unbindPagination = bindPagination(requestsPagination, {
+    onChange: next => {
+      requestsPage = next;
+      applyRequests(getFilteredRequests());
+    },
+  });
   root.addEventListener('click', handleClick);
   dialogOverlay.addEventListener('click', handleDialogClick);
   window.addEventListener('keydown', handleKeydown);
@@ -526,5 +566,6 @@ export function initializeMentorRequestsPage() {
     typeFilter.removeEventListener('change', applyStatusFilter);
     root.removeEventListener('click', handleClick);
     dialogOverlay.removeEventListener('click', handleDialogClick);
+    unbindPagination();
   };
 }

@@ -6,6 +6,7 @@ import { mentorService } from '../../shared/mentorService.js';
 import { authService } from '../auth/authService.js';
 import { renderUserDropdown, bindUserDropdown, renderNotificationBell } from '../../shared/Header.js';
 import { filterSavedMentors } from './wishlistFilters.js';
+import { bindPagination, paginateItems, renderPagination } from '../../shared/pagination.js';
 
 const esc = value => String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
 const toDirectoryMentor = (mentor, index) => ({
@@ -53,19 +54,25 @@ export async function mountWishlist(root) {
     const sort = state.querySelector('#wishlist-sort');
     const results = state.querySelector('#wishlist-results');
     const count = state.querySelector('#wishlist-count');
+    let page = 1;
+    let unbindPagination = () => {};
     const renderResults = () => {
       const visible = filterSavedMentors(savedMentors, { query: search.value, skill: skill.value, sort: sort.value });
+      const pagination = paginateItems(visible, page);
+      page = pagination.page;
       count.textContent = `${visible.length} of ${savedMentors.length} saved mentor${savedMentors.length === 1 ? '' : 's'}`;
-      results.innerHTML = visible.length ? visible.map(DirectoryMentorCard).join('') : '<div class="directory-message"><h2>No matching mentors</h2><p>Try another name or skill.</p><button type="button" id="wishlist-clear-filters" class="btn btn-outline btn-sm mt-5">Clear filters</button></div>';
+      results.innerHTML = visible.length ? `${pagination.items.map(DirectoryMentorCard).join('')}<div data-wishlist-pagination>${renderPagination({ page, totalPages: pagination.totalPages, label: 'Saved mentor pages' })}</div>` : '<div class="directory-message"><h2>No matching mentors</h2><p>Try another name or skill.</p><button type="button" id="wishlist-clear-filters" class="btn btn-outline btn-sm mt-5">Clear filters</button></div>';
+      unbindPagination();
+      unbindPagination = bindPagination(results.querySelector('[data-wishlist-pagination]'), { onChange: nextPage => { page = nextPage; renderResults(); } });
       results.querySelectorAll('[data-save]').forEach(button => {
         const card = button.closest('[data-mentor-id]');
         button.setAttribute('aria-pressed', 'true');
         button.setAttribute('aria-label', `Remove ${card?.dataset.name || 'mentor'} from wishlist`);
       });
     };
-    [search, skill, sort].forEach(control => control.addEventListener(control === search ? 'input' : 'change', renderResults));
+    [search, skill, sort].forEach(control => control.addEventListener(control === search ? 'input' : 'change', () => { page = 1; renderResults(); }));
     results.addEventListener('click', async event => {
-      if (event.target.closest('#wishlist-clear-filters')) { search.value = ''; skill.value = ''; sort.value = 'recent'; renderResults(); return; }
+      if (event.target.closest('#wishlist-clear-filters')) { search.value = ''; skill.value = ''; sort.value = 'recent'; page = 1; renderResults(); return; }
       const button = event.target.closest('[data-save]');
       if (!button) return;
       const slug = button.closest('[data-mentor-id]')?.dataset.mentorId;

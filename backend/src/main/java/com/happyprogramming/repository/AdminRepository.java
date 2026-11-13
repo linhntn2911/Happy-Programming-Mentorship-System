@@ -108,16 +108,19 @@ public class AdminRepository {
         jdbc.update("INSERT INTO dbo.audit_logs(actor_id,action,entity_type,entity_id,old_values,new_values,reason,ip_address) VALUES(?,?,?,?,?,?,?,?)", actor, action, entity, id, serialize(before), serialize(after), reason, ip);
     }
     private String serialize(Object value) {
-        if (value == null) {
-            return null;
-        }
+        if (value == null) return null;
         try {
-            String raw = json.writeValueAsString(value);
-            String trimmed = raw.trim();
-            if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
-                return trimmed;
+            if (value instanceof String s) {
+                String trimmed = s.trim();
+                if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+                    return trimmed;
+                }
+                return json.writeValueAsString(java.util.Map.of("status", s));
             }
-            return json.writeValueAsString(java.util.Map.of("value", value));
+            if (value instanceof Number || value instanceof Boolean) {
+                return json.writeValueAsString(java.util.Map.of("value", value));
+            }
+            return json.writeValueAsString(value);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Cannot record administration change", e);
         }

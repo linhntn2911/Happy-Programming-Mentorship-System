@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { checkoutFacts, checkoutPaymentState, countdownRemainingSeconds } from './CheckoutPage.js';
+import {
+  checkoutFacts,
+  checkoutPaymentState,
+  countdownRemainingSeconds,
+  oneOffSessionSelectionUrl,
+} from './CheckoutPage.js';
 
 test('one-off checkout facts never render monthly billing fields', () => {
   const markup = checkoutFacts({
@@ -42,4 +47,11 @@ test('expired monthly payment can generate a new QR while an expired one-off req
   assert.equal(monthly.expired, true);
   assert.equal(monthly.hasActiveAttempt, false);
   assert.equal(oneOff.expired, true);
+});
+
+test('expired one-off checkout returns to the same mentor offering', () => {
+  assert.equal(
+    oneOffSessionSelectionUrl({ mentorId: 42, mentorSlug: 'linh-nguyen', serviceOfferingId: 17 }),
+    '#/mentors/linh-nguyen/sessions?offeringId=17',
+  );
 });

@@ -13,6 +13,9 @@ export const menteeDisputesService = {
   evidenceUrl(disputeId, evidenceId) {
     return `/api/disputes/${encodeURIComponent(disputeId)}/evidence/${encodeURIComponent(evidenceId)}`;
   },
+  receiptUrl(disputeId) {
+    return `/api/disputes/${encodeURIComponent(disputeId)}/receipt`;
+  },
   targetByRequest(requestId) {
     return apiClient(`/api/disputes/target-by-request/${encodeURIComponent(requestId)}`, { cache: 'no-store' });
   },

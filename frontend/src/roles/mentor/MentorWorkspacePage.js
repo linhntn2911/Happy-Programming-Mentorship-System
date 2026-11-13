@@ -83,6 +83,8 @@ export function upcomingOpenSlots(slots, now = Date.now()) {
   });
 }
 
+export const isMonthlyPlanActive = plan => plan?.status === 'ACTIVE';
+
 function tierCard({ tier, label, blurb }) {
   const key = tier.toLowerCase();
   return `
@@ -247,7 +249,7 @@ function initializeMentorPackages(root) {
     );
     cards.forEach(card => {
       const plan = byTier.get(card.tier);
-      card.active.checked = Boolean(plan);
+      card.active.checked = isMonthlyPlanActive(plan);
       card.price.value = plan?.price ?? '';
       card.calls.value = plan?.callsPerPeriod ?? '';
       card.minutes.value = plan?.sessionDurationMinutes ?? '';

@@ -9,7 +9,7 @@ import { StaffMentorsPage } from './StaffMentorsPage.js';
 import { StaffMenteesPage } from './StaffMenteesPage.js';
 import { StaffSkillsPage } from './StaffSkillsPage.js';
 import { StaffPayoutsPage } from './StaffPayoutsPage.js';
-import { StaffReportsPage, disputeStatusBadge } from './StaffReportsPage.js';
+import { StaffReportsPage } from './StaffReportsPage.js';
 import { StaffAccessDeniedPage } from './StaffAccessDeniedPage.js';
 import { staffService } from './staffService.js';
 import { authService } from '../auth/authService.js';
@@ -19,19 +19,11 @@ import { Dialog } from '../../shared/Dialog.js';
 import { StatusBadge, Notice } from '../admin/AdminPrimitives.js';
 import { money, dateTime } from '../admin/admin.js';
 import { buildVietQrUrl } from './vietQrHelper.js';
+import { bindPagination, paginateItems, renderPagination } from '../../shared/pagination.js';
 
-let cachedStaffAccess = null;
-let staffAccessTimestamp = 0;
-const ACCESS_CACHE_TTL_MS = 30_000;
-
-async function checkStaffAccess(root, forceRefresh = false) {
+async function checkStaffAccess(root) {
   try {
-    const now = Date.now();
-    if (forceRefresh || !cachedStaffAccess || (now - staffAccessTimestamp > ACCESS_CACHE_TTL_MS)) {
-      cachedStaffAccess = await staffService.access();
-      staffAccessTimestamp = now;
-    }
-    const { user, permissions } = cachedStaffAccess;
+    const { user, permissions } = await staffService.access();
     const section = location.hash.split('/')[2];
     const needed = { 'mentor-applications':'MENTOR_APPLICATION_MANAGE', applications:'MENTOR_APPLICATION_MANAGE',
       mentors:'MENTOR_APPLICATION_MANAGE', mentees:'MENTEE_MANAGE', requests:'MENTORSHIP_REQUEST_MANAGE', skills:'SKILL_MANAGE' }[section];
@@ -40,11 +32,7 @@ async function checkStaffAccess(root, forceRefresh = false) {
       return null;
     }
     return user;
-  } catch (error) {
-    cachedStaffAccess = null;
-    staffError(root, error);
-    return null;
-  }
+  } catch (error) { staffError(root,error); return null; }
 }
 
 function staffError(root,error) {
@@ -62,7 +50,6 @@ function staffError(root,error) {
 function bindStaffGlobalEvents(root) {
   // Bind Logout button in staff topbar
   root.querySelector('#staff-logout-btn')?.addEventListener('click', async () => {
-    cachedStaffAccess = null;
     try { await authService.logout(); window.location.hash = '#/login'; }
     catch (err) { staffError(root,err); }
   });
@@ -107,15 +94,20 @@ export async function mountStaffApplications(root, initialTab = 'PENDING') {
 
   let activeTab = initialTab;
   let applications = [];
+  let page = 1;
 
   const render = () => {
-    root.innerHTML = StaffApplicationsPage(applications, activeTab, user);
+    const matchingCount = activeTab === 'ALL' ? applications.length : applications.filter(app => app.status === activeTab).length;
+    page = Math.min(page, Math.max(1, Math.ceil(matchingCount / 10)));
+    root.innerHTML = StaffApplicationsPage(applications, activeTab, user, page);
     bindStaffGlobalEvents(root);
+    bindPagination(root.querySelector('[data-staff-app-pagination]'), { onChange: nextPage => { page = nextPage; render(); } });
 
     // Tab switching
     root.querySelectorAll('[data-app-tab]').forEach(btn => {
       btn.addEventListener('click', () => {
         activeTab = btn.dataset.appTab;
+        page = 1;
         render();
       });
     });
@@ -268,6 +260,7 @@ export async function mountStaffMentors(root) {
     const skillFilter = root.querySelector('#mentor-skill-filter');
     const statusFilter = root.querySelector('#mentor-status-filter');
     const container = root.querySelector('#mentor-table-container');
+    let page = 1;
 
     const filterMentors = () => {
       const q = (searchInput?.value || '').trim().toLowerCase();
@@ -281,7 +274,9 @@ export async function mountStaffMentors(root) {
         return matchesQ && matchesSkill && matchesStatus;
       });
 
-      const rows = filtered.map(m => {
+      const pagination = paginateItems(filtered, page);
+      page = pagination.page;
+      const rows = pagination.items.map(m => {
         const initials = (m.name || 'M').trim().split(/\s+/).map(p => p[0]).slice(0, 2).join('').toUpperCase();
         return [
           `<div class="admin-person"><span class="admin-avatar">${e(initials)}</span><div><strong>${e(m.name)}</strong><small>${e(m.jobTitle || 'Mentor')}</small></div></div>`,
@@ -316,9 +311,11 @@ export async function mountStaffMentors(root) {
                 </tbody>
               </table>
             </div>
+            <div data-staff-mentor-pagination>${renderPagination({ page, totalPages: pagination.totalPages, label: 'Mentor directory pages' })}</div>
           `;
         }
         bindMentorDetailButtons();
+        bindPagination(container.querySelector('[data-staff-mentor-pagination]'), { onChange: nextPage => { page = nextPage; filterMentors(); } });
       }
     };
 
@@ -359,10 +356,10 @@ export async function mountStaffMentors(root) {
       });
     }
 
-    searchInput?.addEventListener('input', filterMentors);
-    skillFilter?.addEventListener('change', filterMentors);
-    statusFilter?.addEventListener('change', filterMentors);
-    bindMentorDetailButtons();
+    searchInput?.addEventListener('input', () => { page = 1; filterMentors(); });
+    skillFilter?.addEventListener('change', () => { page = 1; filterMentors(); });
+    statusFilter?.addEventListener('change', () => { page = 1; filterMentors(); });
+    filterMentors();
 
   } catch (err) {
     staffError(root,err);
@@ -385,6 +382,7 @@ export async function mountStaffMentees(root) {
     const searchInput = root.querySelector('#mentee-search-input');
     const statusFilter = root.querySelector('#mentee-status-filter');
     const container = root.querySelector('#mentee-table-container');
+    let page = 1;
 
     const filterMentees = () => {
       const q = (searchInput?.value || '').trim().toLowerCase();
@@ -396,7 +394,9 @@ export async function mountStaffMentees(root) {
         return matchesQ && matchesStatus;
       });
 
-      const rows = filtered.map(m => {
+      const pagination = paginateItems(filtered, page);
+      page = pagination.page;
+      const rows = pagination.items.map(m => {
         const initials = (m.name || 'U').trim().split(/\s+/).map(p => p[0]).slice(0, 2).join('').toUpperCase();
         return [
           `<div class="admin-person"><span class="admin-avatar">${e(initials)}</span><div><strong>${e(m.name)}</strong><small>${m.emailVerified ? 'Email verified' : 'Unverified email'}</small></div></div>`,
@@ -431,9 +431,11 @@ export async function mountStaffMentees(root) {
                 </tbody>
               </table>
             </div>
+            <div data-staff-mentee-pagination>${renderPagination({ page, totalPages: pagination.totalPages, label: 'Mentee directory pages' })}</div>
           `;
         }
         bindMenteeDetailButtons();
+        bindPagination(container.querySelector('[data-staff-mentee-pagination]'), { onChange: nextPage => { page = nextPage; filterMentees(); } });
       }
     };
 
@@ -472,9 +474,9 @@ export async function mountStaffMentees(root) {
       });
     }
 
-    searchInput?.addEventListener('input', filterMentees);
-    statusFilter?.addEventListener('change', filterMentees);
-    bindMenteeDetailButtons();
+    searchInput?.addEventListener('input', () => { page = 1; filterMentees(); });
+    statusFilter?.addEventListener('change', () => { page = 1; filterMentees(); });
+    filterMentees();
 
   } catch (err) {
     staffError(root,err);
@@ -491,12 +493,19 @@ export async function mountStaffList(root, kind) {
   try {
     const records=await (kind==='skills'?staffService.getSkills():staffService.getRequests());
     const headings=kind==='skills'?['Name','Category','Status','Description']:['ID','Mentee','Mentor','Status','Learning goals','Created (UTC)'];
-    const rows=records.map(r=>kind==='skills'?[r.name,r.category,r.active?'Active':'Inactive',r.description]:[r.id,r.mentee,r.mentor,r.status,r.learningGoals,r.createdAt]);
     if (!root.isConnected) return;
-    root.innerHTML=StaffLayout(kind,`<div class="admin-page-heading"><div><p class="eyebrow">STAFF WORKSPACE</p><h1>${kind==='skills'?'Technical skills':'Mentorship requests'}</h1><p>Read-only directory</p></div></div>
+    let page = 1;
+    const render = () => {
+      const pagination = paginateItems(records, page);
+      page = pagination.page;
+      const rows=pagination.items.map(r=>kind==='skills'?[r.name,r.category,r.active?'Active':'Inactive',r.description]:[r.id,r.mentee,r.mentor,r.status,r.learningGoals,r.createdAt]);
+      root.innerHTML=StaffLayout(kind,`<div class="admin-page-heading"><div><p class="eyebrow">STAFF WORKSPACE</p><h1>${kind==='skills'?'Technical skills':'Mentorship requests'}</h1><p>Read-only directory</p></div></div>
       <section class="admin-panel"><div class="data-table-scroll"><table class="data-table"><caption class="sr-only">${e(kind)} directory</caption><thead><tr>${headings.map(h=>`<th scope="col">${e(h)}</th>`).join('')}</tr></thead><tbody>
-      ${rows.map(row=>`<tr>${row.map(v=>`<td>${e(v??'—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${!rows.length?'<p class="admin-panel-body">No records found.</p>':''}</section>`,user);
-    bindStaffGlobalEvents(root);
+      ${rows.map(row=>`<tr>${row.map(v=>`<td>${e(v??'—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${!rows.length?'<p class="admin-panel-body">No records found.</p>':''}<div data-staff-list-pagination>${renderPagination({ page, totalPages: pagination.totalPages, label: 'Mentorship request pages' })}</div></section>`,user);
+      bindStaffGlobalEvents(root);
+      bindPagination(root.querySelector('[data-staff-list-pagination]'), { onChange: nextPage => { page = nextPage; render(); } });
+    };
+    render();
   } catch(err) { staffError(root,err); }
 }
 
@@ -534,6 +543,7 @@ export async function mountStaffSkills(root) {
     const categoryFilter = root.querySelector('#skill-category-filter');
     const statusFilter = root.querySelector('#skill-status-filter');
     const container = root.querySelector('#skills-table-container');
+    let page = 1;
 
     const dialog = root.querySelector('#skill-form-dialog');
     const form = root.querySelector('#skill-modal-form');
@@ -558,7 +568,9 @@ export async function mountStaffSkills(root) {
         return matchesQ && matchesCategory && matchesStatus;
       });
 
-      const rows = filtered.map(s => {
+      const pagination = paginateItems(filtered, page);
+      page = pagination.page;
+      const rows = pagination.items.map(s => {
         return [
           `<div class="font-semibold text-ink">${e(s.name)} <span class="badge !text-[9px] !py-0.5 ml-1 text-muted font-normal">${e(s.slug || '')}</span></div>`,
           `<span class="badge !text-[10px] !py-0.5">${e(s.category || 'General')}</span>`,
@@ -595,9 +607,11 @@ export async function mountStaffSkills(root) {
                 </tbody>
               </table>
             </div>
+            <div data-staff-skill-pagination>${renderPagination({ page, totalPages: pagination.totalPages, label: 'Technical skill pages' })}</div>
           `;
         }
         bindTableActionButtons();
+        bindPagination(container.querySelector('[data-staff-skill-pagination]'), { onChange: nextPage => { page = nextPage; filterSkills(); } });
       }
     };
 
@@ -682,9 +696,9 @@ export async function mountStaffSkills(root) {
       });
     }
 
-    searchInput?.addEventListener('input', filterSkills);
-    categoryFilter?.addEventListener('change', filterSkills);
-    statusFilter?.addEventListener('change', filterSkills);
+    searchInput?.addEventListener('input', () => { page = 1; filterSkills(); });
+    categoryFilter?.addEventListener('change', () => { page = 1; filterSkills(); });
+    statusFilter?.addEventListener('change', () => { page = 1; filterSkills(); });
     filterSkills();
   };
 
@@ -700,6 +714,8 @@ export async function mountStaffPayouts(root) {
 
   let requests = [];
   let notice = null;
+  let payoutPage = 1;
+  let payoutQuery = '';
 
   async function loadData() {
     try {
@@ -711,9 +727,11 @@ export async function mountStaffPayouts(root) {
     }
   }
 
-  function filterPayouts(query = '') {
+  function render(query = payoutQuery) {
+    if (!root.isConnected) return;
+    payoutQuery = query;
     const q = query.trim().toLowerCase();
-    return q
+    const filtered = q
       ? requests.filter(r =>
           (r.mentorName || '').toLowerCase().includes(q) ||
           (r.mentorEmail || '').toLowerCase().includes(q) ||
@@ -721,80 +739,28 @@ export async function mountStaffPayouts(root) {
           (r.accountName || '').toLowerCase().includes(q)
         )
       : requests;
-  }
 
-  function renderTable(query = '') {
-    const container = root.querySelector('#staff-payouts-table-container');
-    const panelCountEl = root.querySelector('.admin-panel-heading p');
-    if (!container) return;
-
-    const filtered = filterPayouts(query);
-    if (panelCountEl) {
-      panelCountEl.textContent = `${filtered.length} ${filtered.length === 1 ? 'request' : 'requests'} awaiting review`;
-    }
-
-    const rows = filtered.map(item => [
-      `${e(item.mentorName)}<small class="block text-muted mt-1">${e(item.mentorEmail)} · ID ${e(item.mentorId)}</small>`,
-      `<div class="flex items-center gap-1.5">
-        <span class="font-semibold text-ink">${money(item.amount)}</span>
-        <button type="button" class="btn btn-ghost btn-xs copy-btn text-brand" data-copy="${e(item.amount)}" title="Copy amount" aria-label="Copy amount for ${e(item.mentorName)}">
-          <svg class="icon w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-        </button>
-      </div>`,
-      `<div>
-        <span class="font-medium text-ink">${e(item.bankName)}</span> · <span class="text-ink">${e(item.accountName)}</span>
-        <div class="flex items-center gap-2 mt-1">
-          <span class="font-mono text-muted text-xs bg-lilac/50 px-1.5 py-0.5 rounded">${e(item.accountNumber)}</span>
-          <button type="button" class="btn btn-outline btn-xs copy-btn" data-copy="${e(item.accountNumber)}" title="Copy account number" aria-label="Copy account number for ${e(item.mentorName)}">
-            Copy STK
-          </button>
-        </div>
-      </div>`,
-      e(dateTime(item.requestedAt)),
-      `<div class="flex flex-wrap gap-2">
-        <button class="btn btn-primary btn-sm" data-payout-approve="${e(item.id)}" aria-label="Approve withdrawal for ${e(item.mentorName)}">Approve</button>
-        <button class="btn btn-outline btn-sm" data-payout-reject="${e(item.id)}" aria-label="Reject withdrawal for ${e(item.mentorName)}">Reject</button>
-      </div>`
-    ]);
-
-    const empty = EmptyState({
-      id: 'staff-empty-payouts',
-      title: 'No pending payouts',
-      description: 'New mentor withdrawal requests will appear here once submitted.',
-      buttonText: '',
-      hidden: false
-    });
-
-    container.innerHTML = DataTable({
-      caption: 'Pending mentor payout requests',
-      headings: ['Mentor', 'Amount', 'Bank destination', 'Requested (UTC)', 'Actions'],
-      rows,
-      empty
-    });
-
-    bindCopyButtons(container);
-    bindPayoutActionButtons(container);
-  }
-
-  function render(query = '') {
-    if (!root.isConnected) return;
-    const filtered = filterPayouts(query);
-    root.innerHTML = StaffPayoutsPage(filtered, user, notice);
+    payoutPage = Math.min(payoutPage, Math.max(1, Math.ceil(filtered.length / 10)));
+    root.innerHTML = StaffPayoutsPage(filtered, user, notice, payoutPage);
     bindStaffGlobalEvents(root);
     bindCopyButtons(root);
-    bindPayoutActionButtons(root);
+    bindPagination(root.querySelector('[data-staff-payout-pagination]'), { onChange: nextPage => { payoutPage = nextPage; render(); } });
 
     const searchInput = root.querySelector('#staff-payout-query');
     if (searchInput) {
       searchInput.value = query;
       searchInput.addEventListener('input', event => {
-        renderTable(event.target.value);
+        payoutPage = 1;
+        render(event.target.value);
+        const nextInput = root.querySelector('#staff-payout-query');
+        if (nextInput) {
+          nextInput.focus();
+          nextInput.setSelectionRange(nextInput.value.length, nextInput.value.length);
+        }
       });
     }
-  }
 
-  function bindPayoutActionButtons(scope) {
-    scope.querySelectorAll('[data-payout-approve]').forEach(btn => {
+    root.querySelectorAll('[data-payout-approve]').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = Number(btn.dataset.payoutApprove);
         const item = requests.find(r => r.id === id);
@@ -852,12 +818,11 @@ export async function mountStaffPayouts(root) {
       });
     });
 
-    scope.querySelectorAll('[data-payout-reject]').forEach(btn => {
+    root.querySelectorAll('[data-payout-reject]').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = Number(btn.dataset.payoutReject);
         const item = requests.find(r => r.id === id);
         if (!item) return;
-
         openPayoutDialog({
           title: 'Reject payout request',
           eyebrow: 'REJECT WITHDRAWAL',
@@ -970,7 +935,7 @@ export async function mountStaffReports(root) {
   if (!user || !root.isConnected) return;
 
   let reports = [];
-  let filters = { query: '', status: 'ALL', category: 'ALL' };
+  let filters = { query: '', status: 'ALL', category: 'ALL', page: 1 };
   let notice = null;
 
   async function loadData() {
@@ -983,130 +948,56 @@ export async function mountStaffReports(root) {
     }
   }
 
-  function getFilteredReports() {
-    const activeStatus = filters.status || 'ALL';
-    const activeCategory = filters.category || 'ALL';
-    const query = (filters.query || '').trim().toLowerCase();
-
-    return reports.filter(r => {
-      if (activeStatus !== 'ALL' && r.status !== activeStatus) return false;
-      if (activeCategory !== 'ALL' && r.category !== activeCategory) return false;
-      if (query) {
-        const match = [
-          r.ticketCode,
-          r.title,
-          r.complainantName,
-          r.complainantEmail,
-          r.respondentName,
-          r.respondentEmail,
-          r.category
-        ].some(val => (val || '').toLowerCase().includes(query));
-        if (!match) return false;
-      }
-      return true;
-    });
-  }
-
-  function updateTableOnly() {
-    const container = root.querySelector('#staff-reports-table-container');
-    const panelCountEl = root.querySelector('.admin-panel-heading p');
-    if (!container) return;
-
-    const filteredReports = getFilteredReports();
-    if (panelCountEl) {
-      panelCountEl.textContent = `${filteredReports.length} ${filteredReports.length === 1 ? 'ticket' : 'tickets'} matching current filters`;
-    }
-
-    const rows = filteredReports.map(item => [
-      `<span class="font-mono font-semibold text-xs text-brand">${e(item.ticketCode)}</span>`,
-      `<div>
-        <span class="font-semibold text-ink">${e(item.title || 'Mentorship')}</span>
-        <span class="badge !text-[10px] !py-0.5 ml-1">${e(item.targetType)}</span>
-      </div>`,
-      `<div>
-        <span class="font-medium text-ink">${e(item.complainantName)}</span>
-        <small class="block text-muted text-[11px]">${e(item.complainantEmail)}</small>
-      </div>`,
-      `<div>
-        <span class="font-medium text-ink">${e(item.respondentName)}</span>
-        <small class="block text-muted text-[11px]">${e(item.respondentEmail)}</small>
-      </div>`,
-      `<span class="text-xs text-muted font-medium">${e(item.category ? item.category.replaceAll('_', ' ') : 'GENERAL')}</span>`,
-      `<span class="font-semibold text-ink">${money(item.disputedAmount)}</span>`,
-      `<span class="text-xs text-muted">${e(dateTime(item.createdAt))}</span>`,
-      disputeStatusBadge(item.status),
-      `<button class="btn btn-primary btn-sm" data-review-report="${e(item.id)}" aria-label="Review dispute ${e(item.ticketCode)}">Review Ticket</button>`
-    ]);
-
-    const empty = EmptyState({
-      id: 'staff-empty-reports',
-      title: 'No reports or disputes found',
-      description: 'No complaints match the selected filter criteria. When mentees file dispute claims, they will appear here.',
-      buttonText: '',
-      hidden: false
-    });
-
-    container.innerHTML = DataTable({
-      caption: 'Staff Dispute Queue',
-      headings: ['Ticket code', 'Service', 'Complainant', 'Respondent', 'Category', 'Disputed amount', 'Filed date', 'Status', 'Actions'],
-      rows,
-      empty
-    });
-
-    bindReviewButtons(container);
-  }
-
   function render() {
     if (!root.isConnected) return;
     root.innerHTML = StaffReportsPage(reports, filters, user, notice);
     bindStaffGlobalEvents(root);
+    bindPagination(root.querySelector('[data-staff-report-pagination]'), { onChange: nextPage => { filters.page = nextPage; render(); } });
 
     const searchInput = root.querySelector('#staff-report-query');
     if (searchInput) {
-      searchInput.value = filters.query;
       searchInput.addEventListener('input', (e) => {
         filters.query = e.target.value;
-        updateTableOnly();
+        filters.page = 1;
+        render();
+        const nextInput = root.querySelector('#staff-report-query');
+        if (nextInput) {
+          nextInput.focus();
+          nextInput.setSelectionRange(nextInput.value.length, nextInput.value.length);
+        }
       });
     }
 
     const statusSelect = root.querySelector('#staff-report-status');
     if (statusSelect) {
-      statusSelect.value = filters.status;
       statusSelect.addEventListener('change', (e) => {
         filters.status = e.target.value;
-        updateTableOnly();
+        filters.page = 1;
+        render();
       });
     }
 
     const categorySelect = root.querySelector('#staff-report-category');
     if (categorySelect) {
-      categorySelect.value = filters.category;
       categorySelect.addEventListener('change', (e) => {
         filters.category = e.target.value;
-        updateTableOnly();
+        filters.page = 1;
+        render();
       });
     }
 
     const resetBtn = root.querySelector('#staff-report-reset');
     if (resetBtn) {
       resetBtn.addEventListener('click', () => {
-        filters = { query: '', status: 'ALL', category: 'ALL' };
-        if (searchInput) searchInput.value = '';
-        if (statusSelect) statusSelect.value = 'ALL';
-        if (categorySelect) categorySelect.value = 'ALL';
-        updateTableOnly();
+        filters = { query: '', status: 'ALL', category: 'ALL', page: 1 };
+        render();
       });
     }
 
-    bindReviewButtons(root);
-  }
-
-  function bindReviewButtons(scope) {
     const dialog = root.querySelector('#report-detail-dialog');
     const dialogContent = root.querySelector('#report-detail-dialog-content');
 
-    scope.querySelectorAll('[data-review-report]').forEach(btn => {
+    root.querySelectorAll('[data-review-report]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const id = btn.dataset.reviewReport;
         if (!dialog || !dialogContent) return;
@@ -1139,18 +1030,17 @@ export async function mountStaffReports(root) {
       const isApproved = detail.status === 'APPROVED';
       const isSubmitted = detail.status === 'SUBMITTED';
 
-      const evidenceList = detail.evidence || detail.evidences || [];
-      const evidencesHtml = evidenceList.length > 0
+      const evidencesHtml = detail.evidences && detail.evidences.length > 0
         ? `
           <div class="mt-4">
-            <h3 class="text-xs font-semibold text-ink uppercase tracking-wider mb-2">Attached Evidence (${evidenceList.length})</h3>
+            <h3 class="text-xs font-semibold text-ink uppercase tracking-wider mb-2">Attached Evidence (${detail.evidences.length})</h3>
             <div class="space-y-2">
-              ${evidenceList.map(ev => `
+              ${detail.evidences.map(ev => `
                 <div class="flex items-center justify-between p-3 rounded-lg bg-cream border border-line text-xs">
                   <div>
-                    <span class="font-medium text-ink">${e(ev.fileName || ev.name)}</span>
+                    <span class="font-medium text-ink">${e(ev.fileName)}</span>
                     <span class="text-muted ml-2">(${e(ev.fileSize || 'Evidence')})</span>
-                    <div class="text-[11px] text-muted">Uploaded ${e(dateTime(ev.uploadedAt))}</div>
+                    <div class="text-[11px] text-muted">Uploaded by <strong>${e(ev.uploaderName || 'User')}</strong> · ${e(dateTime(ev.uploadedAt))}</div>
                   </div>
                   <a href="/api/staff/reports/${e(detail.id)}/evidence/${e(ev.id)}" target="_blank" download class="btn btn-outline btn-sm">
                     Download
@@ -1277,10 +1167,14 @@ export async function mountStaffReports(root) {
         <p class="eyebrow !pr-8">DISPUTE MEDIATION · TICKET #${e(detail.ticketCode)}</p>
         <h2 id="report-dialog-title" class="mt-2 font-display text-2xl text-ink">${e(detail.title || 'Mentorship Complaint')}</h2>
         
-        <div class="flex items-center gap-2 mt-1">
+        <div class="flex items-center gap-2 mt-1 flex-wrap">
           <span class="badge !text-[10px]">${e(detail.targetType)}</span>
           <span class="badge !text-[10px]">${e(detail.category ? detail.category.replaceAll('_', ' ') : 'GENERAL')}</span>
           <span class="text-xs text-muted">Amount: <strong class="text-ink">${money(detail.disputedAmount)}</strong></span>
+          <a href="#/workspace" class="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-lilac/70 text-brand hover:bg-lilac transition">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            Open Messages
+          </a>
         </div>
 
         <div class="mt-4 grid grid-cols-2 gap-4 p-3 rounded-xl bg-cream border border-line text-xs">
@@ -1298,7 +1192,7 @@ export async function mountStaffReports(root) {
 
         <div class="mt-4 text-xs text-ink/90">
           <h3 class="font-semibold uppercase tracking-wider text-[11px] text-muted mb-1">Mentee Statement & Reason</h3>
-          <div class="p-3 rounded-lg bg-white border border-line whitespace-pre-wrap leading-relaxed">${e(detail.description || detail.reason || 'No description provided.')}</div>
+          <div class="p-3 rounded-lg bg-white border border-line whitespace-pre-wrap leading-relaxed">${e(detail.reason || 'No description provided.')}</div>
         </div>
 
         ${detail.mentorStatement ? `
@@ -1336,38 +1230,27 @@ export async function mountStaffReports(root) {
       if (resolveForm) {
         const outcomeSelect = resolveForm.querySelector('#resolve-outcome');
         const menteeInput = resolveForm.querySelector('#resolve-mentee-refund');
-        const splitRow = resolveForm.querySelector('#split-amounts-row');
-        const bankContainer = resolveForm.querySelector('#resolve-bank-container');
-        const bankNameInput = resolveForm.querySelector('#resolve-bank-name');
-        const accNumberInput = resolveForm.querySelector('#resolve-account-number');
-        const accNameInput = resolveForm.querySelector('#resolve-account-name');
         const errorEl = resolveForm.querySelector('#dispute-resolve-error');
         const total = Number(detail.disputedAmount || 0);
 
         const updateAmounts = () => {
           const outcome = outcomeSelect.value;
+          const bankBox = resolveForm.querySelector('#resolve-bank-container');
+          const refundRow = resolveForm.querySelector('#split-amounts-row');
           if (outcome === 'FULL_REFUND') {
-            if (splitRow) splitRow.classList.remove('hidden');
-            if (menteeInput) {
-              menteeInput.value = total;
-              menteeInput.disabled = true;
-            }
-            if (bankContainer) bankContainer.classList.remove('hidden');
+            menteeInput.value = total;
+            menteeInput.disabled = true;
+            if (refundRow) refundRow.style.display = 'block';
+            if (bankBox) bankBox.style.display = 'block';
           } else if (outcome === 'PARTIAL_REFUND') {
-            if (splitRow) splitRow.classList.remove('hidden');
-            if (menteeInput) {
-              menteeInput.disabled = false;
-              if (Number(menteeInput.value) <= 0 || Number(menteeInput.value) > total) {
-                menteeInput.value = Math.floor(total / 2);
-              }
-            }
-            if (bankContainer) bankContainer.classList.remove('hidden');
+            menteeInput.disabled = false;
+            if (refundRow) refundRow.style.display = 'block';
+            if (bankBox) bankBox.style.display = 'block';
           } else {
-            if (splitRow) splitRow.classList.add('hidden');
-            if (menteeInput) {
-              menteeInput.value = 0;
-            }
-            if (bankContainer) bankContainer.classList.add('hidden');
+            menteeInput.value = 0;
+            menteeInput.disabled = true;
+            if (refundRow) refundRow.style.display = 'none';
+            if (bankBox) bankBox.style.display = 'none';
           }
         };
 
@@ -1378,39 +1261,43 @@ export async function mountStaffReports(root) {
           e.preventDefault();
           const submitBtn = resolveForm.querySelector('#btn-submit-resolve');
           submitBtn.disabled = true;
-          submitBtn.textContent = 'Finalizing resolution…';
+          submitBtn.textContent = 'Submitting decision...';
           if (errorEl) errorEl.classList.add('hidden');
 
           try {
-            const outcome = outcomeSelect.value;
-            const menteeRefund = outcome === 'FULL_REFUND' ? total : (outcome === 'PARTIAL_REFUND' ? Number(menteeInput.value) : 0);
+            const resolutionType = outcomeSelect.value;
+            const refundAmount = resolutionType === 'FULL_REFUND' ? total : (resolutionType === 'PARTIAL_REFUND' ? Number(menteeInput.value) : 0);
             const notes = resolveForm.querySelector('#resolve-notes').value.trim();
+            const bankName = resolveForm.querySelector('#resolve-bank-name')?.value.trim() || detail.bankName || '';
+            const accountNumber = resolveForm.querySelector('#resolve-account-number')?.value.trim() || detail.accountNumber || '';
+            const accountName = resolveForm.querySelector('#resolve-account-name')?.value.trim() || detail.accountName || '';
 
-            if (outcome === 'PARTIAL_REFUND' && (menteeRefund <= 0 || menteeRefund > total)) {
-              throw new Error(`Partial refund amount must be between 1 and ${money(total)}.`);
-            }
-
-            if ((outcome === 'FULL_REFUND' || outcome === 'PARTIAL_REFUND') && (!bankNameInput?.value?.trim() || !accNumberInput?.value?.trim() || !accNameInput?.value?.trim())) {
-              throw new Error('Please fill in complete receiving bank account details for Admin transfer.');
+            if ((resolutionType === 'FULL_REFUND' || resolutionType === 'PARTIAL_REFUND') && (!bankName || !accountNumber || !accountName)) {
+              throw new Error('Please provide the mentee bank name, account number, and account holder name for Admin to execute the refund transfer.');
             }
 
             await staffService.resolveReport(detail.id, {
-              resolutionType: outcome,
+              resolutionType,
               resolutionNote: notes,
-              refundAmount: menteeRefund,
-              bankName: bankNameInput?.value?.trim() || detail.bankName,
-              accountNumber: accNumberInput?.value?.trim() || detail.accountNumber,
-              accountName: accNameInput?.value?.trim() || detail.accountName
+              refundAmount,
+              bankName,
+              accountNumber,
+              accountName
             });
 
             dialog.close();
-            notice = { type: 'success', message: `Dispute #${detail.ticketCode} resolution finalized.` };
+            notice = {
+              type: 'success',
+              message: (resolutionType === 'FULL_REFUND' || resolutionType === 'PARTIAL_REFUND')
+                ? `Dispute #${detail.ticketCode} refund approved and forwarded to Admin for bank transfer.`
+                : `Dispute #${detail.ticketCode} resolution finalized.`
+            };
             await loadData();
           } catch (err) {
             submitBtn.disabled = false;
             submitBtn.textContent = 'Confirm & Submit Decision';
             if (errorEl) {
-              errorEl.innerHTML = Notice({ message: err.message || 'Failed to resolve dispute.', type: 'error' });
+              errorEl.innerHTML = Notice({ message: err.message || 'Failed to submit resolution.', type: 'error' });
               errorEl.classList.remove('hidden');
             }
           }
@@ -1418,6 +1305,5 @@ export async function mountStaffReports(root) {
       }
     }
   }
-
   await loadData();
 }

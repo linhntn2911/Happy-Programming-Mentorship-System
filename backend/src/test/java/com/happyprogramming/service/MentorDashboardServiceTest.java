@@ -298,6 +298,7 @@ class MentorDashboardServiceTest {
                     submittedAt, responseDeadline, status, null, null, null, null);
         }
         @Override public Long getId() { return id; }
+        @Override public Long getMenteeId() { return 99L; }
         @Override public String getMenteeName() { return menteeName; }
         @Override public String getPackageName() { return packageName; }
         @Override public String getServiceType() { return serviceType; }

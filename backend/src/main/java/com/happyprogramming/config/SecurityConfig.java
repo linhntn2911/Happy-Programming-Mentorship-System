@@ -73,16 +73,27 @@ public class SecurityConfig {
                     String redirectTarget = (frontendBaseUrl != null && !frontendBaseUrl.isBlank()) ? frontendBaseUrl : "";
                     if (user.isPresent()) {
                         SessionLogin.establish(user.get(), req, res);
-                        res.sendRedirect(redirectTarget + (returnMentor ? "/#/apply/mentor" : "/#/"));
+                        String roleCode = user.get().role();
+                        String destination = "/#/";
+                        if ("ADMIN".equals(roleCode)) {
+                            destination = "/#/admin";
+                        } else if ("STAFF".equals(roleCode)) {
+                            destination = "/#/staff/dashboard";
+                        } else if (returnMentor) {
+                            destination = "/#/apply/mentor";
+                        }
+                        res.sendRedirect(redirectTarget + destination);
                     } else {
                         SessionLogin.clear(req);
-                        res.sendRedirect(redirectTarget + "/#/login?error=google");
+                        String reason = (oidc == null) ? "no_oidc" : (!Boolean.TRUE.equals(oidc.getEmailVerified()) ? "email_not_verified" : "account_ineligible");
+                        res.sendRedirect(redirectTarget + "/#/login?error=" + reason);
                     }
                 })
                 .failureHandler((req, res, ex) -> {
                     SessionLogin.clear(req);
                     String redirectTarget = (frontendBaseUrl != null && !frontendBaseUrl.isBlank()) ? frontendBaseUrl : "";
-                    res.sendRedirect(redirectTarget + "/#/login?error=google");
+                    String msg = (ex != null && ex.getMessage() != null) ? ex.getMessage() : "google_auth_failed";
+                    res.sendRedirect(redirectTarget + "/#/login?error=" + java.net.URLEncoder.encode(msg, java.nio.charset.StandardCharsets.UTF_8));
                 }));
         }
         return http.build();

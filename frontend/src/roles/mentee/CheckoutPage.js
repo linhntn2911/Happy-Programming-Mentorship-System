@@ -180,7 +180,7 @@ function renderCheckoutDetails(root, container, user, info, paymentReturn) {
         <div class="mt-3 flex justify-between gap-4"><span class="text-muted">Payment state</span><strong class="text-emerald-700">Verified & Active</strong></div>
         ${oneOffConfirmation}
       </div>
-      <div class="mt-7 flex flex-wrap justify-center gap-3"><a href="${isOneOff ? '#/workspace' : `#/workspace?requestId=${encodeURIComponent(info.requestId)}`}" class="btn btn-primary">Open mentorship workspace</a><a href="#/applications" class="btn btn-outline">View my bookings</a></div>
+      <div class="mt-7 flex flex-wrap justify-center gap-3"><a href="#/workspace?requestId=${encodeURIComponent(info.requestId)}&partnerId=${encodeURIComponent(info.mentorId || '')}" class="btn btn-primary">Open mentorship workspace</a><a href="#/applications" class="btn btn-outline">View my bookings</a></div>
     </div>`;
     return;
   }
@@ -203,7 +203,7 @@ function renderCheckoutDetails(root, container, user, info, paymentReturn) {
     paymentStatus === 'EXPIRED'
     || (paymentStatus === 'PENDING' && payment.expired)
   );
-  const selectAnotherTimeUrl = `#/mentors/${encodeURIComponent(info.mentorId)}/sessions`;
+  const selectAnotherTimeUrl = oneOffSessionSelectionUrl(info);
   const checkoutAction = !priceAvailable
     ? '<button type="button" id="checkout-submit-btn" class="btn btn-primary mt-6 w-full py-3.5 text-sm font-semibold" disabled>Payment unavailable</button>'
     : oneOffReservationExpired
@@ -399,6 +399,17 @@ export function countdownRemainingSeconds(expiresAt, serverNow, elapsedMs = 0, i
   return Math.max(0, Math.floor((expiryTime - referenceTime) / 1000));
 }
 
+export function oneOffSessionSelectionUrl(info) {
+  const mentorIdentifier = String(info?.mentorSlug || info?.mentorId || '').trim();
+  if (!mentorIdentifier) return '#/mentors';
+
+  const baseUrl = `#/mentors/${encodeURIComponent(mentorIdentifier)}/sessions`;
+  const offeringId = String(info?.serviceOfferingId || '').trim();
+  return offeringId
+    ? `${baseUrl}?offeringId=${encodeURIComponent(offeringId)}`
+    : baseUrl;
+}
+
 function startCountdown(container, expiresAt, serverNow, initialRemainingSeconds, info) {
   if (countdownTimer) clearInterval(countdownTimer);
   const countdownEl = container.querySelector('#countdown-text');
@@ -418,7 +429,7 @@ function startCountdown(container, expiresAt, serverNow, initialRemainingSeconds
       const action = container.querySelector('#checkout-submit-btn');
       if (action && info?.serviceType === 'ONE_OFF') {
         const replacement = document.createElement('a');
-        replacement.href = `#/mentors/${encodeURIComponent(info.mentorId)}/sessions`;
+        replacement.href = oneOffSessionSelectionUrl(info);
         replacement.className = action.className;
         replacement.textContent = 'Choose another session time';
         action.replaceWith(replacement);
@@ -472,7 +483,7 @@ async function startSepay(root, container, info) {
     const message = err.message || 'Could not start payment. Please try again.';
     if (info.serviceType === 'ONE_OFF' && /selected time is no longer reserved/i.test(message)) {
       const replacement = document.createElement('a');
-      replacement.href = `#/mentors/${encodeURIComponent(info.mentorId)}/sessions`;
+      replacement.href = oneOffSessionSelectionUrl(info);
       replacement.className = button.className;
       replacement.textContent = 'Choose another session time';
       button.replaceWith(replacement);

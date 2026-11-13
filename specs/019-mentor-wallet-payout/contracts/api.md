@@ -23,14 +23,24 @@ Amount must be a positive whole VND and no greater than available funds. Account
 
 ## `GET /api/admin/payout-requests`
 
-Requires active administrator role. Returns pending requests including the decrypted account number for manual bank transfer. This endpoint must never be exposed to mentor or staff roles.
+Requires active administrator role. Returns only Staff-approved requests including the decrypted account number for manual bank transfer.
+
+## `GET/PATCH /api/staff/payout-requests`
+
+Requires Staff role. `GET` returns `REQUESTED` payouts. `PATCH` accepts `APPROVED` or `REJECTED`; Staff cannot mark a payout paid.
 
 ## `PATCH /api/admin/payout-requests/{id}`
 
 Requires administrator role and CSRF. Paid decision:
 
 ```json
-{ "decision": "PAID", "transferReference": "BANK-TRANSFER-REFERENCE" }
+{
+  "decision": "PAID",
+  "transferReference": "BANK-TRANSFER-REFERENCE",
+  "receiptFileName": "receipt.png",
+  "receiptBase64": "data:image/png;base64,...",
+  "receiptMimeType": "image/png"
+}
 ```
 
 Rejected decision:
@@ -39,4 +49,8 @@ Rejected decision:
 { "decision": "REJECTED", "rejectionReason": "Reason for rejection" }
 ```
 
-Only `REQUESTED` items can be decided. `PAID` requires that the external bank transfer has already completed; the backend posts an immutable payout debit and audit record atomically.
+Only `APPROVED` items can be marked `PAID`. Payment requires a completed external bank transfer, its reference, and a valid receipt image. The backend posts the immutable payout debit, receipt reference, notification, and audit record atomically.
+
+## `GET /api/mentors/me/payout-requests/{id}/receipt`
+
+Requires Mentor role and ownership of the paid payout. Returns the stored receipt with `no-store` and `nosniff` headers.

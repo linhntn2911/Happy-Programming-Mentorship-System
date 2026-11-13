@@ -5,6 +5,7 @@ import java.time.Instant;
 
 public record WorkspaceOneOffBookingDto(
         Long bookingId,
+        Long requestId,
         String bookingCode,
         Long serviceId,
         String sessionName,
@@ -32,6 +33,6 @@ public record WorkspaceOneOffBookingDto(
             String status,
             Integer participants
     ) {
-        this(bookingId, bookingCode, serviceId, sessionName, agenda, startAt, endAt, price, currency, status, participants, null, null, null);
+        this(bookingId, null, bookingCode, serviceId, sessionName, agenda, startAt, endAt, price, currency, status, participants, null, null, null);
     }
 }

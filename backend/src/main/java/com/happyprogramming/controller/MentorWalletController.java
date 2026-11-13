@@ -15,6 +15,12 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import java.nio.charset.StandardCharsets;
 
 @RestController
 public class MentorWalletController {
@@ -43,5 +49,18 @@ public class MentorWalletController {
     public ApiResponse<MentorWalletResponse.PayoutRequest> request(@Valid @RequestBody SubmitPayoutRequest request,
                                                                     HttpServletRequest servletRequest) {
         return ApiResponse.ok("Payout request submitted for review.", wallet.submitPayoutWithOtp(request, servletRequest.getRemoteAddr()));
+    }
+
+    @GetMapping("/api/mentors/me/payout-requests/{id}/receipt")
+    public ResponseEntity<byte[]> payoutReceipt(@org.springframework.web.bind.annotation.PathVariable long id) {
+        var file = wallet.payoutReceipt(id);
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .header("X-Content-Type-Options", "nosniff")
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.inline().filename(file.fileName(), StandardCharsets.UTF_8).build().toString())
+                .contentType(MediaType.parseMediaType(file.mimeType()))
+                .contentLength(file.sizeBytes())
+                .body(file.content());
     }
 }

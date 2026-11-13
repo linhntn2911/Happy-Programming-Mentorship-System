@@ -4,6 +4,7 @@ import java.time.Instant;
 
 public record MenteeApplicationDto(
         Long requestId,
+        Long mentorId,
         String mentorName,
         String packageName,
         String learningGoals,

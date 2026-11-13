@@ -26,7 +26,18 @@ public final class DisputeDtos {
             String resolutionType, String resolutionNote, BigDecimal refundAmount,
             Instant resolvedAt, List<Evidence> evidence,
             String transferReference, String bankName, String accountNumber, String accountName,
-            Instant approvedAt) {
+            Instant approvedAt, Long receiptFileId) {
+        public Detail(long id, String ticketCode, String targetType, long targetId, String title,
+                      String mentorName, Instant scheduledAt, BigDecimal disputedAmount, String currency,
+                      String category, String description, String status, Instant createdAt,
+                      String resolutionType, String resolutionNote, BigDecimal refundAmount,
+                      Instant resolvedAt, List<Evidence> evidence,
+                      String transferReference, String bankName, String accountNumber, String accountName,
+                      Instant approvedAt) {
+            this(id, ticketCode, targetType, targetId, title, mentorName, scheduledAt, disputedAmount, currency,
+                 category, description, status, createdAt, resolutionType, resolutionNote, refundAmount,
+                 resolvedAt, evidence, transferReference, bankName, accountNumber, accountName, approvedAt, null);
+        }
         public Detail(long id, String ticketCode, String targetType, long targetId, String title,
                       String mentorName, Instant scheduledAt, BigDecimal disputedAmount, String currency,
                       String category, String description, String status, Instant createdAt,
@@ -34,7 +45,7 @@ public final class DisputeDtos {
                       Instant resolvedAt, List<Evidence> evidence) {
             this(id, ticketCode, targetType, targetId, title, mentorName, scheduledAt, disputedAmount, currency,
                  category, description, status, createdAt, resolutionType, resolutionNote, refundAmount,
-                 resolvedAt, evidence, null, null, null, null, null);
+                 resolvedAt, evidence, null, null, null, null, null, null);
         }
     }
 }

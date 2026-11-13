@@ -8,9 +8,9 @@
 
 ## `mentor_payout_requests`
 
-- `id`, `mentor_id`, `amount`, `bank_name`, `account_name`, encrypted `account_number_ciphertext`, `account_last4`, `status`, `transfer_reference`, `rejection_reason`, `reviewed_by`, `requested_at`, `reviewed_at`.
-- Statuses: `REQUESTED`, `PAID`, `REJECTED`.
-- `REQUESTED` amount is reserved from available balance. `REJECTED` releases the reservation. `PAID` is paired with append-only payout ledger allocation(s).
+- `id`, `mentor_id`, `amount`, `bank_name`, `account_name`, encrypted `account_number_ciphertext`, `account_last4`, `status`, `transfer_reference`, `receipt_file_id`, `rejection_reason`, reviewer fields and timestamps.
+- Statuses: `REQUESTED`, `APPROVED`, `PAID`, `REJECTED`.
+- `REQUESTED` and `APPROVED` amounts remain reserved. `REJECTED` releases the reservation. `PAID` is paired with append-only payout ledger allocation(s) and an authorized receipt file.
 - Account number uses AES-GCM with a random per-record nonce; only an administrator endpoint decrypts pending requests.
 
 ## Balance formulas

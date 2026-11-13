@@ -3,6 +3,7 @@ package com.happyprogramming.controller;
 import com.happyprogramming.dto.MentorBankAccountResponse;
 import com.happyprogramming.dto.MentorWalletResponse;
 import com.happyprogramming.dto.PayoutOtpResponse;
+import com.happyprogramming.dto.DisputeFileDownload;
 import com.happyprogramming.service.MentorWalletService;
 
 import java.math.BigDecimal;
@@ -24,6 +25,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 
 @WebMvcTest(MentorWalletController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -42,7 +45,7 @@ class MentorWalletControllerTest {
 
     private static MentorWalletResponse.PayoutRequest payout() {
         return new MentorWalletResponse.PayoutRequest(7L, new BigDecimal("500000"), "TPBank",
-                "Nguyen Van A", "6789", "REQUESTED", null, null,
+                "Nguyen Van A", "6789", "REQUESTED", null, null, null,
                 Instant.parse("2026-10-13T02:05:00Z"), null);
     }
 
@@ -128,5 +131,18 @@ class MentorWalletControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.message").value("Payout amount exceeds your available balance."));
+    }
+
+    @Test
+    void mentorCanOpenOwnPaidPayoutReceipt() throws Exception {
+        when(wallet.payoutReceipt(7L)).thenReturn(new DisputeFileDownload(
+                "receipt.png", "image/png", 4L, new byte[]{1, 2, 3, 4}));
+
+        mockMvc.perform(get("/api/mentors/me/payout-requests/7/receipt"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", org.hamcrest.Matchers.containsString("no-store")))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(content().contentType("image/png"))
+                .andExpect(content().bytes(new byte[]{1, 2, 3, 4}));
     }
 }

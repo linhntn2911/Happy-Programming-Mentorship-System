@@ -104,6 +104,12 @@ public class MentorPlanService {
             WHERE mentor_id = ? AND service_type = 'MONTHLY' AND plan_tier = ?
             """;
 
+    private static final String DEACTIVATE_MONTHLY_TIERS = """
+            UPDATE dbo.service_offerings
+            SET status = 'INACTIVE', updated_at = SYSUTCDATETIME()
+            WHERE mentor_id = ? AND service_type = 'MONTHLY' AND status <> 'INACTIVE'
+            """;
+
     private static final String UPDATE_TIER = """
             UPDATE dbo.service_offerings
             SET name = ?, description = ?, price = ?, session_duration_minutes = ?,
@@ -221,6 +227,9 @@ public class MentorPlanService {
         if (requests.size() > 3) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A mentor may configure at most three packages.");
         }
+
+        // PUT replaces the enabled tier set. Tiers omitted by the client were unchecked by the mentor.
+        template.update(DEACTIVATE_MONTHLY_TIERS, mentorId);
 
         Set<String> seenTiers = new HashSet<>();
         for (MentorPlanRequest request : requests) {

@@ -129,11 +129,30 @@ class MentorshipRequestServiceTest {
     @SuppressWarnings("unchecked")
     @Test
     void myTransactionsAreAlwaysScopedToCurrentMentee() {
+        when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(0L);
         when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class))).thenReturn(List.of());
 
-        assertEquals(List.of(), service.getMyTransactions());
+        var result = service.getMyTransactions(0, 10, "succeeded", "monthly");
 
-        verify(jdbcTemplate).query(anyString(), any(RowMapper.class), eq(5L));
+        assertEquals(List.of(), result.transactions());
+        assertEquals(0, result.totalElements());
+        assertEquals(0, result.totalPages());
+        verify(jdbcTemplate).queryForObject(anyString(), eq(Long.class),
+                eq(5L), eq("SUCCEEDED"), eq("SUCCEEDED"), eq("MONTHLY"), eq("MONTHLY"));
+        verify(jdbcTemplate).query(anyString(), any(RowMapper.class),
+                eq(5L), eq("SUCCEEDED"), eq("SUCCEEDED"), eq("MONTHLY"), eq("MONTHLY"), eq(0), eq(10));
+    }
+
+    @Test
+    void validatesMyTransactionsPaginationAndFiltersBeforeQuerying() {
+        assertEquals(400, assertThrows(ResponseStatusException.class,
+                () -> service.getMyTransactions(-1, 10, null, null)).getStatusCode().value());
+        assertEquals(400, assertThrows(ResponseStatusException.class,
+                () -> service.getMyTransactions(0, 51, null, null)).getStatusCode().value());
+        assertEquals(400, assertThrows(ResponseStatusException.class,
+                () -> service.getMyTransactions(0, 10, "UNKNOWN", null)).getStatusCode().value());
+        assertEquals(400, assertThrows(ResponseStatusException.class,
+                () -> service.getMyTransactions(0, 10, null, "UNKNOWN")).getStatusCode().value());
     }
 
     private static CreateMentorshipRequest monthlyRequest() {

@@ -35,6 +35,7 @@ import { initializeMentorDashboardPage, MentorDashboardPage } from './roles/ment
 import { initializeMentorRequestsPage, MentorRequestsPage } from './roles/mentor/MentorRequestsPage.js';
 import { initializeMentorWalletPage, MentorWalletPage } from './roles/mentor/MentorWalletPage.js';
 import { initializeMenteeFeedbackPage, MenteeFeedbackPage } from './roles/mentor/MenteeFeedbackPage.js';
+import { initializeMentorDisputesPage, MentorDisputesPage } from './roles/mentor/MentorDisputesPage.js';
 import { mountMentorWorkspacePage } from './roles/mentor/MentorWorkspacePage.js';
 import { MentorSearchPage } from './roles/guest/MentorSearchPage.js';
 import { DirectoryMentorCard } from './shared/DirectoryMentorCard.js';
@@ -45,6 +46,7 @@ import { wishlistService } from './roles/mentee/wishlistService.js';
 import { bindUserDropdown } from './shared/Header.js';
 import { mountMentorshipWorkspace } from './shared/MentorshipWorkspacePage.js';
 import { registerSupportContact } from './shared/SupportContact.js';
+import { bindPagination, paginateItems, renderPagination } from './shared/pagination.js';
 
 registerSupportContact();
 import { registerSystemOperations } from './shared/systemOperations.js';
@@ -136,6 +138,31 @@ let currentMentors = [...INITIAL_MENTORS];
 const appEl = document.querySelector('#app');
 let cleanupCurrentPage = () => {};
 let directoryRenderToken = 0;
+const HOME_SECTION_HASHES = new Set([
+  '#main',
+  '#how-it-works',
+  '#mentors',
+  '#services',
+  '#sessions',
+  '#become-mentor',
+  '#faq',
+  '#refund-faq'
+]);
+
+function scrollToHomeSection(hash) {
+  requestAnimationFrame(() => {
+    const target = document.querySelector(hash);
+    if (!target) return;
+    target.scrollIntoView({
+      behavior: hash === '#main' || window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+      block: 'start'
+    });
+    if (hash === '#main') {
+      target.setAttribute('tabindex', '-1');
+      target.focus({ preventScroll: true });
+    }
+  });
+}
 
 function openMentorDirectory(keyword = '') {
   const url = new URL(window.location.href);
@@ -455,11 +482,22 @@ function initInteractions() {
 
 let disposeAdmin;
 function router() {
+  const hash = window.location.hash;
+  if (HOME_SECTION_HASHES.has(hash)) {
+    if (!document.querySelector('#homepage-content')) {
+      disposeAdmin?.();
+      disposeAdmin = undefined;
+      cleanupCurrentPage();
+      cleanupCurrentPage = () => {};
+      renderApp(currentMentors);
+    }
+    scrollToHomeSection(hash);
+    return;
+  }
   disposeAdmin?.();
   disposeAdmin = undefined;
   cleanupCurrentPage();
   cleanupCurrentPage = () => {};
-  const hash = window.location.hash;
   if (hash === '#/admin' || hash.startsWith('#/admin/')) {
     disposeAdmin = mountAdmin(appEl, hash.split('/')[2] || 'overview');
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -546,9 +584,11 @@ function router() {
     void mountOneOffSessionPage(appEl, mentorId, query.get('offeringId') || '');
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash.startsWith('#/mentors/')) {
+    const path = hash.split('?')[0];
+    const query = new URLSearchParams(hash.split('?')[1] || '');
     let id;
-    try { id = decodeURIComponent(hash.slice('#/mentors/'.length)); } catch { id = ''; }
-    mountMentorProfile(appEl, id);
+    try { id = decodeURIComponent(path.slice('#/mentors/'.length)); } catch { id = ''; }
+    mountMentorProfile(appEl, id, query.get('section') || '');
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash === '#/components' || hash === '#/showcase') {
     appEl.innerHTML = ComponentShowcasePage();
@@ -587,6 +627,10 @@ function router() {
     appEl.innerHTML = MenteeFeedbackPage();
     window.scrollTo({ top: 0, behavior: 'instant' });
     cleanupCurrentPage = initializeMenteeFeedbackPage(appEl) || (() => {});
+  } else if (hash === '#/mentor/disputes') {
+    appEl.innerHTML = MentorDisputesPage();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    cleanupCurrentPage = initializeMentorDisputesPage(appEl) || (() => {});
   } else if (hash === '#/mentor/availability' || hash === '#/mentor/packages') {
     cleanupCurrentPage = mountMentorWorkspacePage(appEl, hash === '#/mentor/packages' ? 'packages' : 'availability');
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -622,10 +666,10 @@ async function mountMentorDirectory(initialFilters) {
     if (errorEl) errorEl.hidden = false;
     if (countEl) countEl.textContent = 'Mentor search unavailable';
   }
-  initMentorDirectory();
+  initMentorDirectory(mentors);
 }
 
-function initMentorDirectory() {
+function initMentorDirectory(initialMentors = []) {
   const form = document.querySelector('#directory-search');
   const panel = document.querySelector('#filter-panel');
   const results = document.querySelector('#mentor-results');
@@ -633,11 +677,15 @@ function initMentorDirectory() {
   const empty = document.querySelector('#directory-empty');
   const error = document.querySelector('#directory-error');
   const resultCount = document.querySelector('#result-count');
+  const paginationHost = document.querySelector('#mentor-pagination');
   const activeFilters = document.querySelector('#active-filters');
   const sort = document.querySelector('#sort');
   const mobileButton = document.querySelector('#mobile-filter-button');
   let requestNumber = 0;
   let toastTimer;
+  let page = 1;
+  let currentResults = initialMentors;
+  let unbindPagination = () => {};
 
   const getFilters = () => ({
     q: document.querySelector('#directory-query')?.value.trim() || '',
@@ -715,6 +763,20 @@ function initMentorDirectory() {
     });
   }
 
+  function renderMentorPage() {
+    const pagination = paginateItems(currentResults, page);
+    page = pagination.page;
+    results.innerHTML = pagination.items.map(DirectoryMentorCard).join('');
+    results.hidden = currentResults.length === 0;
+    empty.hidden = currentResults.length > 0;
+    if (paginationHost) {
+      paginationHost.innerHTML = renderPagination({ page, totalPages: pagination.totalPages, label: 'Mentor directory pages' });
+      unbindPagination();
+      unbindPagination = bindPagination(paginationHost, { onChange: nextPage => { page = nextPage; renderMentorPage(); } });
+    }
+    wireCards();
+  }
+
   async function search() {
     const activeRequest = ++requestNumber;
     const filters = getFilters();
@@ -726,11 +788,10 @@ function initMentorDirectory() {
     try {
       const mentors = await mentorService.searchMentors(filters);
       if (activeRequest !== requestNumber) return;
-      results.innerHTML = mentors.map(DirectoryMentorCard).join('');
-      results.hidden = mentors.length === 0;
-      empty.hidden = mentors.length > 0;
+      currentResults = mentors;
+      page = 1;
+      renderMentorPage();
       resultCount.textContent = `${mentors.length} mentor${mentors.length === 1 ? '' : 's'} found`;
-      wireCards();
     } catch {
       if (activeRequest !== requestNumber) return;
       error.hidden = false;
@@ -782,7 +843,7 @@ function initMentorDirectory() {
       });
     });
   });
-  wireCards();
+  renderMentorPage();
   bindUserDropdown(appEl, () => router());
   if (filterLabels(getFilters()).length > 0 || getFilters().sort !== 'recommended') search();
 }

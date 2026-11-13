@@ -23,7 +23,7 @@ export const adminSections = {
 };
 export function adminIcon(name) { return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths[name] || paths.overview}</svg>`; }
 
-export function AdminLayout(section, content, { name = 'Administrator', demo = false } = {}) {
+export function AdminLayout(section, content, { name = 'Administrator', authenticated = false } = {}) {
   const initials = name.split(/\s+/).map(p => p[0]).slice(0, 2).join('');
   return `<div class="admin-shell">
     <a class="admin-skip btn btn-primary" href="#admin-content">Skip to content</a>
@@ -32,7 +32,7 @@ export function AdminLayout(section, content, { name = 'Administrator', demo = f
       <div><p class="eyebrow mb-4">ADMIN WORKSPACE</p><nav id="admin-navigation" aria-label="Administration">${Object.entries(adminSections).map(([key, label]) => `<a class="admin-nav-link" href="#/admin${key === 'overview' ? '' : '/' + key}" ${key === section ? 'aria-current="page"' : ''}>${adminIcon(key)}${label}</a>`).join('')}</nav></div>
       <div class="admin-sidebar-bottom"><div class="admin-sidebar-note"><strong class="text-ink">A little care. A lot of growth.</strong><p class="mt-2">Keep the community a great place to learn, connect, and grow.</p></div><a href="#/" class="admin-nav-link">${adminIcon('arrow')}Back to website</a></div>
     </aside>
-    <div class="admin-main"><header class="admin-topbar"><p><span class="text-muted">Workspace</span> <span class="mx-2 text-muted">/</span> ${e(adminSections[section] || 'Overview')}</p><div class="admin-profile"><span class="admin-avatar">${e(initials)}</span><div><p class="font-semibold">${e(name)}</p><p class="text-muted text-[10px] mt-1">${demo ? 'Demo administrator' : 'Administrator'}</p></div></div></header>
+    <div class="admin-main"><header class="admin-topbar"><p><span class="text-muted">Workspace</span> <span class="mx-2 text-muted">/</span> ${e(adminSections[section] || 'Overview')}</p><div class="flex items-center gap-4"><div class="admin-profile"><span class="admin-avatar">${e(initials)}</span><div><p class="font-semibold">${e(name)}</p><p class="text-muted text-[10px] mt-1">Administrator</p></div></div>${authenticated ? '<button id="admin-logout" class="btn btn-outline btn-sm" type="button">Sign out</button>' : ''}</div></header>
       <main id="admin-content" class="admin-content" tabindex="-1">${content}</main>
     </div>
   </div>`;

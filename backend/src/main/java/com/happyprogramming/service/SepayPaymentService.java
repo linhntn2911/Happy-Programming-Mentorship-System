@@ -357,12 +357,12 @@ public class SepayPaymentService {
         }
 
         db.update("""
-                IF EXISTS (SELECT 1 FROM dbo.conversations WITH (UPDLOCK,HOLDLOCK) WHERE mentor_id=? AND mentee_id=?)
+                IF EXISTS (SELECT 1 FROM dbo.conversations WITH (UPDLOCK,HOLDLOCK) WHERE mentor_id=? AND mentee_id=? AND conversation_type='MENTORSHIP')
                     UPDATE dbo.conversations SET inquiry_status='APPROVED', updated_at=?
-                    WHERE mentor_id=? AND mentee_id=?;
+                    WHERE mentor_id=? AND mentee_id=? AND conversation_type='MENTORSHIP';
                 ELSE
-                    INSERT INTO dbo.conversations(mentor_id,mentee_id,inquiry_status,created_at,updated_at)
-                    VALUES (?,?,'APPROVED',?,?);
+                    INSERT INTO dbo.conversations(mentor_id,mentee_id,conversation_type,inquiry_status,created_at,updated_at)
+                    VALUES (?,?,'MENTORSHIP','APPROVED',?,?);
                 """, mentorId, menteeId, sqlUtcTimestamp(now), mentorId, menteeId,
                 mentorId, menteeId, sqlUtcTimestamp(now), sqlUtcTimestamp(now));
 

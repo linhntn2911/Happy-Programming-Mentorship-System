@@ -5,3 +5,4 @@
 - [x] 3. Implement secure payout request and admin paid/rejected endpoints with authorization.
 - [x] 4. Add mentor wallet page and admin payout review interface.
 - [x] 5. Add focused tests and run frontend verification plus targeted backend tests.
+- [x] 6. Enforce Staff review before Admin settlement, require transfer evidence, notify the mentor, and expose the owner-only receipt.

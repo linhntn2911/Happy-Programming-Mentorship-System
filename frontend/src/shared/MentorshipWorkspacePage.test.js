@@ -1,6 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { filterWorkspaceList, workspaceConversationMarkup, workspaceEngagementsMarkup, workspaceListMarkup, workspaceMessages } from './MentorshipWorkspacePage.js';
+import { filterWorkspaceList, workspaceConversationMarkup, workspaceEngagementsMarkup, workspaceForBookingRequest, workspaceListMarkup, workspaceMessages } from './MentorshipWorkspacePage.js';
+
+test('booking links select the learning workspace instead of a dispute with the same request id', () => {
+  const workspaces = [
+    { workspaceId: 90, requestId: 16, isMediation: true, disputeTicketCode: 'DISP-001' },
+    { workspaceId: 40, requestId: 16, isMediation: false, packageName: 'Lite' },
+  ];
+
+  assert.equal(workspaceForBookingRequest(workspaces, 16)?.workspaceId, 40);
+  assert.equal(workspaceForBookingRequest([workspaces[0]], 16), null);
+});
+
+test('an older booking opens the shared learning conversation for the same partner', () => {
+  const workspaces = [
+    { workspaceId: 90, requestId: 16, partnerId: 22, isMediation: true },
+    { workspaceId: 40, requestId: 20, partnerId: 22, isMediation: false },
+    { workspaceId: 41, requestId: 30, partnerId: 23, isMediation: false },
+  ];
+
+  assert.equal(workspaceForBookingRequest(workspaces, 16, 22)?.workspaceId, 40);
+});
 
 test('workspace message renderer escapes text and renders code as code', () => {
   const markup = workspaceMessages([
@@ -20,6 +40,23 @@ test('workspace file messages render an authorized download link', () => {
   assert.match(markup, /lesson\.pdf/);
   assert.match(markup, /\/api\/mentorship-workspaces\/30\/messages\/9\/file/);
   assert.match(markup, /2\.0 KB/);
+});
+
+test('workspace renders shared images inline and offers a code composer', () => {
+  const imageMarkup = workspaceMessages([
+    { id: 10, senderName: 'Mentor', messageType: 'FILE', fileName: 'diagram.png', fileMimeType: 'image/png', fileSizeBytes: 2048, mine: false },
+  ], 30);
+  assert.match(imageMarkup, /<img/);
+  assert.match(imageMarkup, /diagram\.png/);
+
+  const markup = workspaceConversationMarkup({
+    workspaceId: 40, conversationId: 40, partnerName: 'A Mentor', partnerRole: 'MENTOR',
+    packageName: 'Lite', subscriptionStatus: 'ACTIVE', hasMonthly: true, messages: [], oneOffSessions: [],
+  }, [], false);
+  assert.match(markup, /id="workspace-message-type"/);
+  assert.match(markup, />Code snippet</);
+  assert.match(markup, /id="workspace-code-language"/);
+  assert.match(markup, /Attach image or file/);
 });
 
 test('workspace messages filter loaded history and mark the unread boundary', () => {
@@ -124,6 +161,33 @@ test('one relationship workspace renders monthly and one-off engagements separat
   assert.match(markup, /Work Review/);
   assert.match(markup, /180\.000 VND/);
   assert.match(markup, /2 participants/);
+});
+
+test('opening a one-off booking puts that exact session first in the shared workspace', () => {
+  const detail = {
+    workspaceId: 40,
+    partnerName: 'Linh Nguyen',
+    hasMonthly: true,
+    packageName: 'Lite',
+    subscriptionStatus: 'CANCELLED',
+    oneOffSessions: [{
+      bookingId: 70,
+      requestId: 16,
+      sessionName: 'Introductory Call',
+      startAt: '2026-11-06T07:30:00Z',
+      endAt: '2026-11-06T07:40:00Z',
+      price: 5000,
+      currency: 'VND',
+      status: 'COMPLETED',
+      participants: 1,
+    }],
+    messages: [],
+  };
+  const markup = workspaceConversationMarkup(detail, [detail], true, 'ALL', '', false, 16);
+
+  assert.match(markup, /Introductory Call · One-off session/);
+  assert.match(markup, /Opened booking/);
+  assert.match(markup, /data-selected-booking="true"/);
 });
 
 test('ended one-off sessions leave upcoming engagements and remain in collapsed history', () => {

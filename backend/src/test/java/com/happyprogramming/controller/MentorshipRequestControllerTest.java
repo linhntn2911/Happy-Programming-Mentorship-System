@@ -189,7 +189,7 @@ class MentorshipRequestControllerTest {
     void listsMyApplicationsWithStatusFilterAndPagination() throws Exception {
         when(mentorshipRequestService.getMyApplications(0, 10, "ACCEPTED"))
                 .thenReturn(new MenteeApplicationPageDto(java.util.List.of(
-                        new MenteeApplicationDto(99L, "Nam Nguyễn", "Backend Mentorship", goals(), "ACCEPTED",
+                        new MenteeApplicationDto(99L, 7L, "Nam Nguyễn", "Backend Mentorship", goals(), "ACCEPTED",
                                 Instant.parse("2026-10-08T02:00:00Z"), Instant.parse("2026-10-09T02:00:00Z"),
                                 Instant.parse("2026-10-10T02:00:00Z"), null, null, null, null)), 1, 1, 0, 10));
 

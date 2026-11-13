@@ -7,7 +7,7 @@ import com.happyprogramming.dto.CreateMentorshipRequest;
 import com.happyprogramming.dto.CreateOneOffSessionRequest;
 import com.happyprogramming.dto.MenteeApplicationPageDto;
 import com.happyprogramming.dto.MentorshipRequestResponse;
-import com.happyprogramming.dto.MenteeTransactionDto;
+import com.happyprogramming.dto.MenteeTransactionPageDto;
 import com.happyprogramming.service.MentorshipRequestService;
 import com.happyprogramming.service.SepayPaymentService;
 import jakarta.validation.Valid;
@@ -20,7 +20,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
-import java.util.List;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -60,8 +59,12 @@ public class MentorshipRequestController {
     }
 
     @GetMapping("/api/payments/mine")
-    public ApiResponse<List<MenteeTransactionDto>> getMyTransactions() {
-        return ApiResponse.ok(mentorshipRequestService.getMyTransactions());
+    public ApiResponse<MenteeTransactionPageDto> getMyTransactions(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String serviceType) {
+        return ApiResponse.ok(mentorshipRequestService.getMyTransactions(page, size, status, serviceType));
     }
 
     @PostMapping("/api/mentorship-requests/{id}/cancel")

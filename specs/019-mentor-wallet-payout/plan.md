@@ -7,12 +7,14 @@ Use the existing SePay webhook and immutable escrow ledger. Add an idempotent sc
 - Versioned SQL Server migration extends the escrow ledger entry types and adds payout request storage/indexes.
 - `GET /api/mentors/me/wallet`: balances, ledger history, and the mentor's payout requests (never returns full account number).
 - `POST /api/mentors/me/payout-requests`: amount and bank destination; only within available balance.
-- `GET /api/admin/payout-requests`: pending requests and decrypted destination details for authorized admin review.
-- `PATCH /api/admin/payout-requests/{id}`: mark `PAID` with transfer reference or `REJECTED` with reason.
+- `GET/PATCH /api/staff/payout-requests`: validate requested payouts and approve or reject them.
+- `GET /api/admin/payout-requests`: Staff-approved requests with decrypted destination details for manual transfer.
+- `PATCH /api/admin/payout-requests/{id}`: mark an approved request `PAID` with transfer reference and receipt, or `REJECTED` with reason.
+- `GET /api/mentors/me/payout-requests/{id}/receipt`: return the receipt only to the owning mentor.
 
 ## Security and Operations
 
-- Require MENTOR for wallet endpoints and ADMIN for payout operations.
+- Require MENTOR for wallet/receipt endpoints, STAFF for first-level review, and ADMIN for financial settlement.
 - Store encrypted account number and masked last four digits; do not log request payloads.
 - The release job is conditional on payment scheduler configuration and idempotent under concurrent execution.
 - Never execute a database migration or move money as part of coding.

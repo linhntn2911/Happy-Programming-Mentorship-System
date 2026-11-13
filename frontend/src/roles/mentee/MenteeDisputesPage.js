@@ -3,6 +3,7 @@ import { BrowseAllMentorsLink } from '../../shared/BrowseAllMentorsLink.js';
 import { bindUserDropdown, getInitials, renderNotificationBell, renderUserDropdown } from '../../shared/Header.js';
 import { authService } from '../auth/authService.js';
 import { menteeDisputesService } from './menteeDisputesService.js';
+import { bindPagination, paginateItems, renderPagination } from '../../shared/pagination.js';
 
 const MAX_SIZE = 5 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -33,16 +34,19 @@ function table(items) {
 }
 
 function detailMarkup(item) {
-  const evidence = item.evidence?.map(file => `<a class="block overflow-hidden rounded-xl border border-line bg-cream focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" href="${menteeDisputesService.evidenceUrl(item.id, file.id)}" target="_blank" rel="noopener"><img class="h-32 w-full object-cover" src="${menteeDisputesService.evidenceUrl(item.id, file.id)}" alt="Evidence: ${esc(file.fileName)}"><span class="block truncate p-2 text-[10px] text-muted">${esc(file.fileName)}</span></a>`).join('') || '';
-  return `<button class="modal-close" type="button" aria-label="Close"><span aria-hidden="true">×</span></button><p class="eyebrow mt-4">DISPUTE DETAILS</p><div class="mt-2 flex flex-wrap items-center justify-between gap-3"><h2 class="font-display text-3xl text-ink">${esc(item.ticketCode)}</h2>${badge(item.status)}</div><p class="mt-2 text-sm text-muted">${esc(item.title)} with ${esc(item.mentorName)}</p><div class="mt-6 divide-y divide-line rounded-xl border border-line bg-cream"><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Category</span><strong>${esc(categoryLabels[item.category] || item.category)}</strong></div><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Disputed amount</span><strong>${esc(money(item.disputedAmount, item.currency))}</strong></div><div class="p-4 text-sm"><span class="text-muted">Your statement</span><p class="mt-2 whitespace-pre-wrap text-ink">${esc(item.description)}</p></div></div><h3 class="mt-6 text-sm font-semibold text-ink">Initial evidence</h3><div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">${evidence}</div>${item.status === 'APPROVED' ? `
+  const hasEvidence = item.evidence && item.evidence.length > 0;
+  const evidence = hasEvidence
+    ? item.evidence.map(file => `<a class="block overflow-hidden rounded-xl border border-line bg-cream focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand hover:border-brand transition" href="${menteeDisputesService.evidenceUrl(item.id, file.id)}" target="_blank" rel="noopener"><img class="h-32 w-full object-cover" src="${menteeDisputesService.evidenceUrl(item.id, file.id)}" alt="Evidence: ${esc(file.fileName)}"><span class="block truncate p-2 text-[10px] text-muted">${esc(file.fileName)}</span></a>`).join('')
+    : '';
+  return `<button class="modal-close" type="button" aria-label="Close"><span aria-hidden="true">×</span></button><p class="eyebrow mt-4">DISPUTE DETAILS</p><div class="mt-2 flex flex-wrap items-center justify-between gap-3"><h2 class="font-display text-3xl text-ink">${esc(item.ticketCode)}</h2>${badge(item.status)}</div><p class="mt-2 text-sm text-muted">${esc(item.title)} with ${esc(item.mentorName)}</p><div class="mt-6 divide-y divide-line rounded-xl border border-line bg-cream"><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Category</span><strong>${esc(categoryLabels[item.category] || item.category)}</strong></div><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Disputed amount</span><strong>${esc(money(item.disputedAmount, item.currency))}</strong></div><div class="p-4 text-sm"><span class="text-muted">Your statement</span><p class="mt-2 whitespace-pre-wrap text-ink">${esc(item.description)}</p></div></div>${hasEvidence ? `<h3 class="mt-6 text-sm font-semibold text-ink">Initial evidence</h3><div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">${evidence}</div>` : ''}${item.status === 'APPROVED' ? `
   <div class="mt-6 rounded-xl border border-amber-200 bg-amber-50/80 p-4">
     <div class="flex items-center gap-2">
       <span class="w-2 h-2 rounded-full bg-amber-500"></span>
-      <strong class="text-sm font-semibold text-amber-900">Refund Approved Â· Awaiting Admin Bank Transfer</strong>
+      <strong class="text-sm font-semibold text-amber-900">Refund Approved · Awaiting Admin Bank Transfer</strong>
     </div>
     <p class="mt-2 text-xs leading-5 text-amber-800">${esc(item.resolutionNote || 'Staff has reviewed and approved your refund request. The administrator will execute the bank transfer shortly.')}</p>
     ${item.refundAmount != null ? `<p class="mt-3 text-sm font-semibold text-amber-950">Refund Amount: ${esc(money(item.refundAmount, item.currency))}</p>` : ''}
-    ${item.bankName ? `<div class="mt-2 p-2.5 rounded-lg bg-white/80 border border-amber-200 text-xs text-amber-900">Receiving Bank: <strong>${esc(item.bankName)}</strong> Â· Account: <strong>${esc(item.accountNumber)}</strong> (${esc(item.accountName)})</div>` : ''}
+    ${item.bankName ? `<div class="mt-2 p-2.5 rounded-lg bg-white/80 border border-amber-200 text-xs text-amber-900">Receiving Bank: <strong>${esc(item.bankName)}</strong> · Account: <strong>${esc(item.accountNumber)}</strong> (${esc(item.accountName)})</div>` : ''}
     <p class="mt-2 text-[11px] text-amber-700 italic">Dispute is in the payout queue. You will see the bank transfer reference once processed.</p>
   </div>
 ` : (item.resolutionType || item.status === 'RESOLVED' || item.status === 'REJECTED') ? `
@@ -50,8 +54,28 @@ function detailMarkup(item) {
     <strong class="text-sm text-ink">${esc(item.resolutionType || item.status)}</strong>
     <p class="mt-2 text-xs leading-5 text-muted">${esc(item.resolutionNote || '')}</p>
     ${item.refundAmount != null ? `<p class="mt-3 text-sm font-semibold text-brand">Refund: ${esc(money(item.refundAmount, item.currency))}</p>` : ''}
-    ${item.bankName ? `<div class="mt-2 text-xs text-ink">Bank: <strong>${esc(item.bankName)}</strong> Â· Account: <strong>${esc(item.accountNumber)}</strong> (${esc(item.accountName)})</div>` : ''}
+    ${item.bankName ? `<div class="mt-2 text-xs text-ink">Bank: <strong>${esc(item.bankName)}</strong> · Account: <strong>${esc(item.accountNumber)}</strong> (${esc(item.accountName)})</div>` : ''}
     ${item.transferReference ? `<div class="mt-1 text-xs text-muted">Bank Transfer Reference: <strong class="font-mono text-ink">${esc(item.transferReference)}</strong></div>` : ''}
+    ${item.receiptFileId ? `
+      <div class="mt-4 pt-3.5 border-t border-line">
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <span class="text-xs font-semibold text-ink flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-emerald-600 inline shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            Transfer Receipt / Proof (sent by Admin):
+          </span>
+          <a class="text-xs text-brand hover:underline font-semibold" href="${menteeDisputesService.receiptUrl(item.id)}" target="_blank" rel="noopener">Open full size ↗</a>
+        </div>
+        <a href="${menteeDisputesService.receiptUrl(item.id)}" target="_blank" rel="noopener" class="group inline-block border border-line rounded-xl overflow-hidden bg-white p-1 hover:border-brand shadow-sm transition">
+          <img src="${menteeDisputesService.receiptUrl(item.id)}" alt="Transfer Receipt Evidence" class="max-h-48 max-w-xs rounded-lg object-contain group-hover:opacity-95" />
+        </a>
+        <p class="mt-1.5 text-[11px] text-muted">Click image to view in new tab</p>
+      </div>
+    ` : (item.status === 'RESOLVED' ? `
+      <div class="mt-4 pt-3 border-t border-line flex items-center gap-2 text-xs text-muted">
+        <span class="inline-block w-2 h-2 rounded-full bg-slate-400 shrink-0"></span>
+        <span>Bank transfer verified with transaction reference. No photo receipt was attached.</span>
+      </div>
+    ` : '')}
   </div>
 ` : '<p class="mt-6 rounded-xl border border-line bg-cream p-4 text-xs leading-5 text-muted">Staff has not issued a decision yet. You can track status here while the complaint is reviewed.</p>'}`;
 }
@@ -84,15 +108,27 @@ export async function mountMenteeDisputes(root) {
   root.innerHTML = `<header class="directory-header"><div class="container flex h-[76px] items-center justify-between gap-4">${BrandLogo()}<nav class="flex items-center gap-3" aria-label="Main navigation">${BrowseAllMentorsLink()}${renderNotificationBell()}${renderUserDropdown({ currentUser: user, displayName: name, initials: getInitials(name) })}</nav></div></header><main class="min-h-screen bg-cream"><section class="container max-w-6xl py-12 sm:py-16"><div class="flex flex-wrap items-end justify-between gap-5"><div><p class="eyebrow">YOUR ACCOUNT</p><h1 class="mt-3 font-display text-4xl text-ink sm:text-5xl">My disputes</h1><p class="mt-4 text-sm text-muted">Submit complaints and track staff review in one place.</p></div><button type="button" class="btn btn-primary" data-file-dispute>File a dispute</button></div><div id="disputes-results" class="mt-8" role="status" aria-live="polite">Loading your disputes…</div></section></main>`;
   bindUserDropdown(root, () => { location.hash = '#/'; location.reload(); });
   const results = root.querySelector('#disputes-results');
-  let disputes = []; let targets = [];
+  let disputes = []; let targets = []; let status = ''; let page = 1; let unbindPagination = () => {};
 
-  const render = () => { results.innerHTML = disputes.length ? `<section class="mb-5 rounded-2xl border border-line bg-white p-5 shadow-sm"><label class="block max-w-56 text-xs font-semibold text-ink">Status<select data-status-filter class="mt-2 w-full rounded-lg border border-line bg-white px-3.5 py-2.5 text-sm focus:border-brand focus:outline-none"><option value="">All statuses</option>${Object.entries(statusLabels).map(([value,label]) => `<option value="${value}">${label}</option>`).join('')}</select></label></section><div data-dispute-table>${table(disputes)}</div>` : '<div class="rounded-2xl border border-line bg-white p-10 text-center shadow-sm"><h2 class="font-display text-2xl text-ink">No disputes submitted</h2><p class="mt-3 text-sm text-muted">If a paid service has a serious issue, use the dispute form and provide evidence.</p></div>'; };
+  const render = () => {
+    if (!disputes.length) {
+      results.innerHTML = '<div class="rounded-2xl border border-line bg-white p-10 text-center shadow-sm"><h2 class="font-display text-2xl text-ink">No disputes submitted</h2><p class="mt-3 text-sm text-muted">If a paid service has a serious issue, use the dispute form and provide evidence.</p></div>';
+      return;
+    }
+    const filtered = status ? disputes.filter(item => item.status === status) : disputes;
+    const pagination = paginateItems(filtered, page);
+    page = pagination.page;
+    results.innerHTML = `<section class="mb-5 rounded-2xl border border-line bg-white p-5 shadow-sm"><label class="block max-w-56 text-xs font-semibold text-ink">Status<select data-status-filter class="mt-2 w-full rounded-lg border border-line bg-white px-3.5 py-2.5 text-sm focus:border-brand focus:outline-none"><option value="">All statuses</option>${Object.entries(statusLabels).map(([value,label]) => `<option value="${value}" ${status === value ? 'selected' : ''}>${label}</option>`).join('')}</select></label></section><div data-dispute-table>${filtered.length ? table(pagination.items) : '<div class="rounded-2xl border border-line bg-white p-10 text-center text-sm text-muted">No disputes match this status.</div>'}</div><div data-dispute-pagination>${renderPagination({ page, totalPages: pagination.totalPages, label: 'Dispute history pages' })}</div>`;
+    unbindPagination();
+    unbindPagination = bindPagination(results.querySelector('[data-dispute-pagination]'), { onChange: nextPage => { page = nextPage; render(); } });
+  };
   async function reload() { [disputes, targets] = await Promise.all([menteeDisputesService.list(), menteeDisputesService.eligibleTargets()]); render(); }
 
   root.addEventListener('change', event => {
     if (!event.target.matches('[data-status-filter]')) return;
-    const filtered = event.target.value ? disputes.filter(item => item.status === event.target.value) : disputes;
-    root.querySelector('[data-dispute-table]').innerHTML = filtered.length ? table(filtered) : '<div class="rounded-2xl border border-line bg-white p-10 text-center text-sm text-muted">No disputes match this status.</div>';
+    status = event.target.value;
+    page = 1;
+    render();
   });
   root.addEventListener('click', async event => {
     if (event.target.closest('[data-file-dispute]')) {
