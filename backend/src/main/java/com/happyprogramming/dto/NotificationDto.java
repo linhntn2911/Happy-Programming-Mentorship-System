@@ -1,5 +1,6 @@
 package com.happyprogramming.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -9,9 +10,14 @@ public record NotificationDto(
     String message,
     String type,
     String actionUrl,
-    boolean isRead,
+    @JsonProperty("isRead") boolean isRead,
     LocalDateTime createdAt
 ) {
+    @JsonProperty("read")
+    public boolean read() {
+        return isRead;
+    }
+
     public record NotificationListResponse(
         long unreadCount,
         List<NotificationDto> notifications

@@ -38,7 +38,7 @@ function renderNotificationItems(items = []) {
   }
 
   return items.map(item => {
-    const isUnread = !item.read;
+    const isUnread = !(item.read ?? item.isRead);
     const timeAgo = formatRelativeTime(item.createdAt);
     const href = escapeHtml(notificationRelatedHref(item) || '#/notifications');
     const bgClass = isUnread ? 'bg-lilac/30 hover:bg-lilac/50' : 'bg-white hover:bg-cream';

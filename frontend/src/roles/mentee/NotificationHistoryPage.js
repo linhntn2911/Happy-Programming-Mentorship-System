@@ -11,11 +11,12 @@ const PAGE_SIZE = 10;
 
 function notificationRow(item) {
   const href = notificationRelatedHref(item);
+  const isRead = Boolean(item.read ?? item.isRead);
   const date = item.createdAt ? new Date(item.createdAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : '';
-  return `<article class="rounded-xl border border-line ${item.read ? 'bg-white' : 'bg-lilac/30'} p-5" data-notification-id="${esc(item.id)}">
-    <div class="flex flex-wrap items-start justify-between gap-3"><div class="flex items-center gap-2"><span class="h-2 w-2 rounded-full ${item.read ? 'bg-transparent' : 'bg-brand'}" aria-hidden="true"></span><h2 class="text-sm font-semibold text-ink">${esc(item.title || 'Notification')}</h2>${item.read ? '' : '<span class="rounded-full bg-lilac px-2 py-0.5 text-[10px] font-semibold text-brand">Unread</span>'}</div><time class="text-xs text-muted">${esc(date)}</time></div>
+  return `<article class="rounded-xl border border-line ${isRead ? 'bg-white' : 'bg-lilac/30'} p-5" data-notification-id="${esc(item.id)}">
+    <div class="flex flex-wrap items-start justify-between gap-3"><div class="flex items-center gap-2"><span class="h-2 w-2 rounded-full ${isRead ? 'bg-transparent' : 'bg-brand'}" aria-hidden="true"></span><h2 class="text-sm font-semibold text-ink">${esc(item.title || 'Notification')}</h2>${isRead ? '' : '<span class="rounded-full bg-lilac px-2 py-0.5 text-[10px] font-semibold text-brand">Unread</span>'}</div><time class="text-xs text-muted">${esc(date)}</time></div>
     <p class="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted">${esc(item.message || '')}</p>
-    <div class="mt-4 flex flex-wrap gap-4">${item.read ? '' : '<button type="button" data-mark-read class="text-xs font-semibold text-brand hover:underline">Mark as read</button>'}${href ? `<a href="${esc(href)}" data-open-notification class="text-xs font-semibold text-brand hover:underline">Open related page →</a>` : ''}</div>
+    <div class="mt-4 flex flex-wrap gap-4">${isRead ? '' : '<button type="button" data-mark-read class="text-xs font-semibold text-brand hover:underline">Mark as read</button>'}${href ? `<a href="${esc(href)}" data-open-notification class="text-xs font-semibold text-brand hover:underline">Open related page →</a>` : ''}</div>
   </article>`;
 }
 
