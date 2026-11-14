@@ -527,7 +527,7 @@ function router() {
   } else if (hash === '#/staff/payouts' || hash === '#/staff/payout-requests') {
     mountStaffPayouts(appEl);
     window.scrollTo({ top: 0, behavior: 'instant' });
-  } else if (hash === '#/staff/reports' || hash === '#/staff/disputes') {
+  } else if (hash === '#/staff/reports' || hash === '#/staff/disputes' || hash.startsWith('#/staff/reports/')) {
     mountStaffReports(appEl);
     window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash.startsWith('#/staff/')) {

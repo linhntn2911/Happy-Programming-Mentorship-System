@@ -9,7 +9,7 @@ import { StaffMentorsPage } from './StaffMentorsPage.js';
 import { StaffMenteesPage } from './StaffMenteesPage.js';
 import { StaffSkillsPage } from './StaffSkillsPage.js';
 import { StaffPayoutsPage } from './StaffPayoutsPage.js';
-import { StaffReportsPage } from './StaffReportsPage.js';
+import { StaffReportsPage, disputeStatusBadge } from './StaffReportsPage.js';
 import { StaffAccessDeniedPage } from './StaffAccessDeniedPage.js';
 import { staffService } from './staffService.js';
 import { authService } from '../auth/authService.js';
@@ -927,7 +927,400 @@ export async function mountStaffPayouts(root) {
   await loadData();
 }
 
+export async function mountStaffReportDetail(root, reportId) {
+  document.title = `Review Ticket #${reportId} | HappyProgramming`;
+  root.innerHTML = '<div class="min-h-screen bg-[#fbf9ff] flex items-center justify-center p-8 text-muted text-xs font-medium">Loading dispute details…</div>';
+
+  const user = await checkStaffAccess(root);
+  if (!user || !root.isConnected) return;
+
+  let detail;
+  try {
+    detail = await staffService.getReportDetail(reportId);
+  } catch (err) {
+    if (!root.isConnected) return;
+    staffError(root, err);
+    return;
+  }
+
+  const isResolved = detail.status === 'RESOLVED' || detail.status === 'REJECTED';
+  const isApproved = detail.status === 'APPROVED';
+  const isSubmitted = detail.status === 'SUBMITTED';
+
+  const allEvidences = (detail.evidences && detail.evidences.length > 0 ? detail.evidences : detail.evidence) || [];
+  const menteeInitialEvidences = allEvidences.filter(ev => ev.uploadedSide === 'MENTEE' || !ev.uploadedSide);
+
+  const menteeEvidencesHtml = menteeInitialEvidences.length > 0
+    ? `
+      <div class="mt-4 pt-4 border-t border-line">
+        <h4 class="text-xs font-semibold text-ink uppercase tracking-wider mb-2.5">Attached Images / Proof (${menteeInitialEvidences.length})</h4>
+        <div class="space-y-2">
+          ${menteeInitialEvidences.map(ev => `
+            <div class="flex items-center justify-between p-3 rounded-xl bg-white border border-line text-xs">
+              <div class="truncate mr-3">
+                <span class="font-medium text-ink block truncate">📎 ${e(ev.fileName)}</span>
+                <span class="text-muted text-[11px]">${e(ev.sizeBytes ? `${Math.round(ev.sizeBytes / 1024)} KB` : (ev.fileSize || 'Evidence'))} · Uploaded by ${e(ev.uploaderName || 'Mentee')} · ${e(dateTime(ev.uploadedAt || ev.createdAt))}</span>
+              </div>
+              <a href="/api/staff/reports/${e(detail.id)}/evidence/${e(ev.id)}" target="_blank" download class="btn btn-outline btn-xs shrink-0">
+                Download
+              </a>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `
+    : '<p class="mt-3 text-xs text-muted italic">No attached image files submitted by mentee.</p>';
+
+  const responses = detail.responses || [];
+  const responsesHtml = responses.length > 0
+    ? `
+      <div class="space-y-3.5">
+        ${responses.map(r => {
+          const isMentor = r.authorSide === 'MENTOR';
+          const isStaff = r.authorSide === 'STAFF';
+          const sidePill = isMentor
+            ? '<span class="status-badge status-warning !py-0.5 !px-2 !text-[10px]">MENTOR</span>'
+            : isStaff
+              ? '<span class="status-badge status-neutral !py-0.5 !px-2 !text-[10px]">STAFF</span>'
+              : '<span class="status-badge status-warning !py-0.5 !px-2 !text-[10px]">MENTEE</span>';
+          
+          const files = r.evidence || [];
+          const filesHtml = files.length > 0
+            ? `
+              <div class="mt-3 pt-2.5 border-t border-line/60 space-y-1.5">
+                <p class="text-[11px] font-semibold text-muted uppercase tracking-wider">Attachments (${files.length}):</p>
+                ${files.map(f => `
+                  <div class="flex items-center justify-between p-2 rounded-lg bg-white border border-line text-xs">
+                    <span class="truncate mr-2 text-ink">📎 ${e(f.fileName)} <span class="text-muted text-[11px]">(${Math.round((f.sizeBytes || 0) / 1024)} KB)</span></span>
+                    <a href="/api/staff/reports/${e(detail.id)}/evidence/${e(f.id)}" target="_blank" download class="btn btn-outline btn-xs shrink-0">
+                      Download
+                    </a>
+                  </div>
+                `).join('')}
+              </div>
+            `
+            : '';
+
+          return `
+            <div class="p-4 rounded-xl border border-line bg-cream">
+              <div class="flex items-center justify-between gap-2 mb-2">
+                <div class="flex items-center gap-2">
+                  <strong class="text-ink text-sm">${e(r.authorName || r.authorSide)}</strong>
+                  ${sidePill}
+                </div>
+                <span class="text-muted text-[11px]">${e(dateTime(r.createdAt))}</span>
+              </div>
+              <div class="text-ink text-xs leading-relaxed whitespace-pre-wrap">${e(r.message)}</div>
+              ${filesHtml}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `
+    : '<div class="p-6 text-center text-xs text-muted border border-dashed border-line rounded-xl">No mediation messages or counter-statements submitted yet.</div>';
+
+  let actionsCardHtml = '';
+  if (isApproved) {
+    actionsCardHtml = `
+      <section class="admin-panel">
+        <div class="admin-panel-heading"><div><h2>Resolution status</h2><p>Case approved for refund</p></div></div>
+        <div class="admin-panel-body">
+          <div class="p-4 rounded-xl bg-amber-50/80 border border-amber-200">
+            <span class="text-xs font-semibold uppercase tracking-wider text-amber-900">Refund Approved · Awaiting Admin Bank Transfer</span>
+            <p class="mt-2 text-xs text-ink font-medium">Outcome: <span class="badge !text-[10px] ml-1 bg-amber-100 text-amber-900">${e(detail.resolutionType || 'FULL_REFUND')}</span></p>
+            ${detail.resolutionNote ? `<p class="mt-2 text-xs text-muted">Notes: ${e(detail.resolutionNote)}</p>` : ''}
+            <div class="mt-3 text-xs flex gap-4 text-ink">
+              <span>Approved Refund: <strong>${money(detail.refundAmount)}</strong></span>
+            </div>
+            ${detail.bankName ? `
+              <div class="mt-3 p-3 rounded-lg bg-white/90 border border-amber-200 text-xs text-ink">
+                <span>Mentee Bank: <strong>${e(detail.bankName)}</strong><br>Account: <strong>${e(detail.accountNumber)}</strong> (${e(detail.accountName)})</span>
+              </div>
+            ` : ''}
+            ${detail.approvedByName ? `<p class="mt-2 text-[11px] text-muted">Approved by Staff: <strong>${e(detail.approvedByName)}</strong> at ${e(dateTime(detail.approvedAt))}</p>` : ''}
+            <p class="mt-3 text-[11px] text-amber-800 italic">Dispute is in Administrator payout queue. Admin will transfer funds via bank and record the transaction reference.</p>
+          </div>
+        </div>
+      </section>
+    `;
+  } else if (isResolved) {
+    actionsCardHtml = `
+      <section class="admin-panel">
+        <div class="admin-panel-heading"><div><h2>Resolution status</h2><p>Case closed</p></div></div>
+        <div class="admin-panel-body">
+          <div class="p-4 rounded-xl bg-lilac/30 border border-line">
+            <span class="text-xs font-semibold uppercase tracking-wider text-brand">Case Resolution</span>
+            <p class="mt-2 text-xs text-ink font-medium">Outcome: <span class="badge !text-[10px] ml-1">${e(detail.resolutionType || detail.status)}</span></p>
+            ${detail.resolutionNote ? `<p class="mt-2 text-xs text-muted">Notes: ${e(detail.resolutionNote)}</p>` : ''}
+            <div class="mt-3 text-xs flex gap-4 text-ink">
+              <span>Mentee Refund: <strong>${money(detail.refundAmount)}</strong></span>
+            </div>
+            ${detail.bankName ? `
+              <div class="mt-3 p-3 rounded-lg bg-white border border-line text-xs text-ink">
+                <span>Bank: <strong>${e(detail.bankName)}</strong><br>Account: <strong>${e(detail.accountNumber)}</strong> (${e(detail.accountName)})</span>
+                ${detail.transferReference ? `<div class="mt-1 text-muted">Transfer Ref: <strong class="font-mono text-ink">${e(detail.transferReference)}</strong></div>` : ''}
+              </div>
+            ` : ''}
+            ${detail.resolvedBy ? `<p class="mt-2 text-[11px] text-muted">Resolved by: ${e(detail.resolvedBy)} at ${e(dateTime(detail.resolvedAt))}</p>` : ''}
+          </div>
+        </div>
+      </section>
+    `;
+  } else {
+    actionsCardHtml = `
+      <section class="admin-panel">
+        <div class="admin-panel-heading"><div><h2>Dispute resolution actions</h2><p>Adjudicate and finalize case outcome</p></div></div>
+        <div class="admin-panel-body space-y-4">
+          ${isSubmitted ? `
+            <div class="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+              <h4 class="text-xs font-bold text-amber-900">Step 1: Intake & Triage</h4>
+              <p class="text-[11px] text-amber-800 mt-1">Move ticket into active mediation room to notify parties and freeze escrow hold.</p>
+              <button type="button" class="btn btn-primary btn-sm mt-3 w-full" id="btn-intake-dispute">Intake Case</button>
+            </div>
+          ` : ''}
+
+          <div>
+            <h4 class="text-xs font-bold text-ink uppercase tracking-wider mb-2">Step 2: Adjudicate & Finalize</h4>
+            <form id="dispute-resolve-form" class="space-y-3">
+              <div id="dispute-resolve-error" class="hidden"></div>
+              <label class="admin-field" for="resolve-outcome">
+                Settlement Outcome
+                <select id="resolve-outcome" name="outcome" required>
+                  <option value="FULL_REFUND">Full refund to mentee (100% mentee - forwards to Admin)</option>
+                  <option value="PARTIAL_REFUND">Partial refund to mentee (forwards to Admin)</option>
+                  <option value="REJECTED">Reject dispute / Claim denied</option>
+                  <option value="RESCHEDULE">Reschedule session / Mentorship continued</option>
+                </select>
+              </label>
+
+              <div id="split-amounts-row">
+                <label class="admin-field" for="resolve-mentee-refund">
+                  Mentee Refund (VND)
+                  <input type="number" id="resolve-mentee-refund" name="menteeRefundAmount" value="${detail.disputedAmount || 0}" min="0" max="${detail.disputedAmount || 0}" step="1000" />
+                </label>
+              </div>
+
+              <div id="resolve-bank-container" class="p-3 rounded-xl bg-cream border border-line space-y-2">
+                <p class="text-[11px] font-semibold text-ink uppercase tracking-wider">Mentee Receiving Bank Account</p>
+                <p class="text-[11px] text-muted">Admin requires these details to execute the bank transfer.</p>
+                <div class="space-y-2">
+                  <label class="admin-field" for="resolve-bank-name">
+                    Bank Name
+                    <input id="resolve-bank-name" name="bankName" type="text" value="${e(detail.bankName || '')}" placeholder="e.g. Vietcombank" maxlength="100">
+                  </label>
+                  <label class="admin-field" for="resolve-account-number">
+                    Account Number
+                    <input id="resolve-account-number" name="accountNumber" type="text" value="${e(detail.accountNumber || '')}" placeholder="e.g. 1029384756" maxlength="50">
+                  </label>
+                  <label class="admin-field" for="resolve-account-name">
+                    Account Name
+                    <input id="resolve-account-name" name="accountName" type="text" value="${e(detail.accountName || '')}" placeholder="e.g. NGUYEN VAN A" maxlength="150">
+                  </label>
+                </div>
+              </div>
+
+              <label class="admin-field" for="resolve-notes">
+                Resolution Explanation / Findings (Required for audit)
+                <textarea id="resolve-notes" name="resolutionNotes" rows="3" placeholder="Document investigation findings, policy basis, and instructions..." required minlength="10" maxlength="2000"></textarea>
+              </label>
+
+              <button type="submit" class="btn btn-primary w-full mt-3" id="btn-submit-resolve">Confirm & Submit Decision</button>
+            </form>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  const content = `
+    <div class="mb-4">
+      <a class="btn btn-outline btn-sm inline-flex items-center gap-1.5" href="#/staff/reports">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+        Back to all reports
+      </a>
+    </div>
+
+    <div class="admin-page-heading">
+      <div>
+        <p class="eyebrow mb-2">DISPUTE MEDIATION · TICKET #${e(detail.ticketCode)}</p>
+        <h1>${e(detail.title || 'Mentorship Complaint')}</h1>
+        <p>Dispute filed on ${e(dateTime(detail.createdAt))} · Category: <strong>${e(detail.category ? detail.category.replaceAll('_', ' ') : 'GENERAL')}</strong></p>
+      </div>
+      <div class="flex items-center gap-3">
+        ${disputeStatusBadge(detail.status)}
+        <span class="badge font-bold text-xs bg-brand/10 text-brand">${money(detail.disputedAmount)}</span>
+        <a href="#/workspace" class="btn btn-outline btn-sm inline-flex items-center gap-1.5">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Open Messages
+        </a>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6">
+      <!-- Left Column: Evidence & Discussion (8 cols) -->
+      <div class="lg:col-span-8 space-y-6">
+        <!-- Mentee Complaint -->
+        <section class="admin-panel">
+          <div class="admin-panel-heading">
+            <div>
+              <h2>Complainant statement</h2>
+              <p>Submitted by mentee (${e(detail.complainantName)}) on ticket creation</p>
+            </div>
+          </div>
+          <div class="admin-panel-body">
+            <div class="p-4 rounded-xl bg-white border border-line text-sm leading-relaxed text-ink whitespace-pre-wrap">${e(detail.reason || detail.description || 'No description provided.')}</div>
+            ${menteeEvidencesHtml}
+          </div>
+        </section>
+
+        <!-- Mediation Response Thread -->
+        <section class="admin-panel">
+          <div class="admin-panel-heading">
+            <div>
+              <h2>Mediation thread & counter-statements</h2>
+              <p>Exchange between Mentee, Mentor, and Staff during arbitration</p>
+            </div>
+            <span class="text-xs text-muted">${responses.length} message${responses.length === 1 ? '' : 's'}</span>
+          </div>
+          <div class="admin-panel-body">
+            ${responsesHtml}
+          </div>
+        </section>
+      </div>
+
+      <!-- Right Column: Parties & Actions (4 cols) -->
+      <div class="lg:col-span-4 space-y-6">
+        <!-- Parties Panel -->
+        <section class="admin-panel">
+          <div class="admin-panel-heading">
+            <div>
+              <h2>Case participants</h2>
+              <p>Involved mentee and mentor</p>
+            </div>
+          </div>
+          <div class="admin-panel-body space-y-4">
+            <div class="p-3.5 rounded-xl bg-cream border border-line text-xs">
+              <span class="text-muted block text-[11px] uppercase tracking-wider font-semibold">Complainant (Mentee)</span>
+              <strong class="text-ink text-sm block mt-0.5">${e(detail.complainantName)}</strong>
+              <span class="text-muted block mt-0.5">${e(detail.complainantEmail)}</span>
+            </div>
+            <div class="p-3.5 rounded-xl bg-cream border border-line text-xs">
+              <span class="text-muted block text-[11px] uppercase tracking-wider font-semibold">Respondent (Mentor)</span>
+              <strong class="text-ink text-sm block mt-0.5">${e(detail.respondentName)}</strong>
+              <span class="text-muted block mt-0.5">${e(detail.respondentEmail)}</span>
+            </div>
+            <div class="flex justify-between items-center text-xs p-3 rounded-xl border border-line bg-white">
+              <span class="text-muted">Disputed Amount</span>
+              <strong class="text-ink text-sm font-semibold">${money(detail.disputedAmount)}</strong>
+            </div>
+          </div>
+        </section>
+
+        <!-- Resolution Actions Panel -->
+        ${actionsCardHtml}
+      </div>
+    </div>
+  `;
+
+  root.innerHTML = StaffLayout('reports', content, { name: user.name });
+  bindStaffGlobalEvents(root);
+
+  const intakeBtn = root.querySelector('#btn-intake-dispute');
+  if (intakeBtn) {
+    intakeBtn.addEventListener('click', async () => {
+      intakeBtn.disabled = true;
+      intakeBtn.textContent = 'Processing intake…';
+      try {
+        await staffService.intakeReport(detail.id);
+        await mountStaffReportDetail(root, reportId);
+      } catch (err) {
+        intakeBtn.disabled = false;
+        intakeBtn.textContent = 'Intake Case';
+        alert(err.message || 'Intake failed.');
+      }
+    });
+  }
+
+  const resolveForm = root.querySelector('#dispute-resolve-form');
+  if (resolveForm) {
+    const outcomeSelect = resolveForm.querySelector('#resolve-outcome');
+    const menteeInput = resolveForm.querySelector('#resolve-mentee-refund');
+    const errorEl = resolveForm.querySelector('#dispute-resolve-error');
+    const total = Number(detail.disputedAmount || 0);
+
+    const updateAmounts = () => {
+      const outcome = outcomeSelect.value;
+      const bankBox = resolveForm.querySelector('#resolve-bank-container');
+      const refundRow = resolveForm.querySelector('#split-amounts-row');
+      if (outcome === 'FULL_REFUND') {
+        menteeInput.value = total;
+        menteeInput.disabled = true;
+        if (refundRow) refundRow.style.display = 'block';
+        if (bankBox) bankBox.style.display = 'block';
+      } else if (outcome === 'PARTIAL_REFUND') {
+        menteeInput.disabled = false;
+        if (refundRow) refundRow.style.display = 'block';
+        if (bankBox) bankBox.style.display = 'block';
+      } else {
+        menteeInput.value = 0;
+        menteeInput.disabled = true;
+        if (refundRow) refundRow.style.display = 'none';
+        if (bankBox) bankBox.style.display = 'none';
+      }
+    };
+
+    outcomeSelect.addEventListener('change', updateAmounts);
+    updateAmounts();
+
+    resolveForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const submitBtn = resolveForm.querySelector('#btn-submit-resolve');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Submitting decision...';
+      if (errorEl) errorEl.classList.add('hidden');
+
+      try {
+        const resolutionType = outcomeSelect.value;
+        const refundAmount = resolutionType === 'FULL_REFUND' ? total : (resolutionType === 'PARTIAL_REFUND' ? Number(menteeInput.value) : 0);
+        const notes = resolveForm.querySelector('#resolve-notes').value.trim();
+        const bankName = resolveForm.querySelector('#resolve-bank-name')?.value.trim() || detail.bankName || '';
+        const accountNumber = resolveForm.querySelector('#resolve-account-number')?.value.trim() || detail.accountNumber || '';
+        const accountName = resolveForm.querySelector('#resolve-account-name')?.value.trim() || detail.accountName || '';
+
+        if ((resolutionType === 'FULL_REFUND' || resolutionType === 'PARTIAL_REFUND') && (!bankName || !accountNumber || !accountName)) {
+          throw new Error('Please provide the mentee bank name, account number, and account holder name for Admin to execute the refund transfer.');
+        }
+
+        await staffService.resolveReport(detail.id, {
+          resolutionType,
+          resolutionNote: notes,
+          refundAmount,
+          bankName,
+          accountNumber,
+          accountName
+        });
+
+        await mountStaffReportDetail(root, reportId);
+      } catch (err) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Confirm & Submit Decision';
+        if (errorEl) {
+          errorEl.innerHTML = Notice({ message: err.message || 'Failed to submit resolution.', type: 'error' });
+          errorEl.classList.remove('hidden');
+        }
+      }
+    });
+  }
+}
+
 export async function mountStaffReports(root) {
+  const hash = location.hash || '';
+  const match = hash.match(/^#\/staff\/reports\/(\d+)$/);
+  if (match) {
+    await mountStaffReportDetail(root, Number(match[1]));
+    return;
+  }
+
   document.title = 'Manage Reports & Disputes | HappyProgramming';
   root.innerHTML = '<div class="min-h-screen bg-[#fbf9ff] flex items-center justify-center p-8 text-muted text-xs font-medium">Loading reports and dispute queue…</div>';
 

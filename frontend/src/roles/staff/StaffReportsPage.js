@@ -5,7 +5,7 @@ import { escapeHtml as e } from '../../shared/html.js';
 import { money, dateTime } from '../admin/admin.js';
 import { paginateItems, renderPagination } from '../../shared/pagination.js';
 
-function disputeStatusBadge(status) {
+export function disputeStatusBadge(status) {
   const tone = {
     SUBMITTED: 'neutral',
     IN_MEDIATION: 'warning',
@@ -64,7 +64,7 @@ export function StaffReportsPage(reports = [], filters = {}, user = null, notice
     `<span class="font-semibold text-ink">${money(item.disputedAmount)}</span>`,
     `<span class="text-xs text-muted">${e(dateTime(item.createdAt))}</span>`,
     disputeStatusBadge(item.status),
-    `<button class="btn btn-primary btn-sm" data-review-report="${e(item.id)}" aria-label="Review dispute ${e(item.ticketCode)}">Review Ticket</button>`
+    `<a class="btn btn-primary btn-sm" href="#/staff/reports/${e(item.id)}" data-review-report="${e(item.id)}" aria-label="Review dispute ${e(item.ticketCode)}">Review Ticket</a>`
   ]);
 
   const empty = EmptyState({

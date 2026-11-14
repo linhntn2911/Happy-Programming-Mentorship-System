@@ -64,40 +64,6 @@ export function StaffDashboardPage(data = {}, user = null) {
       })}
     </div>
 
-    <!-- 2-Column Operational Grid -->
-    <div class="admin-grid">
-      <section class="admin-panel"><div class="admin-panel-body"><h2>Assigned access</h2><p class="mt-3">Metrics are available only for your assigned permissions. Request access from your administrator when a function is denied.</p></div></section>
-      <!-- Recent Staff Activity Panel -->
-      <section class="admin-panel">
-        <div class="admin-panel-heading">
-          <div>
-            <h2>Recent staff activity</h2>
-            <p>Operational audit log of recent updates and decisions</p>
-          </div>
-          <a class="text-brand text-[11px] font-semibold hover:underline" href="#/staff/mentor-applications">View all</a>
-        </div>
-        <div class="admin-panel-body admin-activity">
-          ${stats.recentActivities.length > 0 ? stats.recentActivities.map(act => `
-            <div class="admin-activity-item">
-              <span class="admin-avatar">${staffIcon('applications')}</span>
-              <div class="grow">
-                <div class="flex items-center justify-between gap-2">
-                  <p class="font-semibold text-ink">${e(act.title)}</p>
-                  ${StatusBadge(act.status)}
-                </div>
-                <p class="text-muted text-xs mt-0.5">${e(act.description)}</p>
-                <small class="text-muted text-[10px] mt-1 block">${e(act.timeAgo || 'Recently')}</small>
-              </div>
-            </div>
-          `).join('') : `
-            <div class="py-8 text-center text-xs text-muted">
-              No recent activities recorded.
-            </div>
-          `}
-        </div>
-      </section>
-    </div>
-
     <!-- Operational Shortcuts Panel -->
     <section class="admin-panel">
       <div class="admin-panel-heading">
