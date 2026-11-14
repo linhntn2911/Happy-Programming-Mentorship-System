@@ -373,8 +373,9 @@ public class MentorWalletService {
                     """, reviewerId, Timestamp.from(now), payoutId);
             audit(db, reviewerId, "MENTOR_PAYOUT_APPROVED", payoutId, "{\"status\":\"REQUESTED\"}",
                     "{\"status\":\"APPROVED\"}", "Staff approved payout request for payment", remoteAddress);
-            notifyUser(db, mentorId, "Payout request approved",
-                    "Your payout request #" + payoutId + " was approved by Staff and is awaiting Admin transfer.");
+            notifyMentor(mentorId, "Payout request approved",
+                    "Your payout request #" + payoutId + " was approved by Staff and is awaiting Admin transfer.",
+                    "PAYOUT_APPROVED");
             return;
         }
 
@@ -413,12 +414,9 @@ public class MentorWalletService {
             audit(db, reviewerId, "MENTOR_PAYOUT_PAID", payoutId, "{\"status\":\"" + currentStatus + "\"}",
                     "{\"status\":\"PAID\",\"amount\":\"" + amount.toPlainString() + "\"}",
                     "Bank transfer reference: " + transferReference, remoteAddress);
-            notifyUser(db, mentorId, "Payout transferred",
-                    "Admin transferred payout #" + payoutId + ". Reference: " + transferReference
-                            + ". The receipt is available in your wallet.");
-            notifyMentor(mentorId, "Payout paid",
-                    "Your payout of " + amount.toPlainString() + " VND was transferred. Bank reference: "
-                            + transferReference + ".",
+            notifyMentor(mentorId, "Payout transferred",
+                    "Your payout of " + amount.toPlainString() + " VND (request #" + payoutId + ") was transferred. Reference: "
+                            + transferReference + ". The receipt is available in your wallet.",
                     "PAYOUT_PAID");
             return;
         }
@@ -441,8 +439,6 @@ public class MentorWalletService {
                     reason, reviewerId, Timestamp.from(now), payoutId, currentStatus);
             audit(db, reviewerId, "MENTOR_PAYOUT_REJECTED", payoutId, "{\"status\":\"" + currentStatus + "\"}",
                     "{\"status\":\"REJECTED\"}", reason, remoteAddress);
-            notifyUser(db, mentorId, "Payout request rejected",
-                    "Payout request #" + payoutId + " was rejected. Reason: " + reason);
             notifyMentor(mentorId, "Payout request rejected",
                     "Your payout request #" + payoutId + " was rejected. Reason: " + reason, "PAYOUT_REJECTED");
             return;
@@ -512,15 +508,10 @@ public class MentorWalletService {
         }
     }
 
-    private void notifyUser(JdbcTemplate db, long userId, String title, String message) {
-        db.update("""
-                INSERT INTO dbo.notifications(user_id,title,message,type,action_url,is_read,created_at)
-                VALUES (?,?,?,'PAYOUT','#/mentor/wallet',0,SYSUTCDATETIME())
-                """, userId, title, message);
-    }
-
     private void notifyMentor(long mentorId, String title, String message, String type) {
-        notificationService.create(mentorId, title, message, type, "/mentor/wallet");
+        if (notificationService != null) {
+            notificationService.create(mentorId, title, message, type, "#/mentor/wallet");
+        }
     }
 
     private static String optionalReceiptUrl(String value) {
