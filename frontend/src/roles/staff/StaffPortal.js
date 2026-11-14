@@ -985,7 +985,7 @@ export async function mountStaffReportDetail(root, reportId) {
                   View
                 </a>
                 <a href="${fileUrl}" download class="btn btn-outline btn-xs" title="Download to device">
-                  📥
+                  Download
                 </a>
               </div>
             </div>
@@ -1037,7 +1037,7 @@ export async function mountStaffReportDetail(root, reportId) {
                         View
                       </a>
                       <a href="${fileUrl}" download class="btn btn-outline btn-xs" title="Download to device">
-                        📥
+                        Download
                       </a>
                     </div>
                   </div>
@@ -1534,7 +1534,7 @@ export async function mountStaffReports(root) {
                       View
                     </a>
                     <a href="${fileUrl}" download class="btn btn-outline btn-xs" title="Download to device">
-                      📥
+                      Download
                     </a>
                   </div>
                 </div>

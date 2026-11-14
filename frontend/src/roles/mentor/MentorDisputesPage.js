@@ -73,7 +73,7 @@ function evidenceList(disputeId, items = []) {
         </div>
         <div class="flex items-center gap-1.5 shrink-0">
           <a href="${fileUrl}" target="_blank" rel="noopener" class="btn btn-primary btn-xs">View</a>
-          <a href="${fileUrl}" download class="btn btn-outline btn-xs" title="Download to device">📥</a>
+          <a href="${fileUrl}" download class="btn btn-outline btn-xs" title="Download to device">Download</a>
         </div>
       </div>
     </li>`;
