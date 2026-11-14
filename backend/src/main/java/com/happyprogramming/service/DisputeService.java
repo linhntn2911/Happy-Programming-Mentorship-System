@@ -253,15 +253,24 @@ public class DisputeService {
                 instant(rs.getTimestamp("resolved_at")), List.of(),
                 rs.getString("transfer_reference"), rs.getString("bank_name"), rs.getString("account_number"),
                 rs.getString("account_name"), instant(rs.getTimestamp("approved_at")),
-                rs.getObject("receipt_file_id") != null ? rs.getLong("receipt_file_id") : null), disputeId, menteeId);
+                rs.getObject("receipt_file_id") != null ? rs.getLong("receipt_file_id") : null,
+                null), disputeId, menteeId);
         if (!rows.isEmpty()) {
             DisputeDtos.Detail item = rows.get(0);
+            List<String> mentorStatements = jdbc.query("""
+                    SELECT TOP 1 r.message
+                    FROM dbo.dispute_responses r
+                    WHERE r.dispute_id = ? AND r.author_side = 'MENTOR'
+                    ORDER BY r.created_at DESC, r.id DESC
+                    """, (rs, rowNum) -> rs.getString("message"), disputeId);
+            String mentorStatement = !mentorStatements.isEmpty() ? mentorStatements.get(0) : null;
+
             return new DisputeDtos.Detail(item.id(), item.ticketCode(), item.targetType(), item.targetId(),
                     item.title(), item.mentorName(), item.scheduledAt(), item.disputedAmount(), item.currency(),
                     item.category(), item.description(), item.status(), item.createdAt(), item.resolutionType(),
                     item.resolutionNote(), item.refundAmount(), item.resolvedAt(), evidence(disputeId, menteeId),
                     item.transferReference(), item.bankName(), item.accountNumber(), item.accountName(), item.approvedAt(),
-                    item.receiptFileId());
+                    item.receiptFileId(), mentorStatement);
         }
         Integer exists = jdbc.queryForObject("SELECT COUNT(1) FROM dbo.disputes WHERE id=?", Integer.class, disputeId);
         if (exists != null && exists > 0) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You cannot access this dispute.");
@@ -389,12 +398,18 @@ public class DisputeService {
 
     private List<DisputeDtos.Evidence> evidence(long disputeId, long menteeId) {
         return jdbc.query("""
-                SELECT e.id,f.original_name,f.mime_type,f.size_bytes,e.created_at
-                FROM dbo.dispute_evidence e JOIN dbo.disputes d ON d.id=e.dispute_id
-                JOIN dbo.files f ON f.id=e.file_id
-                WHERE e.dispute_id=? AND d.complainant_id=? ORDER BY e.id ASC
-                """, (rs, row) -> new DisputeDtos.Evidence(rs.getLong("id"), rs.getString("original_name"),
-                rs.getString("mime_type"), rs.getLong("size_bytes"), instant(rs.getTimestamp("created_at"))), disputeId, menteeId);
+                SELECT e.id, f.original_name, f.mime_type, f.size_bytes, e.created_at, e.uploaded_side, u.full_name AS uploader_name
+                FROM dbo.dispute_evidence e
+                JOIN dbo.disputes d ON d.id = e.dispute_id
+                JOIN dbo.files f ON f.id = e.file_id
+                LEFT JOIN dbo.users u ON u.id = e.uploaded_by
+                WHERE e.dispute_id = ? AND d.complainant_id = ?
+                ORDER BY e.id ASC
+                """, (rs, row) -> new DisputeDtos.Evidence(
+                rs.getLong("id"), rs.getString("original_name"),
+                rs.getString("mime_type"), rs.getLong("size_bytes"), instant(rs.getTimestamp("created_at")),
+                rs.getString("uploaded_side"), rs.getString("uploader_name")
+        ), disputeId, menteeId);
     }
 
     private String summarySql() { return """
@@ -732,7 +747,8 @@ public class DisputeService {
     public StaffDisputeDtos.StaffDetail staffResolve(long disputeId, StaffDisputeDtos.ResolveRequest request, AuthenticatedUser staffUser, String ip) {
         long staffId = staffUser != null && staffUser.id() != null ? staffUser.id() : 1L;
         List<Map<String, Object>> rows = jdbc.queryForList("""
-                SELECT id, status, disputed_amount, previous_target_status, target_type, booking_id, subscription_id, payment_id
+                SELECT id, ticket_code, complainant_id, respondent_id, status, disputed_amount,
+                       previous_target_status, target_type, booking_id, subscription_id, payment_id
                 FROM dbo.disputes WITH (UPDLOCK, HOLDLOCK) WHERE id = ?
                 """, disputeId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Dispute was not found.");
@@ -741,6 +757,9 @@ public class DisputeService {
         if ("APPROVED".equals(currentStatus) || "RESOLVED".equals(currentStatus) || "REJECTED".equals(currentStatus)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Dispute has already been processed or finalized.");
         }
+        String ticketCode = (String) dispute.get("ticket_code");
+        long complainantId = ((Number) dispute.get("complainant_id")).longValue();
+        Long mentorId = dispute.get("respondent_id") != null ? ((Number) dispute.get("respondent_id")).longValue() : null;
         BigDecimal disputedAmount = (BigDecimal) dispute.get("disputed_amount");
         String targetType = (String) dispute.get("target_type");
         Long bookingId = dispute.get("booking_id") != null ? ((Number) dispute.get("booking_id")).longValue() : null;
@@ -793,9 +812,6 @@ public class DisputeService {
             // Send in-app notifications and mediation message for staff refund approval
             try {
                 String formattedAmt = refundAmount != null ? refundAmount.toPlainString() : "0";
-                long complainantId = ((Number) dispute.get("complainant_id")).longValue();
-                Long mentorId = dispute.get("respondent_id") != null ? ((Number) dispute.get("respondent_id")).longValue() : null;
-                String ticketCode = (String) dispute.get("ticket_code");
 
                 jdbc.update("""
                         INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
@@ -850,6 +866,107 @@ public class DisputeService {
                 adminRepository.audit(staffId, "DISPUTE_RESOLVED", "DISPUTE", String.valueOf(disputeId),
                         Map.of("status", currentStatus), Map.of("status", newDisputeStatus), request.resolutionNote().trim(), ip != null ? ip : "127.0.0.1");
             }
+
+            // Send in-app notifications, mediation chat notice, and emails for staff rejection or reschedule
+            try {
+                String note = request.resolutionNote().trim();
+                if ("REJECTED".equals(newDisputeStatus)) {
+                    // 1. Notify Mentee
+                    jdbc.update("""
+                            INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
+                            VALUES (?, 'Khiếu nại #' + ? + ' đã bị từ chối', ?, 'DISPUTE', '#/disputes', 0, SYSUTCDATETIME())
+                            """, complainantId, ticketCode, "Staff đã xem xét và quyết định từ chối khiếu nại #" + ticketCode + " (Lý do: " + note + "). Khóa học được giữ nguyên trạng thái hoạt động bình thường.");
+
+                    // 2. Notify Mentor
+                    if (mentorId != null) {
+                        jdbc.update("""
+                                INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
+                                VALUES (?, 'Khiếu nại #' + ? + ' đã được bác bỏ (Tiếp tục khóa học)', ?, 'DISPUTE', '#/workspace', 0, SYSUTCDATETIME())
+                                """, mentorId, ticketCode, "Khiếu nại #" + ticketCode + " của học viên đã được Staff bác bỏ/từ chối (Lý do: " + note + "). Khóa học tiếp tục bình thường và các khoản đóng băng số dư đã được gỡ bỏ.");
+                    }
+
+                    // 3. Post to mediation chat
+                    List<Long> convRows = jdbc.queryForList("SELECT id FROM dbo.conversations WHERE dispute_id = ? AND conversation_type = 'MEDIATION'", Long.class, disputeId);
+                    if (!convRows.isEmpty()) {
+                        long convId = convRows.get(0);
+                        String staffNotice = String.format(
+                                "⚖ [KẾT QUẢ XỬ LÝ KHIẾU NẠI - CASE #%s]\n" +
+                                "Operational Staff (%s) đã hoàn tất đánh giá và quyết định:\n" +
+                                "• Quyết định: Bác bỏ yêu cầu khiếu nại (REJECTED / Không hoàn tiền)\n" +
+                                "• Lý do: %s\n" +
+                                "• Trạng thái khóa học: Đã khôi phục trạng thái hoạt động bình thường. Mọi hạn chế số dư liên quan đã được giải phóng.",
+                                ticketCode, staffUser.name(), note);
+                        String clientKey = "STAFF_REJECT_" + ticketCode + "_" + System.currentTimeMillis();
+                        jdbc.update("INSERT INTO dbo.messages (conversation_id, sender_id, client_message_key, message_type, body, moderation_status, sent_at, delivered_at) VALUES (?, ?, ?, 'TEXT', ?, 'ALLOWED', SYSUTCDATETIME(), SYSUTCDATETIME())",
+                                convId, staffId, clientKey, staffNotice);
+                        jdbc.update("UPDATE dbo.conversations SET last_message_at = SYSUTCDATETIME(), updated_at = SYSUTCDATETIME() WHERE id = ?", convId);
+                    }
+
+                    // 4. Email Mentee & Mentor
+                    if (emailService != null) {
+                        try {
+                            List<Map<String, Object>> mUsers = jdbc.queryForList("SELECT email, full_name FROM dbo.users WHERE id = ?", complainantId);
+                            if (!mUsers.isEmpty()) {
+                                String email = (String) mUsers.get(0).get("email");
+                                String name = (String) mUsers.get(0).get("full_name");
+                                emailService.sendNotification(email,
+                                        "[HappyProgramming] Kết quả xử lý khiếu nại #" + ticketCode + " - Bác bỏ khiếu nại",
+                                        "Xin chào " + (name != null ? name : "Mentee") + ",\n\n"
+                                        + "Staff đã hoàn tất xem xét khiếu nại #" + ticketCode + " và quyết định từ chối yêu cầu hoàn tiền.\n\n"
+                                        + "• Lý do: " + note + "\n"
+                                        + "• Trạng thái khóa học: Được khôi phục hoạt động bình thường để tiếp tục quá trình học tập.\n\n"
+                                        + "Bạn có thể xem chi tiết hồ sơ khiếu nại tại: #/disputes\n\n"
+                                        + "Trân trọng,\nHappyProgramming Support Team");
+                            }
+                        } catch (Exception ignored) {}
+
+                        try {
+                            if (mentorId != null) {
+                                List<Map<String, Object>> mentorUsers = jdbc.queryForList("SELECT email, full_name FROM dbo.users WHERE id = ?", mentorId);
+                                if (!mentorUsers.isEmpty()) {
+                                    String email = (String) mentorUsers.get(0).get("email");
+                                    String name = (String) mentorUsers.get(0).get("full_name");
+                                    emailService.sendNotification(email,
+                                            "[HappyProgramming] Khiếu nại #" + ticketCode + " đã được bác bỏ - Tiếp tục khóa học",
+                                            "Xin chào " + (name != null ? name : "Mentor") + ",\n\n"
+                                            + "Staff đã hoàn tất hòa giải và quyết định bác bỏ khiếu nại #" + ticketCode + " của học viên.\n\n"
+                                            + "• Kết luận: Không hoàn tiền (REJECTED)\n"
+                                            + "• Lý do: " + note + "\n"
+                                            + "• Khóa học tiếp tục trạng thái hoạt động bình thường và các khoản đóng băng số dư đã được mở khóa.\n\n"
+                                            + "Bạn có thể theo dõi tại Mentor Workspace: #/workspace\n\n"
+                                            + "Trân trọng,\nHappyProgramming Support Team");
+                                }
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                } else if ("RESCHEDULE".equals(request.resolutionType())) {
+                    jdbc.update("""
+                            INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
+                            VALUES (?, 'Khiếu nại #' + ? + ' đã được giải quyết (Đổi lịch học)', ?, 'DISPUTE', '#/applications', 0, SYSUTCDATETIME())
+                            """, complainantId, ticketCode, "Staff đã giải quyết khiếu nại #" + ticketCode + " theo phương án sắp xếp lại lịch học (Lý do: " + note + "). Buổi học đã được chuyển về trạng thái Xác nhận.");
+                    if (mentorId != null) {
+                        jdbc.update("""
+                                INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
+                                VALUES (?, 'Khiếu nại #' + ? + ' đã được giải quyết (Đổi lịch học)', ?, 'DISPUTE', '#/workspace', 0, SYSUTCDATETIME())
+                                """, mentorId, ticketCode, "Staff đã giải quyết khiếu nại #" + ticketCode + " theo phương án sắp xếp lại lịch học (Lý do: " + note + "). Buổi học đã được khôi phục trạng thái hoạt động.");
+                    }
+                    List<Long> convRows = jdbc.queryForList("SELECT id FROM dbo.conversations WHERE dispute_id = ? AND conversation_type = 'MEDIATION'", Long.class, disputeId);
+                    if (!convRows.isEmpty()) {
+                        long convId = convRows.get(0);
+                        String staffNotice = String.format(
+                                "⚖ [KẾT QUẢ XỬ LÝ KHIẾU NẠI - CASE #%s]\n" +
+                                "Operational Staff (%s) đã hoàn tất đánh giá và quyết định:\n" +
+                                "• Quyết định: Sắp xếp lại lịch học (RESCHEDULE)\n" +
+                                "• Hướng dẫn: %s\n" +
+                                "• Trạng thái: Buổi học đã được khôi phục trạng thái Xác nhận (CONFIRMED) để hai bên tiến hành học tập.",
+                                ticketCode, staffUser.name(), note);
+                        String clientKey = "STAFF_RESCHEDULE_" + ticketCode + "_" + System.currentTimeMillis();
+                        jdbc.update("INSERT INTO dbo.messages (conversation_id, sender_id, client_message_key, message_type, body, moderation_status, sent_at, delivered_at) VALUES (?, ?, ?, 'TEXT', ?, 'ALLOWED', SYSUTCDATETIME(), SYSUTCDATETIME())",
+                                convId, staffId, clientKey, staffNotice);
+                        jdbc.update("UPDATE dbo.conversations SET last_message_at = SYSUTCDATETIME(), updated_at = SYSUTCDATETIME() WHERE id = ?", convId);
+                    }
+                }
+            } catch (Exception ignored) {}
         }
 
         return staffDisputeDetail(disputeId);

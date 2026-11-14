@@ -963,9 +963,9 @@ export async function mountStaffReportDetail(root, reportId) {
         <h4 class="text-xs font-semibold text-ink uppercase tracking-wider mb-2.5">Attached Images / Proof (${menteeInitialEvidences.length})</h4>
         <div class="space-y-2">
           ${menteeInitialEvidences.map(ev => {
-            const isImg = isImageFile(ev.fileName);
-            const fileUrl = `/api/staff/reports/${e(detail.id)}/evidence/${e(ev.id)}`;
-            return `
+      const isImg = isImageFile(ev.fileName);
+      const fileUrl = `/api/staff/reports/${e(detail.id)}/evidence/${e(ev.id)}`;
+      return `
             <div class="flex items-center gap-3 p-3 rounded-xl bg-white border border-line text-xs">
               ${isImg ? `
                 <a href="${fileUrl}" target="_blank" rel="noopener" class="block h-14 w-14 shrink-0 rounded-lg border border-line overflow-hidden bg-cream hover:opacity-85 transition" title="Click to view full image">
@@ -990,7 +990,7 @@ export async function mountStaffReportDetail(root, reportId) {
               </div>
             </div>
             `;
-          }).join('')}
+    }).join('')}
         </div>
       </div>
     `
@@ -1015,9 +1015,9 @@ export async function mountStaffReportDetail(root, reportId) {
               <div class="mt-3 pt-2.5 border-t border-line/60 space-y-1.5">
                 <p class="text-[11px] font-semibold text-muted uppercase tracking-wider">Attachments (${files.length}):</p>
                 ${files.map(f => {
-                  const isImg = isImageFile(f.fileName);
-                  const fileUrl = `/api/staff/reports/${e(detail.id)}/evidence/${e(f.id)}`;
-                  return `
+          const isImg = isImageFile(f.fileName);
+          const fileUrl = `/api/staff/reports/${e(detail.id)}/evidence/${e(f.id)}`;
+          return `
                   <div class="flex items-center gap-3 p-2.5 rounded-lg bg-white border border-line text-xs">
                     ${isImg ? `
                       <a href="${fileUrl}" target="_blank" rel="noopener" class="block h-12 w-12 shrink-0 rounded-lg border border-line overflow-hidden bg-cream hover:opacity-85 transition" title="Click to view full image">
@@ -1042,7 +1042,7 @@ export async function mountStaffReportDetail(root, reportId) {
                     </div>
                   </div>
                   `;
-                }).join('')}
+        }).join('')}
               </div>
             `
         : '';
