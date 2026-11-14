@@ -182,8 +182,9 @@ export function mountAdmin(root, section = 'overview') {
         const form = event.currentTarget;
         const values = Object.fromEntries(new FormData(form));
         const settings = { maintenance: values.maintenance === 'on', announcement: values.announcement.trim() };
-        for (const key of ['otpResendSeconds','otpExpiryMinutes','withdrawalThreshold','withdrawalFee','earningsHoldDays']) settings[key] = Number(values[key]);
-        openDialog('Review operational changes', `<p>Maintenance: <strong>${settings.maintenance ? 'Enabled — members will be blocked' : 'Disabled'}</strong></p><p class="mt-3">Announcement: ${e(settings.announcement || 'Hidden')}</p><p class="mt-3">OTP: resend after ${settings.otpResendSeconds}s; valid for ${settings.otpExpiryMinutes} minutes.</p><p>Withdrawals above ${settings.withdrawalThreshold} VND; fee ${settings.withdrawalFee} VND deducted per request.</p><p>Hold for new payments: ${settings.earningsHoldDays} days.</p><p class="mt-3">${e(values.reason)}</p>`, () => service.updateOperations({ settings, reason: values.reason }));
+        for (const key of ['otpResendSeconds','otpExpiryMinutes','withdrawalThreshold','earningsHoldDays']) settings[key] = Number(values[key]);
+        settings.withdrawalFee = 0;
+        openDialog('Review operational changes', `<p>Maintenance: <strong>${settings.maintenance ? 'Enabled — members will be blocked' : 'Disabled'}</strong></p><p class="mt-3">Announcement: ${e(settings.announcement || 'Hidden')}</p><p class="mt-3">OTP: resend after ${settings.otpResendSeconds}s; valid for ${settings.otpExpiryMinutes} minutes.</p><p>Withdrawals above ${settings.withdrawalThreshold} VND (free of fee).</p><p>Hold for new payments: ${settings.earningsHoldDays} days.</p><p class="mt-3">${e(values.reason)}</p>`, () => service.updateOperations({ settings, reason: values.reason }));
       });
     }
     on('#admin-settings-reset', 'click', render);
