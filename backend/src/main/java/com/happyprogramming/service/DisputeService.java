@@ -353,8 +353,18 @@ public class DisputeService {
         }, keys);
         Number fileId = keys.getKey();
         if (fileId == null) throw new IllegalStateException("Evidence file could not be stored.");
-        jdbc.update("INSERT INTO dbo.dispute_evidence(dispute_id,file_id,uploaded_by,display_order,created_at) VALUES (?,?,?,?,SYSUTCDATETIME())",
-                disputeId, fileId.longValue(), userId, order);
+        try {
+            jdbc.update("INSERT INTO dbo.dispute_evidence(dispute_id,file_id,uploaded_by,uploaded_side,display_order,created_at) VALUES (?,?,?,'MENTEE',?,SYSUTCDATETIME())",
+                    disputeId, fileId.longValue(), userId, order);
+        } catch (Exception ex) {
+            try {
+                jdbc.update("INSERT INTO dbo.dispute_evidence(dispute_id,file_id,uploaded_by,uploaded_side,created_at) VALUES (?,?,?,'MENTEE',SYSUTCDATETIME())",
+                        disputeId, fileId.longValue(), userId);
+            } catch (Exception ex2) {
+                jdbc.update("INSERT INTO dbo.dispute_evidence(dispute_id,file_id,uploaded_by,display_order,created_at) VALUES (?,?,?,?,SYSUTCDATETIME())",
+                        disputeId, fileId.longValue(), userId, order);
+            }
+        }
     }
 
     private ValidatedFile validateImage(MultipartFile upload) {
@@ -381,7 +391,7 @@ public class DisputeService {
                 SELECT e.id,f.original_name,f.mime_type,f.size_bytes,e.created_at
                 FROM dbo.dispute_evidence e JOIN dbo.disputes d ON d.id=e.dispute_id
                 JOIN dbo.files f ON f.id=e.file_id
-                WHERE e.dispute_id=? AND d.complainant_id=? ORDER BY e.display_order
+                WHERE e.dispute_id=? AND d.complainant_id=? ORDER BY e.id ASC
                 """, (rs, row) -> new DisputeDtos.Evidence(rs.getLong("id"), rs.getString("original_name"),
                 rs.getString("mime_type"), rs.getLong("size_bytes"), instant(rs.getTimestamp("created_at"))), disputeId, menteeId);
     }
@@ -501,7 +511,7 @@ public class DisputeService {
                 FROM dbo.dispute_evidence e
                 JOIN dbo.files f ON f.id = e.file_id
                 WHERE e.dispute_id = ?
-                ORDER BY e.display_order
+                ORDER BY e.id ASC
                 """, (rs, row) -> new DisputeDtos.Evidence(
                 rs.getLong("id"), rs.getString("original_name"),
                 rs.getString("mime_type"), rs.getLong("size_bytes"),
