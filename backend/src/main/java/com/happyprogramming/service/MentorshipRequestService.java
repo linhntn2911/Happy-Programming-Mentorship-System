@@ -59,9 +59,17 @@ public class MentorshipRequestService {
             """;
 
     private static final String COUNT_ACTIVE_REQUESTS = """
-            SELECT COUNT(1) FROM dbo.mentorship_requests
-            WHERE mentee_id = ? AND mentor_id = ?
-              AND status IN ('PENDING', 'ACCEPTED')
+            SELECT COUNT(1) FROM dbo.mentorship_requests r
+            WHERE r.mentee_id = ? AND r.mentor_id = ?
+              AND r.service_type = 'MONTHLY'
+              AND (
+                  r.status = 'PENDING'
+                  OR (r.status = 'ACCEPTED' AND r.funded_at IS NULL)
+                  OR EXISTS (
+                      SELECT 1 FROM dbo.subscriptions s
+                      WHERE s.request_id = r.id AND s.status IN ('ACTIVE', 'TRIALING')
+                  )
+              )
             """;
 
     private static final String INSERT_REQUEST = """
