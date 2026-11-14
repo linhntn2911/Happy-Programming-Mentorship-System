@@ -1203,6 +1203,12 @@ export async function mountStaffReportDetail(root, reportId) {
               <span class="text-muted block text-[11px] uppercase tracking-wider font-semibold">Complainant (Mentee)</span>
               <strong class="text-ink text-sm block mt-0.5">${e(detail.complainantName)}</strong>
               <span class="text-muted block mt-0.5">${e(detail.complainantEmail)}</span>
+              ${detail.bankName ? `
+                <div class="mt-2.5 pt-2 border-t border-line/60 text-[11px] text-ink">
+                  <span class="text-muted block">Refund Bank Info:</span>
+                  <strong>${e(detail.bankName)}</strong> · <strong class="font-mono">${e(detail.accountNumber)}</strong> (${e(detail.accountName)})
+                </div>
+              ` : ''}
             </div>
             <div class="p-3.5 rounded-xl bg-cream border border-line text-xs">
               <span class="text-muted block text-[11px] uppercase tracking-wider font-semibold">Respondent (Mentor)</span>

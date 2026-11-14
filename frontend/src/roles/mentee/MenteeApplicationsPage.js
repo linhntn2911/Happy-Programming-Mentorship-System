@@ -6,6 +6,7 @@ import { menteeApplicationsService } from './menteeApplicationsService.js';
 import { menteeDisputesService } from './menteeDisputesService.js';
 import { applicationDisplayStatus, canPayApplication } from './applicationPayment.js';
 import { renderPagination } from '../../shared/pagination.js';
+import { VIETNAM_BANKS } from '../../shared/vietnamBanks.js';
 
 const esc = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 const PAGE_SIZE = 10;
@@ -75,6 +76,26 @@ function openReportModal(booking, onSubmitted) {
             📷 Attach screenshots / photo proof
           </button>
           <div class="mt-2.5 flex flex-wrap gap-2" data-preview-container></div>
+        </div>
+        <div class="rounded-xl border border-line bg-cream p-4 space-y-3">
+          <div>
+            <span class="text-xs font-semibold text-ink">Receiving Bank Details (For refund transfer)</span>
+            <p class="mt-0.5 text-[11px] text-muted">If a refund is approved by Staff, Admin will transfer funds directly to this bank account.</p>
+          </div>
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <label class="block text-xs text-muted">Bank Name
+              <input name="bankName" list="dispute-banks-list" type="text" maxlength="100" class="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2 text-xs text-ink focus:border-brand focus:outline-none" placeholder="e.g. TPBank, MB Bank, Vietcombank">
+              <datalist id="dispute-banks-list">
+                ${VIETNAM_BANKS.map(b => `<option value="${b.shortName}">${b.label}</option>`).join('')}
+              </datalist>
+            </label>
+            <label class="block text-xs text-muted">Account Number
+              <input name="accountNumber" type="text" maxlength="50" class="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2 text-xs text-ink focus:border-brand focus:outline-none" placeholder="e.g. 0123456789">
+            </label>
+            <label class="block text-xs text-muted">Account Name
+              <input name="accountName" type="text" maxlength="150" class="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2 text-xs text-ink focus:border-brand focus:outline-none" placeholder="e.g. NGUYEN VAN A">
+            </label>
+          </div>
         </div>
         <label class="flex items-start gap-2.5 text-xs text-muted cursor-pointer pt-1">
           <input type="checkbox" name="terms" required class="mt-0.5 rounded text-brand focus:ring-brand">
@@ -168,10 +189,17 @@ function openReportModal(booking, onSubmitted) {
       submitBtn.textContent = 'Submitting report…';
 
       try {
+        const bankName = form.elements.bankName?.value?.trim() || '';
+        const accountNumber = form.elements.accountNumber?.value?.trim() || '';
+        const accountName = form.elements.accountName?.value?.trim() || '';
+
         const result = await menteeDisputesService.submit({
           requestId: booking.requestId,
           category: form.category.value,
           description: descInput.value.trim(),
+          bankName,
+          accountNumber,
+          accountName,
           termsAccepted: form.terms.checked,
           evidence: evidenceFiles,
         });
