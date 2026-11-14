@@ -930,6 +930,10 @@ export async function mountStaffPayouts(root) {
   await loadData();
 }
 
+function isImageFile(fileName = '') {
+  return /\.(jpe?g|png|webp|gif|svg)$/i.test(fileName || '');
+}
+
 export async function mountStaffReportDetail(root, reportId) {
   document.title = `Review Ticket #${reportId} | HappyProgramming`;
   root.innerHTML = '<div class="min-h-screen bg-[#fbf9ff] flex items-center justify-center p-8 text-muted text-xs font-medium">Loading dispute details…</div>';
@@ -958,17 +962,35 @@ export async function mountStaffReportDetail(root, reportId) {
       <div class="mt-4 pt-4 border-t border-line">
         <h4 class="text-xs font-semibold text-ink uppercase tracking-wider mb-2.5">Attached Images / Proof (${menteeInitialEvidences.length})</h4>
         <div class="space-y-2">
-          ${menteeInitialEvidences.map(ev => `
-            <div class="flex items-center justify-between p-3 rounded-xl bg-white border border-line text-xs">
-              <div class="truncate mr-3">
-                <span class="font-medium text-ink block truncate">📎 ${e(ev.fileName)}</span>
-                <span class="text-muted text-[11px]">${e(ev.sizeBytes ? `${Math.round(ev.sizeBytes / 1024)} KB` : (ev.fileSize || 'Evidence'))} · Uploaded by ${e(ev.uploaderName || 'Mentee')} · ${e(dateTime(ev.uploadedAt || ev.createdAt))}</span>
+          ${menteeInitialEvidences.map(ev => {
+            const isImg = isImageFile(ev.fileName);
+            const fileUrl = `/api/staff/reports/${e(detail.id)}/evidence/${e(ev.id)}`;
+            return `
+            <div class="flex items-center gap-3 p-3 rounded-xl bg-white border border-line text-xs">
+              ${isImg ? `
+                <a href="${fileUrl}" target="_blank" rel="noopener" class="block h-14 w-14 shrink-0 rounded-lg border border-line overflow-hidden bg-cream hover:opacity-85 transition" title="Click to view full image">
+                  <img src="${fileUrl}" alt="${e(ev.fileName)}" class="h-full w-full object-cover" />
+                </a>
+              ` : `
+                <div class="h-12 w-12 shrink-0 rounded-lg bg-lilac/50 border border-line flex items-center justify-center text-brand text-lg font-bold">📄</div>
+              `}
+              <div class="min-w-0 flex-1">
+                <a href="${fileUrl}" target="_blank" rel="noopener" class="font-medium text-ink block truncate hover:text-brand hover:underline" title="View file">
+                  📎 ${e(ev.fileName)}
+                </a>
+                <span class="text-muted text-[11px]">${e(ev.sizeBytes ? `${Math.round(ev.sizeBytes / 1024)} KB` : (ev.fileSize || 'Evidence'))} · Uploaded by <strong>${e(ev.uploaderName || 'Mentee')}</strong> · ${e(dateTime(ev.uploadedAt || ev.createdAt))}</span>
               </div>
-              <a href="/api/staff/reports/${e(detail.id)}/evidence/${e(ev.id)}" target="_blank" download class="btn btn-outline btn-xs shrink-0">
-                Download
-              </a>
+              <div class="flex items-center gap-1.5 shrink-0">
+                <a href="${fileUrl}" target="_blank" rel="noopener" class="btn btn-primary btn-xs">
+                  View
+                </a>
+                <a href="${fileUrl}" download class="btn btn-outline btn-xs" title="Download to device">
+                  📥
+                </a>
+              </div>
             </div>
-          `).join('')}
+            `;
+          }).join('')}
         </div>
       </div>
     `
@@ -992,14 +1014,35 @@ export async function mountStaffReportDetail(root, reportId) {
         ? `
               <div class="mt-3 pt-2.5 border-t border-line/60 space-y-1.5">
                 <p class="text-[11px] font-semibold text-muted uppercase tracking-wider">Attachments (${files.length}):</p>
-                ${files.map(f => `
-                  <div class="flex items-center justify-between p-2 rounded-lg bg-white border border-line text-xs">
-                    <span class="truncate mr-2 text-ink">📎 ${e(f.fileName)} <span class="text-muted text-[11px]">(${Math.round((f.sizeBytes || 0) / 1024)} KB)</span></span>
-                    <a href="/api/staff/reports/${e(detail.id)}/evidence/${e(f.id)}" target="_blank" download class="btn btn-outline btn-xs shrink-0">
-                      Download
-                    </a>
+                ${files.map(f => {
+                  const isImg = isImageFile(f.fileName);
+                  const fileUrl = `/api/staff/reports/${e(detail.id)}/evidence/${e(f.id)}`;
+                  return `
+                  <div class="flex items-center gap-3 p-2.5 rounded-lg bg-white border border-line text-xs">
+                    ${isImg ? `
+                      <a href="${fileUrl}" target="_blank" rel="noopener" class="block h-12 w-12 shrink-0 rounded-lg border border-line overflow-hidden bg-cream hover:opacity-85 transition" title="Click to view full image">
+                        <img src="${fileUrl}" alt="${e(f.fileName)}" class="h-full w-full object-cover" />
+                      </a>
+                    ` : `
+                      <div class="h-10 w-10 shrink-0 rounded-lg bg-lilac/50 border border-line flex items-center justify-center text-brand text-base font-bold">📄</div>
+                    `}
+                    <div class="min-w-0 flex-1">
+                      <a href="${fileUrl}" target="_blank" rel="noopener" class="font-medium text-ink block truncate hover:text-brand hover:underline" title="View file">
+                        📎 ${e(f.fileName)}
+                      </a>
+                      <span class="text-muted text-[11px]">(${Math.round((f.sizeBytes || 0) / 1024)} KB)</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                      <a href="${fileUrl}" target="_blank" rel="noopener" class="btn btn-primary btn-xs">
+                        View
+                      </a>
+                      <a href="${fileUrl}" download class="btn btn-outline btn-xs" title="Download to device">
+                        📥
+                      </a>
+                    </div>
                   </div>
-                `).join('')}
+                  `;
+                }).join('')}
               </div>
             `
         : '';
@@ -1469,16 +1512,31 @@ export async function mountStaffReports(root) {
           const sideBadge = ev.uploadedSide === 'MENTOR'
             ? '<span class="badge !text-[9px] ml-1 bg-purple-100 text-purple-800">MENTOR</span>'
             : '<span class="badge !text-[9px] ml-1 bg-amber-100 text-amber-800">MENTEE</span>';
+          const isImg = isImageFile(ev.fileName);
+          const fileUrl = `/api/staff/reports/${e(detail.id)}/evidence/${e(ev.id)}`;
           return `
-                <div class="flex items-center justify-between p-3 rounded-lg bg-cream border border-line text-xs">
-                  <div>
-                    <span class="font-medium text-ink">${e(ev.fileName)}</span>
-                    <span class="text-muted ml-2">(${e(ev.sizeBytes ? `${Math.round(ev.sizeBytes / 1024)} KB` : (ev.fileSize || 'Evidence'))})</span>
-                    <div class="text-[11px] text-muted">Uploaded by <strong>${e(ev.uploaderName || ev.uploadedSide || 'User')}</strong> ${sideBadge} · ${e(dateTime(ev.uploadedAt || ev.createdAt))}</div>
+                <div class="flex items-center gap-3 p-3 rounded-lg bg-cream border border-line text-xs">
+                  ${isImg ? `
+                    <a href="${fileUrl}" target="_blank" rel="noopener" class="block h-12 w-12 shrink-0 rounded-lg border border-line overflow-hidden bg-white hover:opacity-85 transition" title="Click to view full image">
+                      <img src="${fileUrl}" alt="${e(ev.fileName)}" class="h-full w-full object-cover" />
+                    </a>
+                  ` : `
+                    <div class="h-10 w-10 shrink-0 rounded-lg bg-lilac/50 border border-line flex items-center justify-center text-brand text-base font-bold">📄</div>
+                  `}
+                  <div class="min-w-0 flex-1">
+                    <a href="${fileUrl}" target="_blank" rel="noopener" class="font-medium text-ink block truncate hover:text-brand hover:underline" title="View file">
+                      📎 ${e(ev.fileName)}
+                    </a>
+                    <div class="text-[11px] text-muted">(${e(ev.sizeBytes ? `${Math.round(ev.sizeBytes / 1024)} KB` : (ev.fileSize || 'Evidence'))}) · Uploaded by <strong>${e(ev.uploaderName || ev.uploadedSide || 'User')}</strong> ${sideBadge} · ${e(dateTime(ev.uploadedAt || ev.createdAt))}</div>
                   </div>
-                  <a href="/api/staff/reports/${e(detail.id)}/evidence/${e(ev.id)}" target="_blank" download class="btn btn-outline btn-sm">
-                    Download
-                  </a>
+                  <div class="flex items-center gap-1.5 shrink-0">
+                    <a href="${fileUrl}" target="_blank" rel="noopener" class="btn btn-primary btn-xs">
+                      View
+                    </a>
+                    <a href="${fileUrl}" download class="btn btn-outline btn-xs" title="Download to device">
+                      📥
+                    </a>
+                  </div>
                 </div>
               `;
         }).join('')}

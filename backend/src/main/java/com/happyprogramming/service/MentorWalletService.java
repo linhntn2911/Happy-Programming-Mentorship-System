@@ -81,20 +81,25 @@ public class MentorWalletService {
         long mentorId = requireRole("MENTOR");
         JdbcTemplate db = db();
         releaseMatured(db, 100);
-        BigDecimal held = heldBalance(db, mentorId);
-        BigDecimal available = releasedBalance(db, mentorId).subtract(paidBalance(db, mentorId))
-                .subtract(reservedBalance(db, mentorId, null));
+        BigDecimal frozen = disputedFrozenBalance(db, mentorId);
+        BigDecimal deductions = refundDeductions(db, mentorId);
+        BigDecimal held = heldBalance(db, mentorId).add(frozen);
+        BigDecimal available = releasedBalance(db, mentorId)
+                .subtract(deductions)
+                .subtract(paidBalance(db, mentorId))
+                .subtract(reservedBalance(db, mentorId, null))
+                .subtract(frozen);
         BigDecimal reserved = reservedBalance(db, mentorId, null);
         BigDecimal paid = paidBalance(db, mentorId);
         var entries = db.query("""
-                SELECT TOP (50) e.id,e.entry_type,e.amount,p.merchant_reference,e.created_at
+                SELECT TOP (50) e.id,e.entry_type,e.amount,COALESCE(p.merchant_reference, e.reason),e.created_at
                 FROM dbo.escrow_ledger_entries e
                 JOIN dbo.payments p ON p.id=e.payment_id
                 JOIN dbo.mentorship_requests r ON r.id=p.request_id
-                WHERE r.mentor_id=? AND e.entry_type IN ('MENTOR_RELEASE','PLATFORM_FEE','MENTOR_PAYOUT')
+                WHERE r.mentor_id=? AND e.entry_type IN ('MENTOR_RELEASE','PLATFORM_FEE','MENTOR_PAYOUT','REFUND_DEDUCTION')
                 ORDER BY e.created_at DESC,e.id DESC
                 """, (rs, n) -> new MentorWalletResponse.Entry(rs.getLong("id"), rs.getString("entry_type"),
-                rs.getBigDecimal("amount"), rs.getString("merchant_reference"),
+                rs.getBigDecimal("amount"), rs.getString(4),
                 rs.getTimestamp("created_at").toInstant()), mentorId);
         var requests = db.query(
                 """
@@ -190,10 +195,15 @@ public class MentorWalletService {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Save your bank account before requesting a payout.");
         releaseMatured(db, 100);
-        BigDecimal available = releasedBalance(db, mentorId).subtract(paidBalance(db, mentorId))
-                .subtract(reservedBalance(db, mentorId, null));
-        if (input.amount().compareTo(available) > 0)
+        BigDecimal available = calculateAvailableBalance(db, mentorId);
+        if (input.amount().compareTo(available) > 0) {
+            BigDecimal frozen = disputedFrozenBalance(db, mentorId);
+            if (frozen.signum() > 0 && input.amount().compareTo(available.add(frozen)) <= 0) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "Payout amount exceeds your available balance. Note: " + frozen.toPlainString() + " VND is temporarily frozen due to an active dispute mediation.");
+            }
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Payout amount exceeds your available balance.");
+        }
         MentorContact contact = mentorContact(db, mentorId);
         if (operationalPolicy != null)
             operationalPolicy.requireReady(mentorId, "PAYOUT", LocalDateTime.now(clock), config.otpResendSeconds());
@@ -235,10 +245,15 @@ public class MentorWalletService {
         confirmFee(expectedFee, config.withdrawalFee());
         releaseMatured(db, 100);
         lockMentor(db, mentorId);
-        BigDecimal available = releasedBalance(db, mentorId).subtract(paidBalance(db, mentorId))
-                .subtract(reservedBalance(db, mentorId, null));
-        if (amount.compareTo(available) > 0)
+        BigDecimal available = calculateAvailableBalance(db, mentorId);
+        if (amount.compareTo(available) > 0) {
+            BigDecimal frozen = disputedFrozenBalance(db, mentorId);
+            if (frozen.signum() > 0 && amount.compareTo(available.add(frozen)) <= 0) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "Payout amount exceeds your available balance. Note: " + frozen.toPlainString() + " VND is temporarily frozen due to an active dispute mediation.");
+            }
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Payout amount exceeds your available balance.");
+        }
         KeyHolderHolder key = insertPayoutRequest(db, mentorId, amount, bank, accountName, encrypted, last4,
                 config.withdrawalFee());
         audit(db, mentorId, "MENTOR_PAYOUT_REQUESTED", key.id(), null,
@@ -600,6 +615,45 @@ public class MentorWalletService {
                           AND NOT EXISTS (SELECT 1 FROM dbo.escrow_ledger_entries e WHERE e.payment_id=p.id AND e.entry_type='MENTOR_RELEASE')
                         """,
                 BigDecimal.class, mentorId);
+        return value == null ? BigDecimal.ZERO : value;
+    }
+
+    private BigDecimal calculateAvailableBalance(JdbcTemplate db, long mentorId) {
+        BigDecimal released = releasedBalance(db, mentorId);
+        BigDecimal deductions = refundDeductions(db, mentorId);
+        BigDecimal paid = paidBalance(db, mentorId);
+        BigDecimal reserved = reservedBalance(db, mentorId, null);
+        BigDecimal frozen = disputedFrozenBalance(db, mentorId);
+        return released.subtract(deductions).subtract(paid).subtract(reserved).subtract(frozen);
+    }
+
+    private BigDecimal disputedFrozenBalance(JdbcTemplate db, long mentorId) {
+        BigDecimal value = db.queryForObject("""
+                SELECT COALESCE(SUM(rel.amount - COALESCE(paid.amount, 0)), 0)
+                FROM dbo.disputes d
+                JOIN dbo.payments p ON p.id = d.payment_id
+                JOIN dbo.mentorship_requests r ON r.id = p.request_id
+                JOIN dbo.escrow_ledger_entries rel ON rel.payment_id = p.id AND rel.entry_type = 'MENTOR_RELEASE' AND rel.reversal_of_id IS NULL
+                OUTER APPLY (
+                    SELECT SUM(x.amount) AS amount
+                    FROM dbo.escrow_ledger_entries x
+                    WHERE x.payment_id = p.id AND x.entry_type = 'MENTOR_PAYOUT'
+                ) paid
+                WHERE r.mentor_id = ?
+                  AND d.status IN ('SUBMITTED','IN_MEDIATION','AWAITING_EVIDENCE','APPROVED')
+                  AND rel.amount > COALESCE(paid.amount, 0)
+                """, BigDecimal.class, mentorId);
+        return value == null ? BigDecimal.ZERO : value;
+    }
+
+    private BigDecimal refundDeductions(JdbcTemplate db, long mentorId) {
+        BigDecimal value = db.queryForObject("""
+                SELECT COALESCE(SUM(e.amount), 0)
+                FROM dbo.escrow_ledger_entries e
+                JOIN dbo.payments p ON p.id = e.payment_id
+                JOIN dbo.mentorship_requests r ON r.id = p.request_id
+                WHERE r.mentor_id = ? AND e.entry_type = 'REFUND_DEDUCTION'
+                """, BigDecimal.class, mentorId);
         return value == null ? BigDecimal.ZERO : value;
     }
 

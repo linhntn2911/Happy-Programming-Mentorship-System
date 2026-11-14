@@ -53,12 +53,31 @@ function fileSizeLabel(bytes) {
 
 function evidenceList(disputeId, items = []) {
   if (!items.length) return '<p class="text-sm text-muted">No files were attached.</p>';
-  return `<ul class="space-y-2">${items.map(item => `<li>
-      <a class="flex items-center gap-3 rounded-xl border border-line bg-white p-3 hover:border-brand" href="${e(mentorDisputeService.evidenceUrl(disputeId, item.id))}">
-        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-lilac text-base text-brand" aria-hidden="true">↧</span>
-        <span class="min-w-0"><strong class="block truncate text-sm text-ink">${e(item.fileName || 'Attachment')}</strong>
-        <small class="text-muted">${e(fileSizeLabel(item.sizeBytes))} · ${e(SIDE_LABELS[item.uploadedSide] || item.uploadedSide || '')} · Download</small></span>
-      </a></li>`).join('')}</ul>`;
+  return `<ul class="space-y-2">${items.map(item => {
+    const isImg = /\.(jpe?g|png|webp|gif|svg)$/i.test(item.fileName || '');
+    const fileUrl = e(mentorDisputeService.evidenceUrl(disputeId, item.id));
+    return `<li>
+      <div class="flex items-center gap-3 rounded-xl border border-line bg-white p-3 hover:border-brand">
+        ${isImg ? `
+          <a href="${fileUrl}" target="_blank" rel="noopener" class="block h-12 w-12 shrink-0 rounded-lg border border-line overflow-hidden bg-cream hover:opacity-85 transition" title="View full image">
+            <img src="${fileUrl}" alt="${e(item.fileName)}" class="h-full w-full object-cover" />
+          </a>
+        ` : `
+          <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-lilac text-base text-brand" aria-hidden="true">📄</span>
+        `}
+        <div class="min-w-0 flex-1">
+          <a href="${fileUrl}" target="_blank" rel="noopener" class="block truncate text-sm font-semibold text-ink hover:text-brand hover:underline" title="View file">
+            ${e(item.fileName || 'Attachment')}
+          </a>
+          <small class="text-muted">${e(fileSizeLabel(item.sizeBytes))} · ${e(SIDE_LABELS[item.uploadedSide] || item.uploadedSide || '')}</small>
+        </div>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <a href="${fileUrl}" target="_blank" rel="noopener" class="btn btn-primary btn-xs">View</a>
+          <a href="${fileUrl}" download class="btn btn-outline btn-xs" title="Download to device">📥</a>
+        </div>
+      </div>
+    </li>`;
+  }).join('')}</ul>`;
 }
 
 function renderDisputeCard(item) {

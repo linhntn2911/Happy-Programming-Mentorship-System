@@ -1041,6 +1041,17 @@ public class DisputeService {
             }, keys);
             Number refundId = keys.getKey();
 
+            // Calculate mentor portion of refund
+            BigDecimal commissionRate = null;
+            if (paymentId != null) {
+                try {
+                    commissionRate = jdbc.queryForObject("SELECT commission_rate_snapshot FROM dbo.payments WHERE id = ?", BigDecimal.class, paymentId);
+                } catch (Exception ignored) {}
+            }
+            if (commissionRate == null) commissionRate = BigDecimal.valueOf(20);
+            BigDecimal mentorRefundDeduction = refundAmount.subtract(
+                    refundAmount.multiply(commissionRate).divide(BigDecimal.valueOf(100), 0, java.math.RoundingMode.HALF_UP));
+
             // Insert into dbo.escrow_ledger_entries
             if (refundId != null) {
                 jdbc.update("""
@@ -1048,6 +1059,14 @@ public class DisputeService {
                         VALUES (?, ?, 'REFUND_OUT', ?, ?, ?, ?, SYSUTCDATETIME())
                         """, paymentId, refundId.longValue(), refundAmount, "REFUND:DISPUTE:" + disputeId,
                         "Admin executed refund transfer for ticket " + ticketCode, adminId);
+
+                if (mentorRefundDeduction.signum() > 0) {
+                    jdbc.update("""
+                            INSERT INTO dbo.escrow_ledger_entries(payment_id, refund_id, entry_type, amount, idempotency_key, reason, created_by, created_at)
+                            VALUES (?, ?, 'REFUND_DEDUCTION', ?, ?, ?, ?, SYSUTCDATETIME())
+                            """, paymentId, refundId.longValue(), mentorRefundDeduction, "CLAWBACK:DISPUTE:" + disputeId,
+                            "Refund deduction / clawback for ticket #" + ticketCode + ": " + (resolutionNote != null ? resolutionNote : "Staff decision"), adminId);
+                }
             }
 
             // Advance target status
@@ -1130,6 +1149,27 @@ public class DisputeService {
                 jdbc.update("UPDATE dbo.conversations SET last_message_at = SYSUTCDATETIME(), updated_at = SYSUTCDATETIME() WHERE id = ?", convId);
             }
 
+            // Resolve target title for notifications
+            String targetTitle = "Mentorship";
+            try {
+                if ("ONE_OFF".equals(targetType) && bookingId != null) {
+                    List<String> titles = jdbc.queryForList("""
+                            SELECT COALESCE(o.name, N'One-off session')
+                            FROM dbo.bookings b
+                            LEFT JOIN dbo.one_off_sessions o ON o.id = b.session_id
+                            WHERE b.id = ?
+                            """, String.class, bookingId);
+                    if (!titles.isEmpty() && titles.get(0) != null) targetTitle = titles.get(0);
+                } else if ("MONTHLY".equals(targetType) && subscriptionId != null) {
+                    List<String> titles = jdbc.queryForList("""
+                            SELECT COALESCE(JSON_VALUE(s.plan_snapshot, '$.name'), N'Monthly Mentorship')
+                            FROM dbo.subscriptions s
+                            WHERE s.id = ?
+                            """, String.class, subscriptionId);
+                    if (!titles.isEmpty() && titles.get(0) != null) targetTitle = titles.get(0);
+                }
+            } catch (Exception ignored) {}
+
             // Insert in-app notifications for both Mentee and Mentor
             try {
                 String formattedAmt = refundAmount != null ? refundAmount.toPlainString() : "0";
@@ -1140,10 +1180,28 @@ public class DisputeService {
 
                 Long mentorId = dispute.get("respondent_id") != null ? ((Number) dispute.get("respondent_id")).longValue() : null;
                 if (mentorId != null) {
-                    jdbc.update("""
-                            INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
-                            VALUES (?, 'Dispute Case #' + ? + ' Resolved (Refund Completed)', ?, 'DISPUTE', '#/workspace', 0, SYSUTCDATETIME())
-                            """, mentorId, ticketCode, "Dispute case #" + ticketCode + " has been officially resolved by Administration. A refund of " + formattedAmt + " VND was processed to the mentee (Ref: " + transferReference + ").");
+                    if (mentorRefundDeduction.signum() > 0) {
+                        String formattedDeduction = mentorRefundDeduction.toPlainString();
+                        String mentorTitle = "[Cấn trừ số dư ví] Khiếu nại #" + ticketCode;
+                        String reasonStr = resolutionNote != null && !resolutionNote.isBlank()
+                                ? resolutionNote.trim()
+                                : "Hoàn tiền cho học viên theo quyết định xử lý khiếu nại của Staff/Admin";
+                        String mentorMsg = String.format(
+                                "Hệ thống đã ghi nhận cấn trừ %s VND từ ví của bạn cho khiếu nại #%s.\n" +
+                                "• Khóa/Gói học: %s\n" +
+                                "• Lý do: %s\n" +
+                                "(Nếu số dư ví hiện tại chưa đủ bù trừ, khoản nợ sẽ tự động được cấn trừ khi bạn có doanh thu mới).",
+                                formattedDeduction, ticketCode, targetTitle, reasonStr);
+                        jdbc.update("""
+                                INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
+                                VALUES (?, ?, ?, 'WALLET', '#/mentor/wallet', 0, SYSUTCDATETIME())
+                                """, mentorId, mentorTitle, mentorMsg);
+                    } else {
+                        jdbc.update("""
+                                INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
+                                VALUES (?, 'Dispute Case #' + ? + ' Resolved (Refund Completed)', ?, 'DISPUTE', '#/workspace', 0, SYSUTCDATETIME())
+                                """, mentorId, ticketCode, "Dispute case #" + ticketCode + " has been officially resolved by Administration. A refund of " + formattedAmt + " VND was processed to the mentee (Ref: " + transferReference + ").");
+                    }
                 }
             } catch (Exception notifEx) {
                 // ignore
@@ -1178,16 +1236,35 @@ public class DisputeService {
                         if (!mentors.isEmpty()) {
                             String email = (String) mentors.get(0).get("email");
                             String fullName = (String) mentors.get(0).get("full_name");
-                            String subject = "[HappyProgramming] Dispute #" + ticketCode + " Resolved - Refund Completed";
-                            String body = "Hello " + (fullName != null ? fullName : "Mentor") + ",\n\n"
-                                    + "Dispute case #" + ticketCode + " regarding your mentorship session has been officially resolved by HappyProgramming Administration.\n\n"
-                                    + "• Resolution: Refund completed to mentee\n"
-                                    + "• Refund Amount: " + formattedAmt + " VND\n"
-                                    + "• Bank Transfer Reference: " + transferReference + "\n"
-                                    + (receiptFileId != null ? "• A transfer receipt has been attached to the mediation conversation.\n\n" : "\n")
-                                    + "You can view the full dispute resolution and mediation history in your Mentor Workspace: #/workspace\n\n"
-                                    + "Best regards,\nHappyProgramming Support Team";
-                            emailService.sendNotification(email, subject, body);
+                            if (mentorRefundDeduction.signum() > 0) {
+                                String formattedDeduction = mentorRefundDeduction.toPlainString();
+                                String reasonStr = resolutionNote != null && !resolutionNote.isBlank()
+                                        ? resolutionNote.trim()
+                                        : "Hoàn tiền cho học viên theo kết luận giải quyết khiếu nại của Staff/Admin";
+                                String subject = "[HappyProgramming] Thông báo cấn trừ số dư ví - Khiếu nại #" + ticketCode;
+                                String body = "Xin chào " + (fullName != null ? fullName : "Mentor") + ",\n\n"
+                                        + "Ban Quản trị HappyProgramming xin thông báo về việc cấn trừ số dư ví liên quan đến phán quyết khiếu nại #" + ticketCode + ":\n\n"
+                                        + "• Khóa / Gói dịch vụ: " + targetTitle + "\n"
+                                        + "• Mã khiếu nại: #" + ticketCode + "\n"
+                                        + "• Số tiền cấn trừ (khấu trừ hoàn tiền): " + formattedDeduction + " VND\n"
+                                        + "• Lý do cấn trừ: " + reasonStr + "\n"
+                                        + "• Tham chiếu chuyển khoản hoàn học viên: " + transferReference + "\n\n"
+                                        + "Khoản tiền trên đã được ghi nhận giảm trừ vào số dư ví của bạn (bút toán REFUND_DEDUCTION). Nếu số dư khả dụng hiện tại chưa đủ bù trừ, hệ thống sẽ tự động trừ dần khi bạn có thêm các khoản doanh thu tiếp theo.\n\n"
+                                        + "Bạn có thể kiểm tra chi tiết biến động số dư ví tại: #/mentor/wallet\n\n"
+                                        + "Trân trọng,\nHappyProgramming Support Team";
+                                emailService.sendNotification(email, subject, body);
+                            } else {
+                                String subject = "[HappyProgramming] Dispute #" + ticketCode + " Resolved - Refund Completed";
+                                String body = "Hello " + (fullName != null ? fullName : "Mentor") + ",\n\n"
+                                        + "Dispute case #" + ticketCode + " regarding your mentorship session has been officially resolved by HappyProgramming Administration.\n\n"
+                                        + "• Resolution: Refund completed to mentee\n"
+                                        + "• Refund Amount: " + formattedAmt + " VND\n"
+                                        + "• Bank Transfer Reference: " + transferReference + "\n"
+                                        + (receiptFileId != null ? "• A transfer receipt has been attached to the mediation conversation.\n\n" : "\n")
+                                        + "You can view the full dispute resolution and mediation history in your Mentor Workspace: #/workspace\n\n"
+                                        + "Best regards,\nHappyProgramming Support Team";
+                                emailService.sendNotification(email, subject, body);
+                            }
                         }
                     }
                 } catch (Exception ignored) {}
