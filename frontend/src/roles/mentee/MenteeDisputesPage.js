@@ -4,6 +4,7 @@ import { bindUserDropdown, getInitials, renderNotificationBell, renderUserDropdo
 import { authService } from '../auth/authService.js';
 import { menteeDisputesService } from './menteeDisputesService.js';
 import { bindPagination, paginateItems, renderPagination } from '../../shared/pagination.js';
+import { VIETNAM_BANKS } from '../../shared/vietnamBanks.js';
 
 const MAX_SIZE = 5 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -88,7 +89,10 @@ function formMarkup(targets) {
   </div>
   <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
     <label class="block text-xs text-muted">Bank Name
-      <input name="bankName" type="text" maxlength="100" class="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2 text-xs text-ink focus:border-brand focus:outline-none" placeholder="e.g. MB Bank">
+      <input name="bankName" list="dispute-banks-list" type="text" maxlength="100" class="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2 text-xs text-ink focus:border-brand focus:outline-none" placeholder="e.g. TPBank, MB Bank, Vietcombank">
+      <datalist id="dispute-banks-list">
+        ${VIETNAM_BANKS.map(b => `<option value="${b.shortName}">${b.label}</option>`).join('')}
+      </datalist>
     </label>
     <label class="block text-xs text-muted">Account Number
       <input name="accountNumber" type="text" maxlength="50" class="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2 text-xs text-ink focus:border-brand focus:outline-none" placeholder="e.g. 0123456789">

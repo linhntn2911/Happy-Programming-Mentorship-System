@@ -5,6 +5,7 @@ import { mentorWalletService } from './mentorWalletService.js';
 import { renderPagination, bindPagination } from '../../shared/pagination.js';
 import { escapeHtml as e } from '../../shared/html.js';
 import { StatusBadge } from '../admin/AdminPrimitives.js';
+import { renderBankSelectOptions, findMatchingBank } from '../../shared/vietnamBanks.js';
 
 const money = value => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Number(value || 0)) + ' VND';
 const dateTime = value => value ? new Date(value).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }) + ' UTC' : '—';
@@ -38,7 +39,19 @@ function walletContent() {
               <p id="bank-message" class="mb-4 text-sm" role="status" aria-live="polite"></p>
               <div id="bank-current" class="mb-4 rounded-xl bg-lilac p-4 text-sm" hidden></div>
               <form id="bank-form" class="space-y-4" novalidate>
-                <label class="admin-field">Bank name<input class="w-full" name="bankName" maxlength="100" required></label>
+                <div class="admin-field">
+                  <label for="bank-select" class="block text-xs font-semibold text-ink mb-1.5">Bank name</label>
+                  <div class="relative">
+                    <select id="bank-select" class="w-full rounded-xl border border-line bg-white px-3.5 py-2.5 pr-10 text-xs sm:text-sm text-ink appearance-none focus:border-brand focus:outline-none cursor-pointer">
+                      ${renderBankSelectOptions()}
+                    </select>
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-muted">
+                      <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
+                    </div>
+                  </div>
+                  <input class="w-full mt-2" name="bankName" id="bank-custom-input" placeholder="Enter bank name" maxlength="100" hidden>
+                  <p class="mt-1.5 text-[11px] leading-4 text-brand">✨ Recommended: Select your bank above to ensure an exact VietQR code is generated when Admin processes your withdrawal.</p>
+                </div>
                 <label class="admin-field">Account holder name<input class="w-full" name="accountName" maxlength="150" required></label>
                 <label class="admin-field">Account number<input class="w-full" name="accountNumber" inputmode="numeric" pattern="[0-9]{6,34}" minlength="6" maxlength="34" autocomplete="off" required></label>
                 <p class="text-xs leading-5 text-muted">Account numbers are encrypted before storage and are never shown again in full. Re-enter the number to update this account.</p>
@@ -145,6 +158,8 @@ export function initializeMentorWalletPage(root) {
   const retry = shell.querySelector('#wallet-retry');
   const content = shell.querySelector('#wallet-content');
   const bankForm = shell.querySelector('#bank-form');
+  const bankSelect = shell.querySelector('#bank-select');
+  const bankCustomInput = shell.querySelector('#bank-custom-input');
   const bankSubmit = shell.querySelector('#bank-submit');
   const bankMessage = shell.querySelector('#bank-message');
   const bankCurrent = shell.querySelector('#bank-current');
@@ -219,18 +234,56 @@ export function initializeMentorWalletPage(root) {
     return savedBank?.saved ? `${savedBank.bankName} ···· ${savedBank.accountLast4}` : '';
   }
 
+  const onBankSelectChange = () => {
+    if (bankSelect.value === '__OTHER__') {
+      bankCustomInput.hidden = false;
+      bankCustomInput.value = '';
+      bankCustomInput.focus();
+    } else {
+      bankCustomInput.hidden = true;
+      bankCustomInput.value = bankSelect.value;
+    }
+  };
+  bankSelect?.addEventListener('change', onBankSelectChange);
+
   function renderBank() {
     if (savedBank?.saved) {
       bankCurrent.hidden = false;
       bankCurrent.innerHTML = `<p class="font-semibold text-ink">${e(savedBank.bankName)} ···· ${e(savedBank.accountLast4)}</p>
         <p class="mt-1 text-muted">${e(savedBank.accountName)}</p>
         <p class="mt-1 text-xs text-muted">Updated ${e(dateTime(savedBank.updatedAt))}</p>`;
-      bankForm.elements.bankName.value = savedBank.bankName || '';
+      
+      const matched = findMatchingBank(savedBank.bankName);
+      if (matched && bankSelect) {
+        bankSelect.value = matched.shortName;
+        if (bankCustomInput) {
+          bankCustomInput.value = matched.shortName;
+          bankCustomInput.hidden = true;
+        }
+      } else if (savedBank.bankName && bankSelect) {
+        bankSelect.value = '__OTHER__';
+        if (bankCustomInput) {
+          bankCustomInput.value = savedBank.bankName;
+          bankCustomInput.hidden = false;
+        }
+      } else if (bankSelect) {
+        bankSelect.value = '';
+        if (bankCustomInput) {
+          bankCustomInput.value = '';
+          bankCustomInput.hidden = true;
+        }
+      }
+
       bankForm.elements.accountName.value = savedBank.accountName || '';
       payoutDestination.textContent = `Withdraw to ${destinationLabel()} (${savedBank.accountName}).`;
     } else {
       bankCurrent.hidden = true;
       bankCurrent.innerHTML = '';
+      if (bankSelect) bankSelect.value = '';
+      if (bankCustomInput) {
+        bankCustomInput.value = '';
+        bankCustomInput.hidden = true;
+      }
       payoutDestination.textContent = 'Save your bank account to enable withdrawals.';
     }
     updatePayoutAvailability();
@@ -271,6 +324,23 @@ export function initializeMentorWalletPage(root) {
 
   async function saveBank(event) {
     event.preventDefault(); bankMessage.textContent = '';
+    let chosenBank = '';
+    if (bankSelect && bankSelect.value === '__OTHER__') {
+      chosenBank = bankCustomInput ? bankCustomInput.value.trim() : '';
+      if (!chosenBank) {
+        bankMessage.textContent = 'Please enter your bank name.';
+        bankCustomInput?.focus();
+        return;
+      }
+    } else if (bankSelect && bankSelect.value) {
+      chosenBank = bankSelect.value;
+      if (bankCustomInput) bankCustomInput.value = chosenBank;
+    } else {
+      bankMessage.textContent = 'Please select a bank from the list.';
+      bankSelect?.focus();
+      return;
+    }
+
     if (!bankForm.reportValidity()) return;
     const payload = Object.fromEntries(new FormData(bankForm));
     if (!payload.accountNumber || !/^\d{6,34}$/.test(payload.accountNumber.trim())) {
@@ -280,7 +350,7 @@ export function initializeMentorWalletPage(root) {
     bankSubmit.disabled = true; bankSubmit.textContent = 'Saving…';
     try {
       savedBank = await mentorWalletService.saveBankAccount({
-        bankName: payload.bankName.trim(),
+        bankName: chosenBank,
         accountName: payload.accountName.trim(),
         accountNumber: payload.accountNumber.trim(),
       });
@@ -387,6 +457,7 @@ export function initializeMentorWalletPage(root) {
     clearTimeout(toastTimer);
     clearInterval(resendTimer);
     retry.removeEventListener('click', load);
+    bankSelect?.removeEventListener('change', onBankSelectChange);
     bankForm.removeEventListener('submit', saveBank);
     payoutForm.removeEventListener('submit', continuePayout);
     otpForm.removeEventListener('submit', confirmPayout);
