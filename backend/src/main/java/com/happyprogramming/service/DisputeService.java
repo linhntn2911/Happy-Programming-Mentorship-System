@@ -464,6 +464,32 @@ public class DisputeService {
     }
 
     @Transactional(readOnly = true)
+    public StaffDisputeDtos.StaffDetail staffDisputeDetailByIdOrCode(String identifier) {
+        if (identifier == null || identifier.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Dispute report not found.");
+        }
+        String trimmed = identifier.trim();
+        if (trimmed.startsWith("#")) {
+            trimmed = trimmed.substring(1);
+        }
+        Long disputeId = null;
+        if (trimmed.matches("^\\d+$")) {
+            try {
+                disputeId = Long.parseLong(trimmed);
+            } catch (NumberFormatException ignored) {}
+        }
+        if (disputeId != null) {
+            return staffDisputeDetail(disputeId);
+        }
+        List<Long> ids = jdbc.query("SELECT id FROM dbo.disputes WHERE ticket_code = ?",
+                (rs, r) -> rs.getLong("id"), trimmed);
+        if (ids.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Dispute report not found for ticket: " + trimmed);
+        }
+        return staffDisputeDetail(ids.get(0));
+    }
+
+    @Transactional(readOnly = true)
     public StaffDisputeDtos.StaffDetail staffDisputeDetail(long disputeId) {
         List<StaffDisputeDtos.StaffDetail> rows = jdbc.query("""
                 SELECT d.id, d.ticket_code, d.target_type, COALESCE(d.booking_id, d.subscription_id) target_id,

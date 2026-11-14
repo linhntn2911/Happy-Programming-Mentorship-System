@@ -85,9 +85,9 @@ public class StaffController {
         return ApiResponse.ok(disputeService.staffListDisputes());
     }
 
-    @GetMapping({"/reports/{id}", "/disputes/{id}"})
-    public ApiResponse<StaffDisputeDtos.StaffDetail> reportDetail(@PathVariable long id) {
-        return ApiResponse.ok(disputeService.staffDisputeDetail(id));
+    @GetMapping({"/reports/{identifier}", "/disputes/{identifier}"})
+    public ApiResponse<StaffDisputeDtos.StaffDetail> reportDetail(@PathVariable String identifier) {
+        return ApiResponse.ok(disputeService.staffDisputeDetailByIdOrCode(identifier));
     }
 
     @GetMapping({"/reports/{id}/evidence/{evidenceId}", "/disputes/{id}/evidence/{evidenceId}"})

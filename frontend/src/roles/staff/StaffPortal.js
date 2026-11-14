@@ -1351,9 +1351,9 @@ export async function mountStaffReportDetail(root, reportId) {
 
 export async function mountStaffReports(root) {
   const hash = location.hash || '';
-  const match = hash.match(/^#\/staff\/reports\/(\d+)$/);
+  const match = hash.match(/^#\/staff\/(?:reports|disputes)\/([^/?#]+)$/);
   if (match) {
-    await mountStaffReportDetail(root, Number(match[1]));
+    await mountStaffReportDetail(root, decodeURIComponent(match[1].trim()));
     return;
   }
 

@@ -436,9 +436,9 @@ export async function mountMenteeApplications(root) {
               ? `<button type="button" class="btn btn-outline" data-open-report="${esc(booking.requestId)}">Report an issue</button><a class="btn btn-primary" href="${menteeBookingWorkspaceUrl(booking)}">Open workspace →</a>`
               : booking.fundedAt
                 ? `<a class="btn btn-primary" href="${menteeBookingWorkspaceUrl(booking)}">Open workspace history →</a>`
-              : status === 'CANCELLED'
-                ? '<a class="btn btn-outline" href="#/mentors">Browse mentors to apply again →</a>'
-                : '';
+                : status === 'CANCELLED'
+                  ? '<a class="btn btn-outline" href="#/mentors">Browse mentors to apply again →</a>'
+                  : '';
       const cancel = ['PENDING', 'ACCEPTED'].includes(status) && !booking.fundedAt
         ? `<button type="button" class="btn btn-outline" data-cancel-application="${encodeURIComponent(booking.requestId)}">Cancel booking</button>` : '';
       const rejectionReasonBlock = (status === 'REJECTED' || booking.rejectionReason)

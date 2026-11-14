@@ -196,6 +196,7 @@ public class MentorshipWorkspaceRepository {
                         rs.getLong("id"),
                         rs.getLong("sender_id"),
                         rs.getString("sender_name"),
+                        rs.getString("sender_role"),
                         rs.getString("message_type"),
                         rs.getString("body"),
                         rs.getString("code_language"),

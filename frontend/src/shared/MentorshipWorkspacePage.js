@@ -76,7 +76,14 @@ function unreadMessageIds(messages, unreadCount) {
   return ids;
 }
 
-export function workspaceMessages(messages = [], workspaceId = '', { query = '', unreadCount = 0 } = {}) {
+function formatMessageBody(body) {
+  const escaped = esc(body);
+  return escaped.replace(/(?:#|(?<![A-Za-z0-9]))(HP-DSP-[A-Za-z0-9-]+)/g, (fullMatch, code) => {
+    return `<a href="#/staff/reports/${encodeURIComponent(code)}" class="font-bold underline text-brand hover:text-brand-dark" title="Open dispute review ticket">${fullMatch}</a>`;
+  });
+}
+
+export function workspaceMessages(messages = [], workspaceId = '', { query = '', unreadCount = 0, detail = null } = {}) {
   if (!messages.length) return `<div class="grid min-h-72 place-items-center px-6 py-12 text-center">
     <div><span class="mx-auto grid h-12 w-12 place-items-center rounded-full bg-lilac text-brand" aria-hidden="true"><svg viewBox="0 0 24 24" class="h-5 w-5 fill-none stroke-current" stroke-width="1.8"><path d="M7 9h10M7 13h6"/><path d="M5 19l2.4-2.4A8 8 0 1 1 20 10a8 8 0 0 1-8 8H5Z"/></svg></span><p class="mt-4 font-semibold text-ink">Start the conversation</p><p class="mt-2 text-xs leading-5 text-muted">Share a goal, question, or learning resource with your mentorship partner.</p></div>
   </div>`;
@@ -95,15 +102,45 @@ export function workspaceMessages(messages = [], workspaceId = '', { query = '',
       || String(message.senderName || '').includes('Staff')
       || String(message.body || '').includes('[THÔNG BÁO GIẢI QUYẾT KHIẾU NẠI')
       || String(message.body || '').includes('[DISPUTE MEDIATION');
-    const bubbleStyle = isStaffMsg
-      ? 'border-brand/40 bg-purple-50/70 text-ink'
-      : (message.mine ? 'rounded-br-md border-brand/30 bg-lilac' : 'rounded-bl-md border-line bg-white');
+
+    const isMentorMsg = !isStaffMsg && (
+      message.senderRole === 'MENTOR'
+      || (detail && detail.mentorId && Number(message.senderId) === Number(detail.mentorId))
+      || String(message.senderName || '').includes('Mentor')
+    );
+
+    const isMenteeMsg = !isStaffMsg && !isMentorMsg && (
+      message.senderRole === 'MENTEE'
+      || (detail && detail.menteeId && Number(message.senderId) === Number(detail.menteeId))
+      || String(message.senderName || '').includes('Mentee')
+      || (!isMentorMsg && !isStaffMsg)
+    );
+
+    let roleBadge = '';
+    if (isStaffMsg) {
+      roleBadge = '<span class="rounded bg-brand px-1.5 py-0.5 font-bold text-white text-[9px] tracking-wider">STAFF MEDIATOR</span>';
+    } else if (isMentorMsg) {
+      roleBadge = '<span class="rounded bg-purple-100 border border-purple-300 px-1.5 py-0.5 font-bold text-purple-800 text-[9px] tracking-wider">MENTOR</span>';
+    } else if (isMenteeMsg) {
+      roleBadge = '<span class="rounded bg-amber-100 border border-amber-300 px-1.5 py-0.5 font-bold text-amber-800 text-[9px] tracking-wider">MENTEE</span>';
+    }
+
+    let bubbleStyle = 'rounded-bl-md border-line bg-white';
+    if (isStaffMsg) {
+      bubbleStyle = 'border-brand/40 bg-purple-50/70 text-ink shadow-xs';
+    } else if (message.mine) {
+      bubbleStyle = 'rounded-br-md border-brand/30 bg-lilac';
+    } else if (isMentorMsg) {
+      bubbleStyle = 'rounded-bl-md border-purple-200/90 bg-purple-50/40 text-ink';
+    } else if (isMenteeMsg) {
+      bubbleStyle = 'rounded-bl-md border-amber-200/90 bg-amber-50/40 text-ink';
+    }
 
     return `${divider}<article class="flex ${message.mine ? 'justify-end' : 'justify-start'}" ${unread ? 'data-unread-message="true"' : ''}>
     <div class="max-w-[85%] sm:max-w-[72%] rounded-2xl border ${bubbleStyle} px-4 py-3 shadow-sm">
       <div class="mb-2 flex flex-wrap items-center gap-2 text-[10px] text-muted">
-        <strong class="text-ink">${esc(message.senderName || 'Member')}</strong>
-        ${isStaffMsg ? '<span class="rounded bg-brand px-1.5 py-0.5 font-bold text-white text-[9px] tracking-wider">STAFF MEDIATOR</span>' : ''}
+        <strong class="text-ink">${esc(message.senderName || (isMentorMsg ? 'Mentor' : isMenteeMsg ? 'Mentee' : 'Member'))}</strong>
+        ${roleBadge}
         <span>${esc(messageTimeLabel(message.sentAt))}</span>
         ${unread ? '<span class="h-1.5 w-1.5 rounded-full bg-brand" aria-label="Unread message"></span>' : ''}
         ${message.messageType === 'CODE' ? `<span class="rounded-full border border-line bg-cream px-2 py-0.5 font-mono">${esc(message.codeLanguage || 'code')}</span>` : ''}
@@ -120,7 +157,7 @@ export function workspaceMessages(messages = [], workspaceId = '', { query = '',
           </a>`
         : message.messageType === 'CODE'
         ? `<pre class="overflow-x-auto whitespace-pre-wrap rounded-xl bg-ink p-4 text-left font-mono text-xs leading-5 text-white"><code>${esc(message.body)}</code></pre>`
-        : `<p class="whitespace-pre-wrap text-sm leading-6 text-ink">${esc(message.body)}</p>`}
+        : `<p class="whitespace-pre-wrap text-sm leading-6 text-ink">${formatMessageBody(message.body)}</p>`}
     </div>
   </article>`;
   }).join('');
@@ -269,10 +306,18 @@ export function workspaceConversationMarkup(detail, workspaces, isMentor, status
   const selectedSession = detail.oneOffSessions?.find(session => Number(session.requestId) === Number(selectedRequestId)) || null;
 
   const subtitle = isMediation
-    ? `⚖ Phòng hòa giải khiếu nại ${ticketCode ? '#' + esc(ticketCode) + ' · ' : ''}3 bên (Mentee, Mentor & Staff)`
+    ? `⚖ Phòng hòa giải khiếu nại ${ticketCode ? `<a href="#/staff/reports/${encodeURIComponent(ticketCode)}" class="font-bold text-brand underline hover:text-brand-dark" title="Open dispute review ticket">#${esc(ticketCode)}</a> · ` : ''}3 bên (Mentee, Mentor & Staff)`
     : selectedSession
       ? `${esc(selectedSession.sessionName)} · One-off session`
     : `${detail.hasMonthly ? esc(detail.packageName) : 'One-off mentorship'} · Private conversation`;
+
+  const reviewTicketBtn = (isMediation && ticketCode)
+    ? `<a href="#/staff/reports/${encodeURIComponent(ticketCode)}" class="inline-flex items-center gap-1.5 rounded-lg border border-brand/40 bg-purple-50 px-2.5 py-1 text-xs font-semibold text-brand hover:border-brand hover:bg-lilac transition shadow-2xs" title="Review dispute ticket #${esc(ticketCode)}">
+        <svg viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5"><path fill-rule="evenodd" d="M4.5 2A1.5 1.5 0 003 3.5v13A1.5 1.5 0 004.5 18h11a1.5 1.5 0 001.5-1.5V7.621a1.5 1.5 0 00-.44-1.06l-4.12-4.122A1.5 1.5 0 0011.378 2H4.5zm2.25 8.5a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-6.5zm0 3a.75.75 0 000 1.5h4.5a.75.75 0 000-1.5h-4.5z" clip-rule="evenodd" /></svg>
+        <span>Review Ticket</span>
+      </a>`
+    : '';
+
   const badgeMarkup = isMediation
     ? '<span class="status-badge status-warning"><span aria-hidden="true">●</span>3-Party Mediation</span>'
     : selectedSession
@@ -288,7 +333,7 @@ export function workspaceConversationMarkup(detail, workspaces, isMentor, status
             <span class="rounded-full bg-amber-200/80 px-2 py-0.5 text-[10px] font-bold text-amber-900 uppercase tracking-wider">In mediation</span>
           </div>
           <p class="mt-1 leading-5 text-amber-900">
-            This conversation is actively mediated with Operational Staff <strong>${esc(staffModeratorName)}</strong> overseeing dispute case${ticketCode ? ` <strong>#${esc(ticketCode)}</strong>` : ''}.
+            This conversation is actively mediated with Operational Staff <strong>${esc(staffModeratorName)}</strong> overseeing dispute case${ticketCode ? ` <a href="#/staff/reports/${encodeURIComponent(ticketCode)}" class="font-bold underline text-amber-950 hover:text-brand" title="Open dispute review ticket">#${esc(ticketCode)}</a>` : ''}.
             Staff observes the discussion between Mentee &amp; Mentor to record facts and facilitate an amicable resolution.
           </p>
           <div class="mt-2.5 flex flex-wrap items-center gap-2 text-[10px] text-amber-900 font-medium">
@@ -328,9 +373,9 @@ export function workspaceConversationMarkup(detail, workspaces, isMentor, status
     <div class="grid h-[680px] overflow-hidden rounded-2xl border border-line bg-white shadow-sm lg:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)_260px]" data-workspace-messenger>
       <div class="hidden lg:block">${workspaceListPanelMarkup(workspaces, isMentor, detailWorkspaceId, status, query, isStaff)}</div>
       <section class="flex min-h-0 min-w-0 flex-col bg-cream" aria-labelledby="conversation-heading">
-        <header class="flex items-center gap-3 border-b border-line bg-white px-5 py-4"><span class="grid h-11 w-11 shrink-0 place-items-center rounded-full ${isMediation ? 'bg-amber-100 text-amber-800' : 'bg-lilac text-brand'} text-xs font-semibold">${isMediation ? '⚖' : esc(partnerInitials(detail.partnerName))}</span><div class="min-w-0 flex-1"><h2 id="conversation-heading" class="truncate text-sm font-semibold text-ink">${esc(detail.partnerName)}</h2><p class="mt-1 truncate text-[10px] text-muted">${subtitle}</p></div>${badgeMarkup}<div class="relative"><button id="workspace-conversation-actions" type="button" class="grid h-10 w-10 place-items-center rounded-full border border-line bg-white text-muted transition hover:border-brand hover:bg-lilac hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" aria-label="Conversation actions" aria-haspopup="menu" aria-expanded="false" aria-controls="workspace-conversation-menu"><svg viewBox="0 0 24 24" class="h-5 w-5 fill-current" aria-hidden="true"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button><div id="workspace-conversation-menu" class="absolute right-0 top-12 z-20 min-w-48 overflow-hidden rounded-xl border border-line bg-white p-1.5 shadow-lg" role="menu" hidden><button type="button" class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-medium text-ink hover:bg-lilac hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" role="menuitem" data-open-message-search><svg viewBox="0 0 24 24" class="h-4 w-4 fill-none stroke-current" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/></svg>Search messages</button></div></div></header>
+        <header class="flex items-center gap-3 border-b border-line bg-white px-5 py-4"><span class="grid h-11 w-11 shrink-0 place-items-center rounded-full ${isMediation ? 'bg-amber-100 text-amber-800' : 'bg-lilac text-brand'} text-xs font-semibold">${isMediation ? '⚖' : esc(partnerInitials(detail.partnerName))}</span><div class="min-w-0 flex-1"><h2 id="conversation-heading" class="truncate text-sm font-semibold text-ink">${esc(detail.partnerName)}</h2><p class="mt-1 truncate text-[10px] text-muted">${subtitle}</p></div>${reviewTicketBtn}${badgeMarkup}<div class="relative"><button id="workspace-conversation-actions" type="button" class="grid h-10 w-10 place-items-center rounded-full border border-line bg-white text-muted transition hover:border-brand hover:bg-lilac hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" aria-label="Conversation actions" aria-haspopup="menu" aria-expanded="false" aria-controls="workspace-conversation-menu"><svg viewBox="0 0 24 24" class="h-5 w-5 fill-current" aria-hidden="true"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button><div id="workspace-conversation-menu" class="absolute right-0 top-12 z-20 min-w-48 overflow-hidden rounded-xl border border-line bg-white p-1.5 shadow-lg" role="menu" hidden><button type="button" class="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-medium text-ink hover:bg-lilac hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" role="menuitem" data-open-message-search><svg viewBox="0 0 24 24" class="h-4 w-4 fill-none stroke-current" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/></svg>Search messages</button></div></div></header>
         <div id="workspace-search-panel" class="border-b border-line bg-white px-5 py-3" hidden><div class="flex items-center gap-2"><label class="relative min-w-0 flex-1"><span class="sr-only">Search loaded messages</span><svg viewBox="0 0 24 24" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 fill-none stroke-muted" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/></svg><input id="workspace-message-search" type="search" class="h-10 w-full rounded-lg border border-line bg-cream pl-9 pr-3 text-xs text-ink focus:border-brand focus:bg-white focus:outline-none" placeholder="Search loaded messages" aria-controls="workspace-messages"></label><button type="button" class="grid h-10 w-10 shrink-0 place-items-center rounded-full text-lg text-muted hover:bg-lilac hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" data-close-message-search aria-label="Close message search">×</button></div><p id="workspace-search-status" class="mt-2 text-right text-[10px] text-muted" aria-live="polite" hidden></p></div>
-        <div id="workspace-messages" class="min-h-0 flex-1 space-y-4 overflow-y-auto p-5" aria-live="polite">${mediationBanner}${workspaceMessages(detail.messages, detailWorkspaceId, { unreadCount: initialUnreadCount })}</div>
+        <div id="workspace-messages" class="min-h-0 flex-1 space-y-4 overflow-y-auto p-5" aria-live="polite">${mediationBanner}${workspaceMessages(detail.messages, detailWorkspaceId, { unreadCount: initialUnreadCount, detail })}</div>
         ${inputFormMarkup}
       </section>
       <aside class="hidden overflow-y-auto border-l border-line bg-white p-5 xl:block" aria-label="Mentorship details"><p class="eyebrow">ENGAGEMENTS</p><div class="mt-4 space-y-4" data-engagements-container>${workspaceEngagementsMarkup(detail, new Date(), isMentor, isStaff, selectedRequestId)}</div>${detail.learningGoals ? `<div class="mt-5 border-t border-line pt-5"><h3 class="text-xs font-semibold text-ink">Learning goals</h3><p class="mt-2 whitespace-pre-wrap text-[11px] leading-5 text-muted">${esc(detail.learningGoals)}</p></div>` : ''}</aside>
@@ -385,6 +430,7 @@ export async function mountMentorshipWorkspace(root) {
     messages.innerHTML = workspaceMessages(detail.messages, workspaceIdOf(detail), {
       query: messageQuery,
       unreadCount: visibleUnreadCount,
+      detail
     });
     if (searchStatus) {
       searchStatus.hidden = !messageQuery.trim();
