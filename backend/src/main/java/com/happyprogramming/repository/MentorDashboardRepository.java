@@ -125,6 +125,8 @@ public interface MentorDashboardRepository extends JpaRepository<MentorshipReque
                         THEN 'AWAITING_PAYMENT'
                     WHEN request_row.service_type = 'MONTHLY' AND request_row.status = 'ACCEPTED' AND request_row.funded_at IS NULL
                         THEN 'AWAITING_PAYMENT'
+                    WHEN active_dispute.dispute_id IS NOT NULL
+                        THEN 'DISPUTED'
                     WHEN request_row.service_type = 'MONTHLY' AND request_row.funded_at IS NOT NULL
                         THEN 'ACTIVE'
                     ELSE request_row.status
@@ -161,6 +163,15 @@ public interface MentorDashboardRepository extends JpaRepository<MentorshipReque
                   AND booking_row.mentee_id = request_row.mentee_id
                   AND TRY_CONVERT(BIGINT, JSON_VALUE(booking_row.terms_snapshot, '$.requestId')) = request_row.id
             ) booking_summary
+            OUTER APPLY (
+                SELECT TOP (1) d.id AS dispute_id
+                FROM dbo.disputes d
+                WHERE (d.mentor_id = request_row.mentor_id
+                   AND (d.subscription_id IN (SELECT s.id FROM dbo.subscriptions s WHERE s.request_id = request_row.id)
+                     OR d.booking_id IN (SELECT b.id FROM dbo.bookings b WHERE TRY_CONVERT(BIGINT, JSON_VALUE(b.terms_snapshot, '$.requestId')) = request_row.id)
+                     OR d.payment_id IN (SELECT p.id FROM dbo.payments p WHERE p.request_id = request_row.id))
+                   AND d.status NOT IN ('RESOLVED', 'REJECTED'))
+            ) active_dispute
             WHERE request_row.mentor_id = :mentorId
             ORDER BY request_row.submitted_at DESC, request_row.id DESC
             """, nativeQuery = true)

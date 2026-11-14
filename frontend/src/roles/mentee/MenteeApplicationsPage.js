@@ -216,27 +216,32 @@ function applicationCard(application) {
   const status = applicationDisplayStatus(application);
   const isConfirmed = status === 'CONFIRMED' || status === 'PAID';
   const isCompleted = status === 'COMPLETED';
+  const isDisputed = status === 'DISPUTED';
   const goals = application.learningGoals || 'No learning goals provided.';
   const badgeClass = isCompleted
     ? 'status-neutral font-semibold'
-    : isConfirmed
-      ? 'status-success'
-      : status === 'PENDING' || status === 'ACCEPTED'
-        ? 'status-warning'
-        : status === 'REJECTED'
-          ? 'status-danger'
-          : 'status-neutral';
+    : isDisputed
+      ? 'status-warning'
+      : isConfirmed
+        ? 'status-success'
+        : status === 'PENDING' || status === 'ACCEPTED'
+          ? 'status-warning'
+          : status === 'REJECTED'
+            ? 'status-danger'
+            : 'status-neutral';
   const scheduleNote = status === 'PENDING' && application.responseDeadline
     ? `Response by ${esc(dateLabel(application.responseDeadline))}`
     : status === 'REJECTED' && application.rejectionReason
       ? `<span class="text-rose-700 max-w-xs block truncate" title="${esc(application.rejectionReason)}">Reason: ${esc(application.rejectionReason)}</span>`
-      : isCompleted
-        ? 'Completed'
-        : isConfirmed
-          ? `Payment: ${esc(application.latestPaymentStatus || 'SUCCEEDED')}`
-          : application.latestPaymentStatus
-            ? `Payment: ${esc(application.latestPaymentStatus)}`
-            : 'Payment not started';
+      : isDisputed
+        ? 'Dispute under review'
+        : isCompleted
+          ? 'Completed'
+          : isConfirmed
+            ? `Payment: ${esc(application.latestPaymentStatus || 'SUCCEEDED')}`
+            : application.latestPaymentStatus
+              ? `Payment: ${esc(application.latestPaymentStatus)}`
+              : 'Payment not started';
 
   return `<tr>
       <td><strong class="text-ink">${esc(application.mentorName || 'Mentor')}</strong><span class="mt-1 block text-[11px] text-muted">Submitted ${esc(dateLabel(application.submittedAt))}</span></td><td><span class="font-semibold text-ink">${esc(application.packageName || 'Monthly mentorship')}</span><span class="mt-1 block max-w-xs truncate text-[11px] text-muted" title="${esc(goals)}">${esc(goals)}</span></td><td><span class="status-badge ${badgeClass}">${esc(STATUS_LABELS[status] || status)}</span></td><td><span class="text-xs text-muted">${scheduleNote}</span></td><td><button type="button" class="btn btn-outline btn-sm" data-booking-detail="${esc(application.requestId)}">Details</button></td>
@@ -260,7 +265,7 @@ export async function mountMenteeApplications(root) {
     <div class="mt-8 flex flex-wrap items-end justify-between gap-4">
       <div class="flex flex-wrap items-end gap-3 flex-1 min-w-[280px]">
         <label class="block text-xs font-semibold text-ink flex-1 min-w-[240px]" for="application-search">Search bookings<div class="relative mt-2"><input id="application-search" type="search" placeholder="Search mentor, package, or keywords…" class="w-full rounded-lg border border-line bg-white pl-9 pr-3.5 py-2.5 text-sm text-ink placeholder:text-muted focus:border-brand focus:outline-none"><svg class="absolute left-3 top-3 h-4 w-4 text-muted pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div></label>
-        <label class="block text-xs font-semibold text-ink min-w-[180px]" for="application-status">Booking status<select id="application-status" class="mt-2 w-full rounded-lg border border-line bg-white px-3.5 py-2.5 text-sm text-ink focus:border-brand focus:outline-none"><option value="">All bookings</option><option value="PENDING">Pending</option><option value="ACCEPTED">Accepted</option><option value="CONFIRMED">Confirmed</option><option value="COMPLETED">Completed</option><option value="REJECTED">Declined</option><option value="EXPIRED">Expired</option><option value="CANCELLED">Cancelled</option></select></label>
+        <label class="block text-xs font-semibold text-ink min-w-[180px]" for="application-status">Booking status<select id="application-status" class="mt-2 w-full rounded-lg border border-line bg-white px-3.5 py-2.5 text-sm text-ink focus:border-brand focus:outline-none"><option value="">All bookings</option><option value="PENDING">Pending</option><option value="ACCEPTED">Accepted</option><option value="CONFIRMED">Confirmed</option><option value="DISPUTED">Disputed</option><option value="COMPLETED">Completed</option><option value="REJECTED">Declined</option><option value="EXPIRED">Expired</option><option value="CANCELLED">Cancelled</option></select></label>
       </div>
       <a href="#/notifications" class="text-xs font-semibold text-brand hover:underline self-end pb-2.5">Notification history →</a>
     </div>
@@ -323,6 +328,8 @@ export async function mountMenteeApplications(root) {
           const s = applicationDisplayStatus(item);
           return s === 'CONFIRMED' || s === 'PAID';
         });
+      } else if (statusFilter.value === 'DISPUTED') {
+        applications = applications.filter(item => applicationDisplayStatus(item) === 'DISPUTED');
       } else if (statusFilter.value === 'COMPLETED') {
         applications = applications.filter(item => applicationDisplayStatus(item) === 'COMPLETED');
       } else if (statusFilter.value === 'EXPIRED') {
@@ -354,28 +361,33 @@ export async function mountMenteeApplications(root) {
       const status = applicationDisplayStatus(booking);
       const isConfirmed = status === 'CONFIRMED' || status === 'PAID';
       const isCompleted = status === 'COMPLETED';
+      const isDisputed = status === 'DISPUTED';
       const badgeClass = isCompleted
         ? 'status-neutral font-semibold'
-        : isConfirmed
-          ? 'status-success'
-          : status === 'PENDING' || status === 'ACCEPTED'
-            ? 'status-warning'
-            : status === 'REJECTED'
-              ? 'status-danger'
-              : 'status-neutral';
+        : isDisputed
+          ? 'status-warning'
+          : isConfirmed
+            ? 'status-success'
+            : status === 'PENDING' || status === 'ACCEPTED'
+              ? 'status-warning'
+              : status === 'REJECTED'
+                ? 'status-danger'
+                : 'status-neutral';
       const dialog = document.createElement('dialog');
       dialog.className = 'modal';
       const action = canPayApplication(booking)
         ? `<a class="btn btn-primary" href="#/checkout?requestId=${encodeURIComponent(booking.requestId)}">${booking.latestPaymentStatus === 'PENDING' ? 'Continue payment' : 'Pay now'} →</a>`
-        : isCompleted
-          ? `<button type="button" class="btn btn-outline" data-open-report="${esc(booking.requestId)}">Report an issue</button><a class="btn btn-primary" href="${menteeBookingWorkspaceUrl(booking)}">Review & workspace →</a>`
-          : isConfirmed
-            ? `<button type="button" class="btn btn-outline" data-open-report="${esc(booking.requestId)}">Report an issue</button><a class="btn btn-primary" href="${menteeBookingWorkspaceUrl(booking)}">Open workspace →</a>`
-            : booking.fundedAt
-              ? `<a class="btn btn-primary" href="${menteeBookingWorkspaceUrl(booking)}">Open workspace history →</a>`
-            : status === 'CANCELLED'
-              ? '<a class="btn btn-outline" href="#/mentors">Browse mentors to apply again →</a>'
-              : '';
+        : isDisputed
+          ? `<a class="btn btn-outline" href="#/disputes">View dispute status →</a><a class="btn btn-primary" href="${menteeBookingWorkspaceUrl(booking)}">Open workspace →</a>`
+          : isCompleted
+            ? `<button type="button" class="btn btn-outline" data-open-report="${esc(booking.requestId)}">Report an issue</button><a class="btn btn-primary" href="${menteeBookingWorkspaceUrl(booking)}">Review & workspace →</a>`
+            : isConfirmed
+              ? `<button type="button" class="btn btn-outline" data-open-report="${esc(booking.requestId)}">Report an issue</button><a class="btn btn-primary" href="${menteeBookingWorkspaceUrl(booking)}">Open workspace →</a>`
+              : booking.fundedAt
+                ? `<a class="btn btn-primary" href="${menteeBookingWorkspaceUrl(booking)}">Open workspace history →</a>`
+              : status === 'CANCELLED'
+                ? '<a class="btn btn-outline" href="#/mentors">Browse mentors to apply again →</a>'
+                : '';
       const cancel = ['PENDING', 'ACCEPTED'].includes(status) && !booking.fundedAt
         ? `<button type="button" class="btn btn-outline" data-cancel-application="${encodeURIComponent(booking.requestId)}">Cancel booking</button>` : '';
       const rejectionReasonBlock = (status === 'REJECTED' || booking.rejectionReason)

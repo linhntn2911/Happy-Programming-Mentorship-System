@@ -370,6 +370,8 @@ public class MentorshipRequestService {
                                     ) THEN 'EXPIRED'
                                WHEN r.service_type = 'ONE_OFF' AND r.funded_at IS NOT NULL
                                    THEN 'CONFIRMED'
+                               WHEN active_dispute.dispute_id IS NOT NULL OR sub.status = 'DISPUTED'
+                                   THEN 'DISPUTED'
                                WHEN r.service_type = 'MONTHLY' AND (sub.status = 'ENDED' OR (sub.current_period_end IS NOT NULL AND sub.current_period_end <= SYSUTCDATETIME()))
                                    THEN 'COMPLETED'
                                WHEN r.service_type = 'MONTHLY' AND sub.status = 'CANCELLED'
@@ -411,6 +413,14 @@ public class MentorshipRequestService {
                         WHERE p.request_id = r.id
                         ORDER BY p.billing_cycle_no DESC, p.attempt_no DESC, p.id DESC
                     ) latest_payment
+                    OUTER APPLY (
+                        SELECT TOP (1) d.id AS dispute_id
+                        FROM dbo.disputes d
+                        WHERE ((sub.id IS NOT NULL AND d.subscription_id = sub.id)
+                           OR d.booking_id IN (SELECT b.id FROM dbo.bookings b WHERE TRY_CONVERT(BIGINT, JSON_VALUE(b.terms_snapshot, '$.requestId')) = r.id)
+                           OR d.payment_id IN (SELECT p.id FROM dbo.payments p WHERE p.request_id = r.id))
+                          AND d.status NOT IN ('RESOLVED', 'REJECTED')
+                    ) active_dispute
                     WHERE r.mentee_id = ?
                 )
                 """;

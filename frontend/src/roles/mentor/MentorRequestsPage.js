@@ -66,6 +66,7 @@ export function MentorRequestsPage() {
             <option value="UPCOMING">Upcoming</option>
             <option value="CONFIRMED">Confirmed</option>
             <option value="ACTIVE">Active</option>
+            <option value="DISPUTED">Disputed</option>
             <option value="COMPLETED">Completed</option>
             <option value="REJECTED">Declined</option>
             <option value="EXPIRED">Expired</option>
@@ -176,6 +177,7 @@ const REQUEST_STATUS_LABELS = {
   UPCOMING: 'Upcoming',
   ACTIVE: 'Active',
   CONFIRMED: 'Confirmed',
+  DISPUTED: 'Disputed',
   COMPLETED: 'Completed',
   NO_SHOW: 'No-show',
   ACCEPTED: 'Accepted',
@@ -190,6 +192,7 @@ const REQUEST_STATUS_STYLES = {
   UPCOMING: 'status-success',
   ACTIVE: 'status-success',
   CONFIRMED: 'status-success',
+  DISPUTED: 'status-warning',
   COMPLETED: 'status-success',
   NO_SHOW: 'status-danger',
   ACCEPTED: 'status-success',
@@ -200,7 +203,7 @@ const REQUEST_STATUS_STYLES = {
 
 export function canOpenBookingWorkspace(request) {
   const status = String(request?.lifecycleStatus || request?.status || '').toUpperCase();
-  return ['ACTIVE', 'UPCOMING', 'CONFIRMED', 'COMPLETED', 'NO_SHOW'].includes(status);
+  return ['ACTIVE', 'UPCOMING', 'CONFIRMED', 'COMPLETED', 'NO_SHOW', 'DISPUTED'].includes(status);
 }
 
 function createStatusElement(request) {
