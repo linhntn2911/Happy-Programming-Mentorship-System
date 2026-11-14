@@ -25,7 +25,13 @@ const STATUS_LABELS = {
   CANCELLED: 'Cancelled',
   DISPUTED: 'Disputed'
 };
-const dateLabel = value => value ? new Date(value).toLocaleDateString('en-US', { dateStyle: 'medium' }) : '—';
+const dateLabel = value => {
+  if (!value) return '—';
+  const str = String(value).trim();
+  const utcStr = (str.includes('T') && !str.endsWith('Z') && !/[+-]\d{2}(:\d{2})?$/.test(str)) ? str + 'Z' : str;
+  const d = new Date(utcStr);
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-US', { dateStyle: 'medium' });
+};
 const normalize = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLowerCase().trim();
 
 function openReportModal(booking, onSubmitted) {

@@ -75,6 +75,10 @@ public class NotificationService {
     }
 
     private NotificationDto toDto(Notification n) {
+        java.time.Instant instant = null;
+        if (n.getCreatedAt() != null) {
+            instant = n.getCreatedAt().atZone(java.time.ZoneOffset.UTC).toInstant();
+        }
         return new NotificationDto(
             n.getId(),
             n.getTitle(),
@@ -82,7 +86,7 @@ public class NotificationService {
             n.getType(),
             n.getActionUrl(),
             n.isRead(),
-            n.getCreatedAt()
+            instant
         );
     }
 }

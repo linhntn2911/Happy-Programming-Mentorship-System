@@ -46,6 +46,7 @@ public class SepayPaymentService {
     private final String accountHolder;
     private final String apiKey;
     private final String qrTemplate;
+    private final NotificationService notificationService;
 
     public SepayPaymentService(
             @Autowired(required = false) JdbcTemplate jdbc,
@@ -56,6 +57,20 @@ public class SepayPaymentService {
             @Value("${hpms.sepay.account-holder:NGUYEN THI NGOC LINH}") String accountHolder,
             @Value("${hpms.sepay.api-key:}") String apiKey,
             @Value("${hpms.sepay.qr-template:compact}") String qrTemplate) {
+        this(jdbc, mapper, enabled, bankName, accountNumber, accountHolder, apiKey, qrTemplate, null);
+    }
+
+    @Autowired
+    public SepayPaymentService(
+            @Autowired(required = false) JdbcTemplate jdbc,
+            ObjectMapper mapper,
+            @Value("${hpms.sepay.enabled:true}") boolean enabled,
+            @Value("${hpms.sepay.bank-name:TPBank}") String bankName,
+            @Value("${hpms.sepay.account-number:00000806194}") String accountNumber,
+            @Value("${hpms.sepay.account-holder:NGUYEN THI NGOC LINH}") String accountHolder,
+            @Value("${hpms.sepay.api-key:}") String apiKey,
+            @Value("${hpms.sepay.qr-template:compact}") String qrTemplate,
+            @Autowired(required = false) NotificationService notificationService) {
         this.jdbc = jdbc;
         this.mapper = mapper;
         this.enabled = enabled;
@@ -64,6 +79,7 @@ public class SepayPaymentService {
         this.accountHolder = accountHolder;
         this.apiKey = apiKey;
         this.qrTemplate = qrTemplate;
+        this.notificationService = notificationService;
     }
 
     public boolean isEnabled() {
@@ -368,9 +384,62 @@ public class SepayPaymentService {
 
         insertEvent(db, paymentId, eventKey, payload, "PROCESSED");
 
+        sendPaymentNotifications(db, requestId, mentorId, menteeId, (String) request.get("offerSnapshot"), (String) request.get("linked_service_name"));
+
         return new SepayWebhookResponse(true, oneOff == null
                 ? "Payment confirmed and mentorship activated."
                 : "Payment confirmed and one-off session booking created.");
+    }
+
+    private void sendPaymentNotifications(JdbcTemplate db, Long requestId, long mentorId, long menteeId, String offerSnapshot, String fallbackName) {
+        if (notificationService == null) return;
+        try {
+            String packageName = fallbackName;
+            if (offerSnapshot != null && !offerSnapshot.isBlank()) {
+                try {
+                    var node = mapper.readTree(offerSnapshot);
+                    if (node.hasNonNull("name")) {
+                        packageName = node.get("name").asText();
+                    }
+                } catch (Exception ignored) {}
+            }
+            if (packageName == null || packageName.isBlank()) {
+                packageName = "Mentorship";
+            }
+
+            String menteeName = "Mentee";
+            String mentorName = "Mentor";
+            try {
+                var users = db.query(
+                        "SELECT id, full_name FROM dbo.users WHERE id IN (?, ?)",
+                        (rs, rowNum) -> Map.entry(rs.getLong("id"), rs.getString("full_name")),
+                        menteeId, mentorId);
+                for (var entry : users) {
+                    if (entry.getKey() == menteeId && entry.getValue() != null && !entry.getValue().isBlank()) {
+                        menteeName = entry.getValue();
+                    } else if (entry.getKey() == mentorId && entry.getValue() != null && !entry.getValue().isBlank()) {
+                        mentorName = entry.getValue();
+                    }
+                }
+            } catch (Exception ignored) {}
+
+            notificationService.create(
+                    menteeId,
+                    "Payment Successful!",
+                    "Your payment for " + packageName + " with " + mentorName + " was confirmed. Your workspace is active!",
+                    "PAYMENT_SUCCESS",
+                    "#/workspace?requestId=" + requestId + "&partnerId=" + mentorId
+            );
+
+            notificationService.create(
+                    mentorId,
+                    "Payment Received!",
+                    menteeName + " has completed payment for " + packageName + ". The mentorship is now active!",
+                    "PAYMENT_SUCCESS",
+                    "#/workspace?requestId=" + requestId + "&partnerId=" + menteeId
+            );
+        } catch (Exception ignored) {
+        }
     }
 
     private void requireConfigured() {

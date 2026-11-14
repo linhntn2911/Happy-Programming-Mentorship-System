@@ -19,7 +19,10 @@ export function getInitials(name) {
 
 function formatRelativeTime(dateString) {
   if (!dateString) return '';
-  const date = new Date(dateString);
+  const str = String(dateString).trim();
+  const utcStr = (str.includes('T') && !str.endsWith('Z') && !/[+-]\d{2}(:\d{2})?$/.test(str)) ? str + 'Z' : str;
+  const date = new Date(utcStr);
+  if (Number.isNaN(date.getTime())) return '';
   const now = new Date();
   const diffSec = Math.max(0, Math.floor((now - date) / 1000));
   if (diffSec < 60) return 'Just now';

@@ -12,7 +12,12 @@ const PAGE_SIZE = 10;
 function notificationRow(item) {
   const href = notificationRelatedHref(item);
   const isRead = Boolean(item.read ?? item.isRead);
-  const date = item.createdAt ? new Date(item.createdAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : '';
+  const str = String(item.createdAt || '').trim();
+  const utcStr = (str.includes('T') && !str.endsWith('Z') && !/[+-]\d{2}(:\d{2})?$/.test(str)) ? str + 'Z' : str;
+  const dateObj = utcStr ? new Date(utcStr) : null;
+  const date = (dateObj && !Number.isNaN(dateObj.getTime()))
+    ? dateObj.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
+    : '';
   return `<article class="rounded-xl border border-line ${isRead ? 'bg-white' : 'bg-lilac/30'} p-5" data-notification-id="${esc(item.id)}">
     <div class="flex flex-wrap items-start justify-between gap-3"><div class="flex items-center gap-2"><span class="h-2 w-2 rounded-full ${isRead ? 'bg-transparent' : 'bg-brand'}" aria-hidden="true"></span><h2 class="text-sm font-semibold text-ink">${esc(item.title || 'Notification')}</h2>${isRead ? '' : '<span class="rounded-full bg-lilac px-2 py-0.5 text-[10px] font-semibold text-brand">Unread</span>'}</div><time class="text-xs text-muted">${esc(date)}</time></div>
     <p class="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted">${esc(item.message || '')}</p>

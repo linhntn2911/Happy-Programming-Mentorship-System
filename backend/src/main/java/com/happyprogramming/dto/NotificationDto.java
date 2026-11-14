@@ -1,7 +1,7 @@
 package com.happyprogramming.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 
 public record NotificationDto(
@@ -11,7 +11,7 @@ public record NotificationDto(
     String type,
     String actionUrl,
     @JsonProperty("isRead") boolean isRead,
-    LocalDateTime createdAt
+    Instant createdAt
 ) {
     @JsonProperty("read")
     public boolean read() {

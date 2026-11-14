@@ -44,10 +44,12 @@ export function summarizeLearningGoals(value) {
 
 export function formatUtcDate(value) {
   if (!value) return '—';
-  const date = new Date(value);
+  const str = String(value).trim();
+  const utcStr = (str.includes('T') && !str.endsWith('Z') && !/[+-]\d{2}(:\d{2})?$/.test(str)) ? str + 'Z' : str;
+  const date = new Date(utcStr);
   return Number.isNaN(date.getTime())
     ? 'Time unavailable'
-    : `${date.toLocaleString('en-US', { timeZone: 'UTC', dateStyle: 'medium', timeStyle: 'short' })} UTC`;
+    : date.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
 export function MentorDashboardPage() {
