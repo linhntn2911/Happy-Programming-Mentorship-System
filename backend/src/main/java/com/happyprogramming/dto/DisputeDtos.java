@@ -12,7 +12,12 @@ public final class DisputeDtos {
             Instant scheduledAt, BigDecimal amount, String currency) {}
 
     public record Evidence(
-            long id, String fileName, String mimeType, long sizeBytes, Instant createdAt) {}
+            long id, String fileName, String mimeType, long sizeBytes, Instant createdAt,
+            String uploadedSide, String uploaderName) {
+        public Evidence(long id, String fileName, String mimeType, long sizeBytes, Instant createdAt) {
+            this(id, fileName, mimeType, sizeBytes, createdAt, null, null);
+        }
+    }
 
     public record Summary(
             long id, String ticketCode, String targetType, long targetId, String title,

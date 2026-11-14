@@ -4,6 +4,7 @@ import com.happyprogramming.dto.AdminRefundRequest;
 import com.happyprogramming.dto.AuthenticatedUser;
 import com.happyprogramming.dto.DisputeDtos;
 import com.happyprogramming.dto.DisputeFileDownload;
+import com.happyprogramming.dto.MentorDisputeDetail;
 import com.happyprogramming.dto.RefundDecisionRequest;
 import com.happyprogramming.dto.StaffDisputeDtos;
 import com.happyprogramming.repository.AdminRepository;
@@ -507,16 +508,51 @@ public class DisputeService {
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Dispute was not found.");
         StaffDisputeDtos.StaffDetail item = rows.get(0);
         List<DisputeDtos.Evidence> evList = jdbc.query("""
-                SELECT e.id, f.original_name, f.mime_type, f.size_bytes, e.created_at
+                SELECT e.id, f.original_name, f.mime_type, f.size_bytes, e.created_at, e.uploaded_side, u.full_name AS uploader_name
                 FROM dbo.dispute_evidence e
                 JOIN dbo.files f ON f.id = e.file_id
+                LEFT JOIN dbo.users u ON u.id = e.uploaded_by
                 WHERE e.dispute_id = ?
                 ORDER BY e.id ASC
                 """, (rs, row) -> new DisputeDtos.Evidence(
                 rs.getLong("id"), rs.getString("original_name"),
                 rs.getString("mime_type"), rs.getLong("size_bytes"),
-                instant(rs.getTimestamp("created_at"))
+                instant(rs.getTimestamp("created_at")),
+                rs.getString("uploaded_side"),
+                rs.getString("uploader_name")
         ), disputeId);
+
+        List<MentorDisputeDetail.Response> responses = jdbc.query("""
+                SELECT r.id, r.author_side, u.full_name AS author_name, r.message, r.created_at
+                FROM dbo.dispute_responses r
+                JOIN dbo.users u ON u.id = r.author_id
+                WHERE r.dispute_id = ?
+                ORDER BY r.created_at ASC, r.id ASC
+                """, (rs, row) -> {
+            long respId = rs.getLong("id");
+            List<MentorDisputeDetail.Evidence> respEvList = jdbc.query("""
+                    SELECT e.id, e.file_id, f.original_name, f.mime_type, f.size_bytes, e.uploaded_side, e.created_at
+                    FROM dbo.dispute_evidence e
+                    JOIN dbo.files f ON f.id = e.file_id
+                    WHERE e.response_id = ?
+                    ORDER BY e.id ASC
+                    """, (ers, erow) -> new MentorDisputeDetail.Evidence(
+                    ers.getLong("id"), ers.getLong("file_id"), ers.getString("original_name"),
+                    ers.getString("mime_type"), ers.getLong("size_bytes"), ers.getString("uploaded_side"),
+                    instant(ers.getTimestamp("created_at"))
+            ), respId);
+            return new MentorDisputeDetail.Response(
+                    respId, rs.getString("author_side"), rs.getString("author_name"),
+                    rs.getString("message"), instant(rs.getTimestamp("created_at")), respEvList
+            );
+        }, disputeId);
+
+        String mentorStatement = responses.stream()
+                .filter(r -> "MENTOR".equalsIgnoreCase(r.authorSide()))
+                .map(MentorDisputeDetail.Response::message)
+                .reduce((first, second) -> second)
+                .orElse(null);
+
         return new StaffDisputeDtos.StaffDetail(
                 item.id(), item.ticketCode(), item.targetType(), item.targetId(), item.title(),
                 item.complainantId(), item.complainantName(), item.complainantEmail(),
@@ -528,7 +564,9 @@ public class DisputeService {
                 evList,
                 item.bankName(), item.accountNumber(), item.accountName(),
                 item.approvedBy(), item.approvedByName(), item.approvedAt(),
-                item.transferReference()
+                item.transferReference(),
+                mentorStatement,
+                responses
         );
     }
 

@@ -1030,23 +1030,28 @@ export async function mountStaffReports(root) {
       const isApproved = detail.status === 'APPROVED';
       const isSubmitted = detail.status === 'SUBMITTED';
 
-      const evidencesHtml = detail.evidences && detail.evidences.length > 0
+      const evidences = (detail.evidences && detail.evidences.length > 0 ? detail.evidences : detail.evidence) || [];
+      const evidencesHtml = evidences.length > 0
         ? `
           <div class="mt-4">
-            <h3 class="text-xs font-semibold text-ink uppercase tracking-wider mb-2">Attached Evidence (${detail.evidences.length})</h3>
+            <h3 class="text-xs font-semibold text-ink uppercase tracking-wider mb-2">Attached Evidence (${evidences.length})</h3>
             <div class="space-y-2">
-              ${detail.evidences.map(ev => `
+              ${evidences.map(ev => {
+                const sideBadge = ev.uploadedSide === 'MENTOR'
+                  ? '<span class="badge !text-[9px] ml-1 bg-purple-100 text-purple-800">MENTOR</span>'
+                  : '<span class="badge !text-[9px] ml-1 bg-amber-100 text-amber-800">MENTEE</span>';
+                return `
                 <div class="flex items-center justify-between p-3 rounded-lg bg-cream border border-line text-xs">
                   <div>
                     <span class="font-medium text-ink">${e(ev.fileName)}</span>
-                    <span class="text-muted ml-2">(${e(ev.fileSize || 'Evidence')})</span>
-                    <div class="text-[11px] text-muted">Uploaded by <strong>${e(ev.uploaderName || 'User')}</strong> · ${e(dateTime(ev.uploadedAt))}</div>
+                    <span class="text-muted ml-2">(${e(ev.sizeBytes ? `${Math.round(ev.sizeBytes / 1024)} KB` : (ev.fileSize || 'Evidence'))})</span>
+                    <div class="text-[11px] text-muted">Uploaded by <strong>${e(ev.uploaderName || ev.uploadedSide || 'User')}</strong> ${sideBadge} · ${e(dateTime(ev.uploadedAt || ev.createdAt))}</div>
                   </div>
                   <a href="/api/staff/reports/${e(detail.id)}/evidence/${e(ev.id)}" target="_blank" download class="btn btn-outline btn-sm">
                     Download
                   </a>
                 </div>
-              `).join('')}
+              `;}).join('')}
             </div>
           </div>
         `
@@ -1199,6 +1204,23 @@ export async function mountStaffReports(root) {
           <div class="mt-4 text-xs text-ink/90">
             <h3 class="font-semibold uppercase tracking-wider text-[11px] text-muted mb-1">Mentor Rebuttal Statement</h3>
             <div class="p-3 rounded-lg bg-white border border-line whitespace-pre-wrap leading-relaxed">${e(detail.mentorStatement)}</div>
+          </div>
+        ` : ''}
+
+        ${detail.responses && detail.responses.length > 0 ? `
+          <div class="mt-4 text-xs text-ink/90">
+            <h3 class="font-semibold uppercase tracking-wider text-[11px] text-muted mb-2">Mediation Responses (${detail.responses.length})</h3>
+            <div class="space-y-2">
+              ${detail.responses.map(r => `
+                <div class="p-3 rounded-lg bg-white border border-line">
+                  <div class="flex items-center justify-between gap-2 mb-1">
+                    <span class="font-semibold text-ink">${e(r.authorName || r.authorSide)} <span class="badge !text-[9px] ml-1 ${r.authorSide === 'MENTOR' ? 'bg-purple-100 text-purple-800' : 'bg-amber-100 text-amber-800'}">${e(r.authorSide)}</span></span>
+                    <span class="text-muted text-[11px]">${e(dateTime(r.createdAt))}</span>
+                  </div>
+                  <div class="whitespace-pre-wrap leading-relaxed text-ink/90">${e(r.message)}</div>
+                </div>
+              `).join('')}
+            </div>
           </div>
         ` : ''}
 

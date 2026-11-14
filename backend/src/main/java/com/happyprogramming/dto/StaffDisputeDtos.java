@@ -64,7 +64,9 @@ public final class StaffDisputeDtos {
             Long approvedBy,
             String approvedByName,
             Instant approvedAt,
-            String transferReference
+            String transferReference,
+            String mentorStatement,
+            List<MentorDisputeDetail.Response> responses
     ) {
         public StaffDetail(
                 long id, String ticketCode, String targetType, long targetId, String title,
@@ -82,7 +84,30 @@ public final class StaffDisputeDtos {
                  respondentId, respondentName, respondentEmail, scheduledAt, disputedAmount, currency,
                  category, description, status, createdAt, termsAcceptedAt, assignedStaffId, assignedStaffName,
                  responseDeadlineAt, resolutionType, resolutionNote, refundAmount, resolvedAt, evidence,
-                 null, null, null, null, null, null, null);
+                 null, null, null, null, null, null, null, null, List.of());
+        }
+
+        public StaffDetail(
+                long id, String ticketCode, String targetType, long targetId, String title,
+                long complainantId, String complainantName, String complainantEmail,
+                long respondentId, String respondentName, String respondentEmail,
+                Instant scheduledAt, BigDecimal disputedAmount, String currency,
+                String category, String description, String status,
+                Instant createdAt, Instant termsAcceptedAt,
+                Long assignedStaffId, String assignedStaffName,
+                Instant responseDeadlineAt, String resolutionType,
+                String resolutionNote, BigDecimal refundAmount,
+                Instant resolvedAt, List<DisputeDtos.Evidence> evidence,
+                String bankName, String accountNumber, String accountName,
+                Long approvedBy, String approvedByName, Instant approvedAt,
+                String transferReference
+        ) {
+            this(id, ticketCode, targetType, targetId, title, complainantId, complainantName, complainantEmail,
+                 respondentId, respondentName, respondentEmail, scheduledAt, disputedAmount, currency,
+                 category, description, status, createdAt, termsAcceptedAt, assignedStaffId, assignedStaffName,
+                 responseDeadlineAt, resolutionType, resolutionNote, refundAmount, resolvedAt, evidence,
+                 bankName, accountNumber, accountName, approvedBy, approvedByName, approvedAt, transferReference,
+                 null, List.of());
         }
     }
 
