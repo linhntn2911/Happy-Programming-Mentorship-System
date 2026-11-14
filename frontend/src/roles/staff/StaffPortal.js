@@ -20,30 +20,33 @@ import { StatusBadge, Notice } from '../admin/AdminPrimitives.js';
 import { money, dateTime } from '../admin/admin.js';
 import { buildVietQrUrl } from './vietQrHelper.js';
 import { bindPagination, paginateItems, renderPagination } from '../../shared/pagination.js';
+import { renderBankSelectOptions, findMatchingBank } from '../../shared/vietnamBanks.js';
 
 async function checkStaffAccess(root) {
   try {
     const { user, permissions } = await staffService.access();
     const section = location.hash.split('/')[2];
-    const needed = { 'mentor-applications':'MENTOR_APPLICATION_MANAGE', applications:'MENTOR_APPLICATION_MANAGE',
-      mentors:'MENTOR_APPLICATION_MANAGE', mentees:'MENTEE_MANAGE', requests:'MENTORSHIP_REQUEST_MANAGE', skills:'SKILL_MANAGE' }[section];
+    const needed = {
+      'mentor-applications': 'MENTOR_APPLICATION_MANAGE', applications: 'MENTOR_APPLICATION_MANAGE',
+      mentors: 'MENTOR_APPLICATION_MANAGE', mentees: 'MENTEE_MANAGE', requests: 'MENTORSHIP_REQUEST_MANAGE', skills: 'SKILL_MANAGE'
+    }[section];
     if (needed && !permissions.includes(needed)) {
-      staffError(root, {status:403, message:'You do not have permission to access this staff function.'});
+      staffError(root, { status: 403, message: 'You do not have permission to access this staff function.' });
       return null;
     }
     return user;
-  } catch (error) { staffError(root,error); return null; }
+  } catch (error) { staffError(root, error); return null; }
 }
 
-function staffError(root,error) {
+function staffError(root, error) {
   if (!root.isConnected) return;
   document.title = error.status === 403 ? 'Access denied | HappyProgramming' : 'Staff workspace | HappyProgramming';
   root.innerHTML = StaffLayout('dashboard', `<section class="admin-panel"><div class="admin-panel-body">
-    <h1 class="section-title">${error.status===403?'Access denied':'Unable to load this page'}</h1>
+    <h1 class="section-title">${error.status === 403 ? 'Access denied' : 'Unable to load this page'}</h1>
     <p role="alert" class="mt-4">${e(error.message || 'Please try again.')}</p>
     <div class="admin-actions"><button id="staff-retry" class="btn btn-primary">Try again</button>
     <a class="btn btn-outline" href="#/login">Log in</a></div></div></section>`);
-  root.querySelector('#staff-retry').onclick=()=>location.reload();
+  root.querySelector('#staff-retry').onclick = () => location.reload();
   bindStaffGlobalEvents(root);
 }
 
@@ -51,7 +54,7 @@ function bindStaffGlobalEvents(root) {
   // Bind Logout button in staff topbar
   root.querySelector('#staff-logout-btn')?.addEventListener('click', async () => {
     try { await authService.logout(); window.location.hash = '#/login'; }
-    catch (err) { staffError(root,err); }
+    catch (err) { staffError(root, err); }
   });
 
   // Mobile navigation rail toggle
@@ -81,7 +84,7 @@ export async function mountStaffDashboard(root) {
     bindStaffGlobalEvents(root);
   } catch (err) {
     if (!root.isConnected) return;
-    staffError(root,err);
+    staffError(root, err);
   }
 }
 
@@ -238,7 +241,7 @@ export async function mountStaffApplications(root, initialTab = 'PENDING') {
   try {
     applications = await staffService.getApplications();
   } catch (err) {
-    staffError(root,err); return;
+    staffError(root, err); return;
   }
   if (root.isConnected) render();
 }
@@ -362,7 +365,7 @@ export async function mountStaffMentors(root) {
     filterMentors();
 
   } catch (err) {
-    staffError(root,err);
+    staffError(root, err);
   }
 }
 
@@ -479,7 +482,7 @@ export async function mountStaffMentees(root) {
     filterMentees();
 
   } catch (err) {
-    staffError(root,err);
+    staffError(root, err);
   }
 }
 
@@ -488,25 +491,25 @@ export async function mountStaffList(root, kind) {
     return mountStaffSkills(root);
   }
   document.title = `${kind === 'skills' ? 'Technical skills' : 'Mentorship requests'} | HappyProgramming`;
-  root.innerHTML='<p role="status">Loading…</p>';
-  const user=await checkStaffAccess(root); if (!user || !root.isConnected) return;
+  root.innerHTML = '<p role="status">Loading…</p>';
+  const user = await checkStaffAccess(root); if (!user || !root.isConnected) return;
   try {
-    const records=await (kind==='skills'?staffService.getSkills():staffService.getRequests());
-    const headings=kind==='skills'?['Name','Category','Status','Description']:['ID','Mentee','Mentor','Status','Learning goals','Created (UTC)'];
+    const records = await (kind === 'skills' ? staffService.getSkills() : staffService.getRequests());
+    const headings = kind === 'skills' ? ['Name', 'Category', 'Status', 'Description'] : ['ID', 'Mentee', 'Mentor', 'Status', 'Learning goals', 'Created (UTC)'];
     if (!root.isConnected) return;
     let page = 1;
     const render = () => {
       const pagination = paginateItems(records, page);
       page = pagination.page;
-      const rows=pagination.items.map(r=>kind==='skills'?[r.name,r.category,r.active?'Active':'Inactive',r.description]:[r.id,r.mentee,r.mentor,r.status,r.learningGoals,r.createdAt]);
-      root.innerHTML=StaffLayout(kind,`<div class="admin-page-heading"><div><p class="eyebrow">STAFF WORKSPACE</p><h1>${kind==='skills'?'Technical skills':'Mentorship requests'}</h1><p>Read-only directory</p></div></div>
-      <section class="admin-panel"><div class="data-table-scroll"><table class="data-table"><caption class="sr-only">${e(kind)} directory</caption><thead><tr>${headings.map(h=>`<th scope="col">${e(h)}</th>`).join('')}</tr></thead><tbody>
-      ${rows.map(row=>`<tr>${row.map(v=>`<td>${e(v??'—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${!rows.length?'<p class="admin-panel-body">No records found.</p>':''}<div data-staff-list-pagination>${renderPagination({ page, totalPages: pagination.totalPages, label: 'Mentorship request pages' })}</div></section>`,user);
+      const rows = pagination.items.map(r => kind === 'skills' ? [r.name, r.category, r.active ? 'Active' : 'Inactive', r.description] : [r.id, r.mentee, r.mentor, r.status, r.learningGoals, r.createdAt]);
+      root.innerHTML = StaffLayout(kind, `<div class="admin-page-heading"><div><p class="eyebrow">STAFF WORKSPACE</p><h1>${kind === 'skills' ? 'Technical skills' : 'Mentorship requests'}</h1><p>Read-only directory</p></div></div>
+      <section class="admin-panel"><div class="data-table-scroll"><table class="data-table"><caption class="sr-only">${e(kind)} directory</caption><thead><tr>${headings.map(h => `<th scope="col">${e(h)}</th>`).join('')}</tr></thead><tbody>
+      ${rows.map(row => `<tr>${row.map(v => `<td>${e(v ?? '—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${!rows.length ? '<p class="admin-panel-body">No records found.</p>' : ''}<div data-staff-list-pagination>${renderPagination({ page, totalPages: pagination.totalPages, label: 'Mentorship request pages' })}</div></section>`, user);
       bindStaffGlobalEvents(root);
       bindPagination(root.querySelector('[data-staff-list-pagination]'), { onChange: nextPage => { page = nextPage; render(); } });
     };
     render();
-  } catch(err) { staffError(root,err); }
+  } catch (err) { staffError(root, err); }
 }
 
 export async function mountStaffSkills(root) {
@@ -733,11 +736,11 @@ export async function mountStaffPayouts(root) {
     const q = query.trim().toLowerCase();
     const filtered = q
       ? requests.filter(r =>
-          (r.mentorName || '').toLowerCase().includes(q) ||
-          (r.mentorEmail || '').toLowerCase().includes(q) ||
-          (r.bankName || '').toLowerCase().includes(q) ||
-          (r.accountName || '').toLowerCase().includes(q)
-        )
+        (r.mentorName || '').toLowerCase().includes(q) ||
+        (r.mentorEmail || '').toLowerCase().includes(q) ||
+        (r.bankName || '').toLowerCase().includes(q) ||
+        (r.accountName || '').toLowerCase().includes(q)
+      )
       : requests;
 
     payoutPage = Math.min(payoutPage, Math.max(1, Math.ceil(filtered.length / 10)));
@@ -976,17 +979,17 @@ export async function mountStaffReportDetail(root, reportId) {
     ? `
       <div class="space-y-3.5">
         ${responses.map(r => {
-          const isMentor = r.authorSide === 'MENTOR';
-          const isStaff = r.authorSide === 'STAFF';
-          const sidePill = isMentor
-            ? '<span class="status-badge status-warning !py-0.5 !px-2 !text-[10px]">MENTOR</span>'
-            : isStaff
-              ? '<span class="status-badge status-neutral !py-0.5 !px-2 !text-[10px]">STAFF</span>'
-              : '<span class="status-badge status-warning !py-0.5 !px-2 !text-[10px]">MENTEE</span>';
-          
-          const files = r.evidence || [];
-          const filesHtml = files.length > 0
-            ? `
+      const isMentor = r.authorSide === 'MENTOR';
+      const isStaff = r.authorSide === 'STAFF';
+      const sidePill = isMentor
+        ? '<span class="status-badge status-warning !py-0.5 !px-2 !text-[10px]">MENTOR</span>'
+        : isStaff
+          ? '<span class="status-badge status-neutral !py-0.5 !px-2 !text-[10px]">STAFF</span>'
+          : '<span class="status-badge status-warning !py-0.5 !px-2 !text-[10px]">MENTEE</span>';
+
+      const files = r.evidence || [];
+      const filesHtml = files.length > 0
+        ? `
               <div class="mt-3 pt-2.5 border-t border-line/60 space-y-1.5">
                 <p class="text-[11px] font-semibold text-muted uppercase tracking-wider">Attachments (${files.length}):</p>
                 ${files.map(f => `
@@ -999,9 +1002,9 @@ export async function mountStaffReportDetail(root, reportId) {
                 `).join('')}
               </div>
             `
-            : '';
+        : '';
 
-          return `
+      return `
             <div class="p-4 rounded-xl border border-line bg-cream">
               <div class="flex items-center justify-between gap-2 mb-2">
                 <div class="flex items-center gap-2">
@@ -1014,7 +1017,7 @@ export async function mountStaffReportDetail(root, reportId) {
               ${filesHtml}
             </div>
           `;
-        }).join('')}
+    }).join('')}
       </div>
     `
     : '<div class="p-6 text-center text-xs text-muted border border-dashed border-line rounded-xl">No mediation messages or counter-statements submitted yet.</div>';
@@ -1104,10 +1107,18 @@ export async function mountStaffReportDetail(root, reportId) {
                 <p class="text-[11px] font-semibold text-ink uppercase tracking-wider">Mentee Receiving Bank Account</p>
                 <p class="text-[11px] text-muted">Admin requires these details to execute the bank transfer.</p>
                 <div class="space-y-2">
-                  <label class="admin-field" for="resolve-bank-name">
-                    Bank Name
-                    <input id="resolve-bank-name" name="bankName" type="text" value="${e(detail.bankName || '')}" placeholder="e.g. Vietcombank" maxlength="100">
-                  </label>
+                  <div class="admin-field">
+                    <label class="block text-xs font-semibold text-ink mb-1" for="resolve-bank-select">Bank Name</label>
+                    <div class="relative">
+                      <select id="resolve-bank-select" class="w-full rounded-lg border border-line bg-white px-3 py-2 pr-8 text-xs text-ink focus:border-brand focus:outline-none cursor-pointer appearance-none">
+                        ${renderBankSelectOptions(detail.bankName || '')}
+                      </select>
+                      <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted">
+                        <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
+                      </div>
+                    </div>
+                    <input id="resolve-bank-custom" name="bankName" type="text" value="${e(detail.bankName || '')}" placeholder="Enter bank name" maxlength="100" class="mt-2 w-full rounded-lg border border-line bg-white px-3 py-2 text-xs text-ink focus:border-brand focus:outline-none ${(detail.bankName && !findMatchingBank(detail.bankName)) ? '' : 'hidden'}">
+                  </div>
                   <label class="admin-field" for="resolve-account-number">
                     Account Number
                     <input id="resolve-account-number" name="accountNumber" type="text" value="${e(detail.accountNumber || '')}" placeholder="e.g. 1029384756" maxlength="50">
@@ -1252,7 +1263,24 @@ export async function mountStaffReportDetail(root, reportId) {
     const outcomeSelect = resolveForm.querySelector('#resolve-outcome');
     const menteeInput = resolveForm.querySelector('#resolve-mentee-refund');
     const errorEl = resolveForm.querySelector('#dispute-resolve-error');
+    const resolveBankSelect = resolveForm.querySelector('#resolve-bank-select');
+    const resolveBankCustom = resolveForm.querySelector('#resolve-bank-custom');
     const total = Number(detail.disputedAmount || 0);
+
+    resolveBankSelect?.addEventListener('change', () => {
+      if (resolveBankSelect.value === '__OTHER__') {
+        resolveBankCustom?.classList.remove('hidden');
+        if (resolveBankCustom) {
+          resolveBankCustom.value = '';
+          resolveBankCustom.focus();
+        }
+      } else {
+        resolveBankCustom?.classList.add('hidden');
+        if (resolveBankCustom) {
+          resolveBankCustom.value = resolveBankSelect.value;
+        }
+      }
+    });
 
     const updateAmounts = () => {
       const outcome = outcomeSelect.value;
@@ -1289,7 +1317,9 @@ export async function mountStaffReportDetail(root, reportId) {
         const resolutionType = outcomeSelect.value;
         const refundAmount = resolutionType === 'FULL_REFUND' ? total : (resolutionType === 'PARTIAL_REFUND' ? Number(menteeInput.value) : 0);
         const notes = resolveForm.querySelector('#resolve-notes').value.trim();
-        const bankName = resolveForm.querySelector('#resolve-bank-name')?.value.trim() || detail.bankName || '';
+        const bankName = (resolveBankSelect?.value === '__OTHER__'
+          ? resolveBankCustom?.value.trim()
+          : (resolveBankSelect?.value || resolveBankCustom?.value.trim() || detail.bankName || ''));
         const accountNumber = resolveForm.querySelector('#resolve-account-number')?.value.trim() || detail.accountNumber || '';
         const accountName = resolveForm.querySelector('#resolve-account-name')?.value.trim() || detail.accountName || '';
 
@@ -1436,10 +1466,10 @@ export async function mountStaffReports(root) {
             <h3 class="text-xs font-semibold text-ink uppercase tracking-wider mb-2">Attached Evidence (${evidences.length})</h3>
             <div class="space-y-2">
               ${evidences.map(ev => {
-                const sideBadge = ev.uploadedSide === 'MENTOR'
-                  ? '<span class="badge !text-[9px] ml-1 bg-purple-100 text-purple-800">MENTOR</span>'
-                  : '<span class="badge !text-[9px] ml-1 bg-amber-100 text-amber-800">MENTEE</span>';
-                return `
+          const sideBadge = ev.uploadedSide === 'MENTOR'
+            ? '<span class="badge !text-[9px] ml-1 bg-purple-100 text-purple-800">MENTOR</span>'
+            : '<span class="badge !text-[9px] ml-1 bg-amber-100 text-amber-800">MENTEE</span>';
+          return `
                 <div class="flex items-center justify-between p-3 rounded-lg bg-cream border border-line text-xs">
                   <div>
                     <span class="font-medium text-ink">${e(ev.fileName)}</span>
@@ -1450,7 +1480,8 @@ export async function mountStaffReports(root) {
                     Download
                   </a>
                 </div>
-              `;}).join('')}
+              `;
+        }).join('')}
             </div>
           </div>
         `
@@ -1531,10 +1562,18 @@ export async function mountStaffReports(root) {
                   <p class="text-[11px] font-semibold text-ink uppercase tracking-wider">Mentee Receiving Bank Account</p>
                   <p class="text-[11px] text-muted">Admin requires these details to execute the bank transfer.</p>
                   <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
-                    <label class="admin-field" for="resolve-bank-name">
-                      Bank Name
-                      <input id="resolve-bank-name" name="bankName" type="text" value="${e(detail.bankName || '')}" placeholder="e.g. Vietcombank" maxlength="100">
-                    </label>
+                    <div class="admin-field">
+                      <label class="block text-xs font-semibold text-ink mb-1" for="resolve-modal-bank-select">Bank Name</label>
+                      <div class="relative">
+                        <select id="resolve-modal-bank-select" class="w-full rounded-lg border border-line bg-white px-3 py-2 pr-8 text-xs text-ink focus:border-brand focus:outline-none cursor-pointer appearance-none">
+                          ${renderBankSelectOptions(detail.bankName || '')}
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted">
+                          <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
+                        </div>
+                      </div>
+                      <input id="resolve-modal-bank-custom" name="bankName" type="text" value="${e(detail.bankName || '')}" placeholder="Enter bank name" maxlength="100" class="mt-2 w-full rounded-lg border border-line bg-white px-3 py-2 text-xs text-ink focus:border-brand focus:outline-none ${(detail.bankName && !findMatchingBank(detail.bankName)) ? '' : 'hidden'}">
+                    </div>
                     <label class="admin-field" for="resolve-account-number">
                       Account Number
                       <input id="resolve-account-number" name="accountNumber" type="text" value="${e(detail.accountNumber || '')}" placeholder="e.g. 1029384756" maxlength="50">
@@ -1652,7 +1691,24 @@ export async function mountStaffReports(root) {
         const outcomeSelect = resolveForm.querySelector('#resolve-outcome');
         const menteeInput = resolveForm.querySelector('#resolve-mentee-refund');
         const errorEl = resolveForm.querySelector('#dispute-resolve-error');
+        const resolveBankSelect = resolveForm.querySelector('#resolve-modal-bank-select');
+        const resolveBankCustom = resolveForm.querySelector('#resolve-modal-bank-custom');
         const total = Number(detail.disputedAmount || 0);
+
+        resolveBankSelect?.addEventListener('change', () => {
+          if (resolveBankSelect.value === '__OTHER__') {
+            resolveBankCustom?.classList.remove('hidden');
+            if (resolveBankCustom) {
+              resolveBankCustom.value = '';
+              resolveBankCustom.focus();
+            }
+          } else {
+            resolveBankCustom?.classList.add('hidden');
+            if (resolveBankCustom) {
+              resolveBankCustom.value = resolveBankSelect.value;
+            }
+          }
+        });
 
         const updateAmounts = () => {
           const outcome = outcomeSelect.value;
@@ -1689,7 +1745,9 @@ export async function mountStaffReports(root) {
             const resolutionType = outcomeSelect.value;
             const refundAmount = resolutionType === 'FULL_REFUND' ? total : (resolutionType === 'PARTIAL_REFUND' ? Number(menteeInput.value) : 0);
             const notes = resolveForm.querySelector('#resolve-notes').value.trim();
-            const bankName = resolveForm.querySelector('#resolve-bank-name')?.value.trim() || detail.bankName || '';
+            const bankName = (resolveBankSelect?.value === '__OTHER__'
+              ? resolveBankCustom?.value.trim()
+              : (resolveBankSelect?.value || resolveBankCustom?.value.trim() || detail.bankName || ''));
             const accountNumber = resolveForm.querySelector('#resolve-account-number')?.value.trim() || detail.accountNumber || '';
             const accountName = resolveForm.querySelector('#resolve-account-name')?.value.trim() || detail.accountName || '';
 

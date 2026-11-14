@@ -6,7 +6,7 @@ import { menteeApplicationsService } from './menteeApplicationsService.js';
 import { menteeDisputesService } from './menteeDisputesService.js';
 import { applicationDisplayStatus, canPayApplication } from './applicationPayment.js';
 import { renderPagination } from '../../shared/pagination.js';
-import { VIETNAM_BANKS } from '../../shared/vietnamBanks.js';
+import { VIETNAM_BANKS, renderBankSelectOptions, findMatchingBank } from '../../shared/vietnamBanks.js';
 
 const esc = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 const PAGE_SIZE = 10;
@@ -83,18 +83,26 @@ function openReportModal(booking, onSubmitted) {
             <p class="mt-0.5 text-[11px] text-muted">If a refund is approved by Staff, Admin will transfer funds directly to this bank account.</p>
           </div>
           <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <label class="block text-xs text-muted">Bank Name
-              <input name="bankName" list="dispute-banks-list" type="text" maxlength="100" class="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2 text-xs text-ink focus:border-brand focus:outline-none" placeholder="e.g. TPBank, MB Bank, Vietcombank">
-              <datalist id="dispute-banks-list">
-                ${VIETNAM_BANKS.map(b => `<option value="${b.shortName}">${b.label}</option>`).join('')}
-              </datalist>
-            </label>
-            <label class="block text-xs text-muted">Account Number
-              <input name="accountNumber" type="text" maxlength="50" class="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2 text-xs text-ink focus:border-brand focus:outline-none" placeholder="e.g. 0123456789">
-            </label>
-            <label class="block text-xs text-muted">Account Name
-              <input name="accountName" type="text" maxlength="150" class="mt-1 w-full rounded-lg border border-line bg-white px-3 py-2 text-xs text-ink focus:border-brand focus:outline-none" placeholder="e.g. NGUYEN VAN A">
-            </label>
+            <div class="sm:col-span-1">
+              <label class="block text-xs font-semibold text-ink mb-1" for="mentee-bank-select">Bank Name</label>
+              <div class="relative">
+                <select id="mentee-bank-select" class="w-full rounded-lg border border-line bg-white px-3 py-2 pr-8 text-xs text-ink focus:border-brand focus:outline-none cursor-pointer appearance-none">
+                  ${renderBankSelectOptions()}
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted">
+                  <svg class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd"/></svg>
+                </div>
+              </div>
+              <input id="mentee-bank-custom" name="bankName" placeholder="Enter bank name" maxlength="100" class="mt-2 w-full rounded-lg border border-line bg-white px-3 py-2 text-xs text-ink focus:border-brand focus:outline-none hidden">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-ink mb-1" for="mentee-account-number">Account Number</label>
+              <input id="mentee-account-number" name="accountNumber" type="text" maxlength="50" class="w-full rounded-lg border border-line bg-white px-3 py-2 text-xs text-ink focus:border-brand focus:outline-none" placeholder="e.g. 0123456789">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-ink mb-1" for="mentee-account-name">Account Name</label>
+              <input id="mentee-account-name" name="accountName" type="text" maxlength="150" class="w-full rounded-lg border border-line bg-white px-3 py-2 text-xs text-ink focus:border-brand focus:outline-none" placeholder="e.g. NGUYEN VAN A">
+            </div>
           </div>
         </div>
         <label class="flex items-start gap-2.5 text-xs text-muted cursor-pointer pt-1">
@@ -122,6 +130,19 @@ function openReportModal(booking, onSubmitted) {
     const uploadBtn = dialog.querySelector('[data-btn-upload]');
     const previewContainer = dialog.querySelector('[data-preview-container]');
     const submitBtn = dialog.querySelector('[data-submit-btn]');
+    const menteeBankSelect = dialog.querySelector('#mentee-bank-select');
+    const menteeBankCustom = dialog.querySelector('#mentee-bank-custom');
+
+    menteeBankSelect?.addEventListener('change', () => {
+      if (menteeBankSelect.value === '__OTHER__') {
+        menteeBankCustom.classList.remove('hidden');
+        menteeBankCustom.value = '';
+        menteeBankCustom.focus();
+      } else {
+        menteeBankCustom.classList.add('hidden');
+        menteeBankCustom.value = menteeBankSelect.value;
+      }
+    });
 
     descInput.addEventListener('input', () => {
       charCount.textContent = `${descInput.value.length} / 2,000 (min 30)`;
@@ -189,7 +210,9 @@ function openReportModal(booking, onSubmitted) {
       submitBtn.textContent = 'Submitting report…';
 
       try {
-        const bankName = form.elements.bankName?.value?.trim() || '';
+        const bankName = (menteeBankSelect?.value === '__OTHER__'
+          ? menteeBankCustom?.value.trim()
+          : (menteeBankSelect?.value || menteeBankCustom?.value.trim())) || '';
         const accountNumber = form.elements.accountNumber?.value?.trim() || '';
         const accountName = form.elements.accountName?.value?.trim() || '';
 
