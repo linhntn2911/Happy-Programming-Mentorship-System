@@ -560,7 +560,11 @@ public class MentorWalletService {
                         JOIN dbo.mentorship_requests r ON r.id=p.request_id
                         JOIN dbo.escrow_ledger_entries h ON h.payment_id=p.id AND h.entry_type='HOLD' AND h.reversal_of_id IS NULL
                         OUTER APPLY (SELECT SUM(CASE WHEN status='SUCCEEDED' THEN amount ELSE 0 END) AS amount FROM dbo.refunds WHERE payment_id=p.id) refunded
-                        WHERE p.status='SUCCEEDED' AND p.paid_at<=DATEADD(DAY,-p.earnings_hold_days,SYSUTCDATETIME())
+                        WHERE p.status='SUCCEEDED'
+                          AND (
+                            (SELECT CAST(JSON_VALUE(config_value,'$.value.earningsHoldDays') AS INT) FROM dbo.system_configs WHERE config_key='platform.operations') = 0
+                            OR p.paid_at<=DATEADD(DAY,-p.earnings_hold_days,SYSUTCDATETIME())
+                          )
                           AND p.amount>COALESCE(refunded.amount,0)
                           AND NOT EXISTS (SELECT 1 FROM dbo.escrow_ledger_entries e WHERE e.payment_id=p.id AND e.entry_type='MENTOR_RELEASE')
                           AND NOT EXISTS (SELECT 1 FROM dbo.refunds f WHERE f.payment_id=p.id AND f.status IN ('PENDING','PROCESSING'))

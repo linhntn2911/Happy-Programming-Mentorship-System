@@ -70,6 +70,7 @@ public interface MentorDashboardRepository extends JpaRepository<MentorshipReque
                 request_row.service_type AS serviceType,
                 request_row.learning_goals AS learningGoals,
                 request_row.status AS status,
+                request_row.rejection_reason AS rejectionReason,
                 request_row.status AS lifecycleStatus,
                 CASE WHEN request_row.submitted_at > SYSUTCDATETIME() THEN DATEADD(HOUR, -7, request_row.submitted_at) ELSE request_row.submitted_at END AS submittedAt,
                 CASE WHEN request_row.submitted_at > SYSUTCDATETIME() THEN DATEADD(HOUR, -7, request_row.response_deadline) ELSE request_row.response_deadline END AS responseDeadline,
@@ -102,6 +103,7 @@ public interface MentorDashboardRepository extends JpaRepository<MentorshipReque
                 request_row.service_type AS serviceType,
                 request_row.learning_goals AS learningGoals,
                 request_row.status AS status,
+                request_row.rejection_reason AS rejectionReason,
                 CASE
                     WHEN request_row.status IN ('REJECTED','EXPIRED','CANCELLED') THEN request_row.status
                     WHEN request_row.status = 'PENDING'

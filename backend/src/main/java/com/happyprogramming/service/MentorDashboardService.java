@@ -101,8 +101,9 @@ public class MentorDashboardService {
                     HttpStatus.BAD_REQUEST, "Decision must be ACCEPTED or REJECTED.");
         }
 
-        int changedRows = requestRepository.transitionPendingRequest(
-                requestId, mentorId, request.decision());
+        int changedRows = request.reason() != null && !request.reason().isBlank()
+                ? requestRepository.transitionPendingRequest(requestId, mentorId, request.decision(), request.reason().trim())
+                : requestRepository.transitionPendingRequest(requestId, mentorId, request.decision());
         if (changedRows != 1) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT, "Request is no longer available for a decision.");
@@ -114,7 +115,7 @@ public class MentorDashboardService {
             throw new IllegalStateException("Updated request decision could not be reloaded.");
         }
 
-        notifyMenteeOfDecision(requestId, mentorId, result.getStatus());
+        notifyMenteeOfDecision(requestId, mentorId, result.getStatus(), request.reason());
 
         return new MentorRequestDecisionResponse(
                 result.getId(),
@@ -122,7 +123,7 @@ public class MentorDashboardService {
                 toInstant(result.getRespondedAt()));
     }
 
-    private void notifyMenteeOfDecision(long requestId, long mentorId, String status) {
+    private void notifyMenteeOfDecision(long requestId, long mentorId, String status, String reason) {
         var context = requestRepository.findDecisionContextByIdAndMentorId(requestId, mentorId);
         if (context == null || context.getMenteeId() == null) {
             return;
@@ -131,6 +132,9 @@ public class MentorDashboardService {
         String packageName = context.getPackageName() == null ? "your mentorship request" : context.getPackageName();
         boolean accepted = "ACCEPTED".equals(status);
         boolean oneOff = "ONE_OFF".equals(context.getServiceType());
+        String reasonSuffix = (!accepted && reason != null && !reason.isBlank())
+                ? " Reason: " + reason.trim()
+                : "";
         String title;
         String message;
         if (oneOff) {
@@ -138,13 +142,13 @@ public class MentorDashboardService {
             message = accepted
                     ? mentorName + " accepted your request for \"" + packageName
                             + "\". They will be in touch to arrange your session."
-                    : mentorName + " declined your request for \"" + packageName + "\".";
+                    : mentorName + " declined your request for \"" + packageName + "\"." + reasonSuffix;
         } else {
             title = accepted ? "Mentorship request accepted" : "Mentorship request declined";
             message = accepted
                     ? mentorName + " accepted your request for " + packageName
                             + ". You can now complete payment to start."
-                    : mentorName + " declined your request for " + packageName + ".";
+                    : mentorName + " declined your request for " + packageName + "." + reasonSuffix;
         }
         String type = accepted ? "MENTORSHIP_REQUEST_ACCEPTED" : "MENTORSHIP_REQUEST_REJECTED";
         String actionUrl = "#/applications";
@@ -176,7 +180,8 @@ public class MentorDashboardService {
                 toInstant(request.getStartAt()),
                 toInstant(request.getEndAt()),
                 request.getNumberOfSessions(),
-                request.getNumberOfParticipants());
+                request.getNumberOfParticipants(),
+                request.getRejectionReason());
     }
 
     private static MentorSystemNotice toNotice(MentorSystemNoticeProjection notice) {

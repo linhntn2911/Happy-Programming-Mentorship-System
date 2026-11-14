@@ -15,6 +15,7 @@ public interface MentorshipRequestRepository extends JpaRepository<MentorshipReq
     @Query(value = """
             UPDATE dbo.mentorship_requests
             SET status = :decision,
+                rejection_reason = CASE WHEN :decision = 'REJECTED' THEN :reason ELSE NULL END,
                 responded_at = CASE WHEN submitted_at > SYSUTCDATETIME() THEN DATEADD(HOUR, 7, SYSUTCDATETIME()) ELSE SYSUTCDATETIME() END,
                 updated_at = CASE WHEN submitted_at > SYSUTCDATETIME() THEN DATEADD(HOUR, 7, SYSUTCDATETIME()) ELSE SYSUTCDATETIME() END
             WHERE id = :requestId
@@ -26,7 +27,12 @@ public interface MentorshipRequestRepository extends JpaRepository<MentorshipReq
     int transitionPendingRequest(
             @Param("requestId") Long requestId,
             @Param("mentorId") Long mentorId,
-            @Param("decision") String decision);
+            @Param("decision") String decision,
+            @Param("reason") String reason);
+
+    default int transitionPendingRequest(Long requestId, Long mentorId, String decision) {
+        return transitionPendingRequest(requestId, mentorId, decision, null);
+    }
 
     @Query(value = """
             SELECT id, status, CASE WHEN submitted_at > SYSUTCDATETIME() THEN DATEADD(HOUR, -7, responded_at) ELSE responded_at END AS respondedAt

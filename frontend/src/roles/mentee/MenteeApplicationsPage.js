@@ -222,13 +222,15 @@ function applicationCard(application) {
           : 'status-neutral';
   const scheduleNote = status === 'PENDING' && application.responseDeadline
     ? `Response by ${esc(dateLabel(application.responseDeadline))}`
-    : isCompleted
-      ? 'Completed'
-      : isConfirmed
-        ? `Payment: ${esc(application.latestPaymentStatus || 'SUCCEEDED')}`
-        : application.latestPaymentStatus
-          ? `Payment: ${esc(application.latestPaymentStatus)}`
-          : 'Payment not started';
+    : status === 'REJECTED' && application.rejectionReason
+      ? `<span class="text-rose-700 max-w-xs block truncate" title="${esc(application.rejectionReason)}">Reason: ${esc(application.rejectionReason)}</span>`
+      : isCompleted
+        ? 'Completed'
+        : isConfirmed
+          ? `Payment: ${esc(application.latestPaymentStatus || 'SUCCEEDED')}`
+          : application.latestPaymentStatus
+            ? `Payment: ${esc(application.latestPaymentStatus)}`
+            : 'Payment not started';
 
   return `<tr>
       <td><strong class="text-ink">${esc(application.mentorName || 'Mentor')}</strong><span class="mt-1 block text-[11px] text-muted">Submitted ${esc(dateLabel(application.submittedAt))}</span></td><td><span class="font-semibold text-ink">${esc(application.packageName || 'Monthly mentorship')}</span><span class="mt-1 block max-w-xs truncate text-[11px] text-muted" title="${esc(goals)}">${esc(goals)}</span></td><td><span class="status-badge ${badgeClass}">${esc(STATUS_LABELS[status] || status)}</span></td><td><span class="text-xs text-muted">${scheduleNote}</span></td><td><button type="button" class="btn btn-outline btn-sm" data-booking-detail="${esc(application.requestId)}">Details</button></td>
@@ -370,7 +372,10 @@ export async function mountMenteeApplications(root) {
               : '';
       const cancel = ['PENDING', 'ACCEPTED'].includes(status) && !booking.fundedAt
         ? `<button type="button" class="btn btn-outline" data-cancel-application="${encodeURIComponent(booking.requestId)}">Cancel booking</button>` : '';
-      dialog.innerHTML = `<button class="modal-close" type="button" aria-label="Close"><span aria-hidden="true">×</span></button><p class="eyebrow mt-4">BOOKING DETAILS</p><h2 class="mt-2 font-display text-3xl text-ink">${esc(booking.packageName || 'Mentorship')}</h2><p class="mt-2 text-sm text-muted">with ${esc(booking.mentorName || 'Mentor')}</p><div class="mt-6 divide-y divide-line rounded-xl border border-line bg-cream"><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Status</span><span class="status-badge ${badgeClass}">${esc(STATUS_LABELS[status] || status)}</span></div><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Submitted</span><strong>${esc(dateLabel(booking.submittedAt))}</strong></div><div class="p-4 text-sm"><span class="text-muted">Learning goals</span><p class="mt-2 whitespace-pre-wrap text-ink">${esc(booking.learningGoals || 'No learning goals provided.')}</p></div><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Payment</span><strong>${esc(booking.latestPaymentStatus || 'Not started')}</strong></div></div><div class="mt-6 flex flex-wrap justify-end gap-3">${cancel}${action}</div>`;
+      const rejectionReasonBlock = (status === 'REJECTED' || booking.rejectionReason)
+        ? `<div class="p-4 text-sm bg-rose-50/80"><span class="font-semibold text-rose-900">Reason for declining</span><p class="mt-1 whitespace-pre-wrap text-rose-800">${esc(booking.rejectionReason || 'No reason specified by mentor.')}</p></div>`
+        : '';
+      dialog.innerHTML = `<button class="modal-close" type="button" aria-label="Close"><span aria-hidden="true">×</span></button><p class="eyebrow mt-4">BOOKING DETAILS</p><h2 class="mt-2 font-display text-3xl text-ink">${esc(booking.packageName || 'Mentorship')}</h2><p class="mt-2 text-sm text-muted">with ${esc(booking.mentorName || 'Mentor')}</p><div class="mt-6 divide-y divide-line rounded-xl border border-line bg-cream"><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Status</span><span class="status-badge ${badgeClass}">${esc(STATUS_LABELS[status] || status)}</span></div><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Submitted</span><strong>${esc(dateLabel(booking.submittedAt))}</strong></div><div class="p-4 text-sm"><span class="text-muted">Learning goals</span><p class="mt-2 whitespace-pre-wrap text-ink">${esc(booking.learningGoals || 'No learning goals provided.')}</p></div>${rejectionReasonBlock}<div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Payment</span><strong>${esc(booking.latestPaymentStatus || 'Not started')}</strong></div></div><div class="mt-6 flex flex-wrap justify-end gap-3">${cancel}${action}</div>`;
       results.append(dialog);
       const close = () => { if (dialog.open) dialog.close(); dialog.remove(); };
       dialog.querySelector('.modal-close').addEventListener('click', close);

@@ -121,7 +121,23 @@ export function MentorRequestsPage() {
         <div class="sm:col-span-2"><dt class="text-sm font-semibold text-ink">Agenda / learning goals</dt><dd id="request-dialog-goals" class="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-muted"></dd></div>
         <div><dt id="request-dialog-date-label" class="text-sm font-semibold text-ink">Schedule / deadline</dt><dd id="request-dialog-deadline" class="mt-1 text-sm text-muted"></dd></div>
         <div id="request-dialog-attendees-wrap"><dt class="text-sm font-semibold text-ink">Sessions and participants</dt><dd id="request-dialog-attendees" class="mt-1 text-sm text-muted"></dd></div>
+        <div id="request-dialog-reason-wrap" class="sm:col-span-2 hidden rounded-xl border border-rose-200 bg-rose-50 p-4">
+          <dt class="text-xs font-bold uppercase tracking-wider text-rose-800">Reason for declining</dt>
+          <dd id="request-dialog-reason" class="mt-1 text-sm text-rose-900 break-words whitespace-pre-wrap"></dd>
+        </div>
       </dl>
+      <div id="request-dialog-decline-wrap" class="hidden border-t border-rose-200 bg-rose-50/60 p-6">
+        <label for="request-decline-reason" class="block text-sm font-semibold text-ink">
+          Reason for declining <span class="text-rose-600">*</span>
+          <span class="block text-xs font-normal text-muted mt-0.5">Please share the reason with the mentee (e.g. schedule conflict, topic outside expertise).</span>
+        </label>
+        <textarea id="request-decline-reason" rows="3" class="mt-2 w-full rounded-xl border border-line bg-white p-3 text-sm text-ink placeholder:text-muted focus:border-brand focus:outline-none" placeholder="Provide a reason for declining this request…"></textarea>
+        <p id="request-decline-error" class="mt-1 text-xs font-semibold text-rose-600 hidden">Please provide a reason before declining.</p>
+        <div class="mt-3 flex justify-end gap-2">
+          <button type="button" id="request-decline-cancel" class="btn btn-outline btn-sm">Cancel</button>
+          <button type="button" id="request-decline-confirm" class="btn btn-danger btn-sm">Confirm decline</button>
+        </div>
+      </div>
       <div class="flex flex-col-reverse gap-3 border-t border-line p-6 sm:flex-row sm:items-center sm:justify-between">
         <button type="button" data-close-dialog class="btn btn-outline">Close</button>
         <div class="flex flex-col-reverse gap-3 sm:flex-row">
@@ -366,6 +382,12 @@ export function initializeMentorRequestsPage() {
   function closeDialog() {
     dialogOverlay.classList.add('hidden');
     dialogOverlay.classList.remove('flex');
+    const declineWrap = root.querySelector('#request-dialog-decline-wrap');
+    if (declineWrap) declineWrap.classList.add('hidden');
+    const declineError = root.querySelector('#request-decline-error');
+    if (declineError) declineError.classList.add('hidden');
+    const declineInput = root.querySelector('#request-decline-reason');
+    if (declineInput) declineInput.value = '';
     activeRequestId = null;
   }
 
@@ -453,6 +475,25 @@ export function initializeMentorRequestsPage() {
     const actionable = isActionable(request);
     rejectButton.hidden = !actionable;
     acceptButton.hidden = !actionable;
+    const isDeclined = request.lifecycleStatus === 'REJECTED' || request.status === 'REJECTED';
+    const reasonWrap = root.querySelector('#request-dialog-reason-wrap');
+    const reasonEl = root.querySelector('#request-dialog-reason');
+    if (reasonWrap && reasonEl) {
+      if (isDeclined) {
+        reasonEl.textContent = request.rejectionReason || 'No reason specified by mentor.';
+        reasonWrap.classList.remove('hidden');
+      } else {
+        reasonWrap.classList.add('hidden');
+        reasonEl.textContent = '';
+      }
+    }
+    const declineWrap = root.querySelector('#request-dialog-decline-wrap');
+    if (declineWrap) declineWrap.classList.add('hidden');
+    const declineError = root.querySelector('#request-decline-error');
+    if (declineError) declineError.classList.add('hidden');
+    const declineInput = root.querySelector('#request-decline-reason');
+    if (declineInput) declineInput.value = '';
+
     const workspaceButton = root.querySelector('#request-dialog-workspace');
     const workspaceAvailable = canOpenBookingWorkspace(request);
     workspaceButton.hidden = !workspaceAvailable;
@@ -465,13 +506,13 @@ export function initializeMentorRequestsPage() {
     dialog.focus?.();
   }
 
-  async function decide(decision) {
+  async function decide(decision, reason = '') {
     if (!activeRequestId || busy) return;
     const requestId = activeRequestId;
     busy = true;
     setDialogButtonsEnabled(false);
     try {
-      await mentorDashboardService.decideOnRequest(requestId, decision);
+      await mentorDashboardService.decideOnRequest(requestId, decision, reason);
     } catch (decisionError) {
       setActionStatus(decisionError.message || 'The decision could not be saved. Please try again.', 'error');
       const request = requestsById.get(String(requestId));
@@ -499,8 +540,15 @@ export function initializeMentorRequestsPage() {
     await decide('ACCEPTED');
   }
 
-  async function handleReject() {
-    await decide('REJECTED');
+  function handleReject() {
+    const declineWrap = root.querySelector('#request-dialog-decline-wrap');
+    const declineInput = root.querySelector('#request-decline-reason');
+    const declineError = root.querySelector('#request-decline-error');
+    if (declineWrap) {
+      declineWrap.classList.remove('hidden');
+      if (declineError) declineError.classList.add('hidden');
+      declineInput?.focus();
+    }
   }
 
   const handleClick = event => {
@@ -508,6 +556,24 @@ export function initializeMentorRequestsPage() {
     if (!target) return;
     if (target.closest('[data-close-dialog]')) {
       closeDialog();
+      return;
+    }
+    if (target.closest('#request-decline-cancel')) {
+      const declineWrap = root.querySelector('#request-dialog-decline-wrap');
+      if (declineWrap) declineWrap.classList.add('hidden');
+      return;
+    }
+    if (target.closest('#request-decline-confirm')) {
+      const declineInput = root.querySelector('#request-decline-reason');
+      const declineError = root.querySelector('#request-decline-error');
+      const reasonVal = declineInput ? declineInput.value.trim() : '';
+      if (!reasonVal) {
+        if (declineError) declineError.classList.remove('hidden');
+        declineInput?.focus();
+        return;
+      }
+      if (declineError) declineError.classList.add('hidden');
+      void decide('REJECTED', reasonVal);
       return;
     }
     const detailsButton = target.closest('[data-details-id]');

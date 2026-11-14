@@ -23,7 +23,7 @@ export const mentorDashboardService = {
     return apiClient('/api/mentors/me/bookings', { cache: 'no-store' });
   },
 
-  async decideOnRequest(requestId, decision) {
+  async decideOnRequest(requestId, decision, reason = '') {
     const normalizedRequestId = typeof requestId === 'number'
       ? requestId
       : typeof requestId === 'string' && /^[1-9]\d*$/.test(requestId)
@@ -36,10 +36,14 @@ export const mentorDashboardService = {
       throw new TypeError('Decision must be ACCEPTED or REJECTED.');
     }
     const headers = await withCsrf();
+    const payload = { decision };
+    if (reason && typeof reason === 'string' && reason.trim()) {
+      payload.reason = reason.trim();
+    }
     return apiClient(`/api/mentors/me/requests/${normalizedRequestId}/decision`, {
       method: 'PUT',
       headers,
-      body: JSON.stringify({ decision }),
+      body: JSON.stringify(payload),
     });
   },
 };

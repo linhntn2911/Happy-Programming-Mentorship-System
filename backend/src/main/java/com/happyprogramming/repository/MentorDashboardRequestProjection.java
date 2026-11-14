@@ -19,6 +19,10 @@ public interface MentorDashboardRequestProjection {
 
     String getLifecycleStatus();
 
+    default String getRejectionReason() {
+        return null;
+    }
+
     LocalDateTime getSubmittedAt();
 
     LocalDateTime getResponseDeadline();
