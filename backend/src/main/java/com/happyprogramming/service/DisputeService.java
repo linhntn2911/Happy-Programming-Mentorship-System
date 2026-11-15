@@ -84,8 +84,8 @@ public class DisputeService {
                   FROM dbo.subscriptions s
                   JOIN dbo.users u ON u.id=s.mentor_id
                   JOIN dbo.payments p ON p.request_id=s.request_id AND p.status='SUCCEEDED'
-                  WHERE s.mentee_id=? AND s.status='TRIALING'
-                    AND SYSUTCDATETIME()<=s.trial_ends_at
+                  WHERE s.mentee_id=? AND s.status IN ('TRIALING', 'ACTIVE')
+                    AND (s.current_period_end IS NULL OR SYSUTCDATETIME()<=s.current_period_end)
                     AND NOT EXISTS (SELECT 1 FROM dbo.disputes d WHERE d.subscription_id=s.id
                                     AND d.status IN ('SUBMITTED','IN_MEDIATION','AWAITING_EVIDENCE','APPROVED'))
                 ) targets ORDER BY scheduled_at DESC,target_id DESC
@@ -122,8 +122,8 @@ public class DisputeService {
                   FROM dbo.subscriptions s
                   JOIN dbo.users u ON u.id=s.mentor_id
                   JOIN dbo.payments p ON p.request_id=s.request_id AND p.status='SUCCEEDED'
-                  WHERE s.mentee_id=? AND s.status='TRIALING'
-                    AND SYSUTCDATETIME()<=s.trial_ends_at
+                  WHERE s.mentee_id=? AND s.status IN ('TRIALING', 'ACTIVE')
+                    AND (s.current_period_end IS NULL OR SYSUTCDATETIME()<=s.current_period_end)
                     AND s.request_id=?
                     AND NOT EXISTS (SELECT 1 FROM dbo.disputes d WHERE d.subscription_id=s.id
                                     AND d.status IN ('SUBMITTED','IN_MEDIATION','AWAITING_EVIDENCE','APPROVED'))
@@ -322,7 +322,7 @@ public class DisputeService {
                 LEFT JOIN dbo.payments p ON p.request_id=TRY_CONVERT(BIGINT,JSON_VALUE(b.terms_snapshot,'$.requestId')) AND p.status='SUCCEEDED'
                 WHERE b.id=? AND b.service_type='ONE_OFF'
                 """ : """
-                SELECT s.id,s.mentee_id,s.mentor_id,s.status,s.activated_at start_at,s.trial_ends_at end_at,
+                SELECT s.id,s.mentee_id,s.mentor_id,s.status,s.activated_at start_at,COALESCE(s.current_period_end, s.trial_ends_at) end_at,
                        p.id payment_id,p.amount,p.currency
                 FROM dbo.subscriptions s WITH (UPDLOCK,HOLDLOCK)
                 LEFT JOIN dbo.payments p ON p.request_id=s.request_id AND p.status='SUCCEEDED'
@@ -343,8 +343,8 @@ public class DisputeService {
             if (!Set.of("CONFIRMED", "COMPLETED").contains(target.status()) || target.startAt() == null || now.isBefore(target.startAt())
                     || target.endAt() == null || now.isAfter(target.endAt().plusSeconds(48 * 3600L)))
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "This session is outside the 48-hour dispute window.");
-        } else if (!"TRIALING".equals(target.status()) || target.endAt() == null || now.isAfter(target.endAt())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Monthly disputes must be filed during the 7-day trial window.");
+        } else if (!Set.of("TRIALING", "ACTIVE").contains(target.status()) || (target.endAt() != null && now.isAfter(target.endAt()))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Monthly mentorship dispute is outside the active period.");
         }
     }
 

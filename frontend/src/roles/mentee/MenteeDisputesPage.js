@@ -36,8 +36,23 @@ function table(items) {
 
 function detailMarkup(item) {
   const allEvidence = item.evidence || [];
-  const menteeEvidence = allEvidence.filter(e => !e.uploadedSide || e.uploadedSide === 'MENTEE');
-  const mentorEvidence = allEvidence.filter(e => e.uploadedSide === 'MENTOR');
+  const seenMentee = new Set();
+  const menteeEvidence = allEvidence.filter(e => {
+    if (e.uploadedSide && e.uploadedSide !== 'MENTEE') return false;
+    const key = `${e.fileName}-${e.sizeBytes}`;
+    if (seenMentee.has(key)) return false;
+    seenMentee.add(key);
+    return true;
+  });
+
+  const seenMentor = new Set();
+  const mentorEvidence = allEvidence.filter(e => {
+    if (e.uploadedSide !== 'MENTOR') return false;
+    const key = `${e.fileName}-${e.sizeBytes}`;
+    if (seenMentor.has(key)) return false;
+    seenMentor.add(key);
+    return true;
+  });
 
   return `<button class="modal-close" type="button" aria-label="Close"><span aria-hidden="true">×</span></button><p class="eyebrow mt-4">DISPUTE DETAILS</p><div class="mt-2 flex flex-wrap items-center justify-between gap-3"><h2 class="font-display text-3xl text-ink">${esc(item.ticketCode)}</h2>${badge(item.status)}</div><p class="mt-2 text-sm text-muted">${esc(item.title)} with ${esc(item.mentorName)}</p><div class="mt-6 divide-y divide-line rounded-xl border border-line bg-cream"><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Category</span><strong>${esc(categoryLabels[item.category] || item.category)}</strong></div><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Disputed amount</span><strong>${esc(money(item.disputedAmount, item.currency))}</strong></div><div class="p-4 text-sm"><span class="text-muted">Your statement</span><p class="mt-2 whitespace-pre-wrap text-ink">${esc(item.description)}</p></div></div>${menteeEvidence.length > 0 ? `<h3 class="mt-6 text-xs font-semibold text-ink uppercase tracking-wider">Your initial evidence (${menteeEvidence.length})</h3><div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">${menteeEvidence.map(file => `<a class="block overflow-hidden rounded-xl border border-line bg-cream focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand hover:border-brand transition" href="${menteeDisputesService.evidenceUrl(item.id, file.id)}" target="_blank" rel="noopener"><img class="h-32 w-full object-cover" src="${menteeDisputesService.evidenceUrl(item.id, file.id)}" alt="Evidence: ${esc(file.fileName)}"><span class="block truncate p-2 text-[10px] text-muted">${esc(file.fileName)}</span></a>`).join('')}</div>` : ''}${(item.mentorStatement || mentorEvidence.length > 0) ? `
   <div class="mt-6 rounded-xl border border-purple-200 bg-purple-50/50 p-4">
