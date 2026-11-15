@@ -50,6 +50,21 @@ public class StaffController {
                                               @AuthenticationPrincipal AuthenticatedUser user) {
         return ApiResponse.ok("Skill category created successfully", service.createSkillCategory(body, user));
     }
+
+    @PutMapping("/skill-categories/{id}")
+    public ApiResponse<?> updateSkillCategory(@PathVariable Long id,
+                                              @Valid @RequestBody SkillDtos.UpdateSkillCategoryRequest body,
+                                              @AuthenticationPrincipal AuthenticatedUser user) {
+        return ApiResponse.ok("Skill category updated successfully", service.updateSkillCategory(id, body, user));
+    }
+
+    @PatchMapping("/skill-categories/{id}/status")
+    public ApiResponse<?> toggleSkillCategoryStatus(@PathVariable Long id,
+                                                    @RequestBody(required = false) SkillDtos.ToggleSkillStatusRequest body,
+                                                    @AuthenticationPrincipal AuthenticatedUser user) {
+        Boolean active = body != null ? body.active() : null;
+        return ApiResponse.ok("Category status updated successfully", service.toggleSkillCategoryStatus(id, active, user));
+    }
     @GetMapping("/requests") public ApiResponse<?> requests() { return ApiResponse.ok(service.getRequests()); }
 
     @PostMapping("/skills")

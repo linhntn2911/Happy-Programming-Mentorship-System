@@ -83,6 +83,47 @@ public class StaffService {
     }
 
     @Transactional
+    public StaffReadDtos.SkillCategory updateSkillCategory(Long id, SkillDtos.UpdateSkillCategoryRequest request, AuthenticatedUser user) {
+        requireSkillPermission(user);
+        SkillCategory category = skillCategoryRepository.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Skill category not found with ID: " + id));
+
+        String name = request.name().trim();
+        if (skillCategoryRepository.existsByNameIgnoreCaseAndIdNot(name, id)) {
+            throw new IllegalArgumentException("Another category with name '" + name + "' already exists.");
+        }
+
+        category.setName(name);
+        category.setSlug(generateSlug(name));
+        category.setDescription(request.description() != null ? request.description().trim() : null);
+        if (request.active() != null) category.setActive(request.active());
+
+        category = skillCategoryRepository.save(category);
+        adminRepository.audit(user != null ? user.id() : 0L, "UPDATE_SKILL_CATEGORY", "skill_categories", String.valueOf(category.getId()),
+            null, Map.of("name", name, "slug", category.getSlug()),
+            "Updated skill domain category", "127.0.0.1");
+
+        final long updatedId = category.getId();
+        return getSkillCategories().stream().filter(c -> c.id() == updatedId).findFirst().orElseThrow();
+    }
+
+    @Transactional
+    public StaffReadDtos.SkillCategory toggleSkillCategoryStatus(Long id, Boolean active, AuthenticatedUser user) {
+        requireSkillPermission(user);
+        SkillCategory category = skillCategoryRepository.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Skill category not found with ID: " + id));
+
+        boolean newActive = active != null ? active : !category.isActive();
+        category.setActive(newActive);
+        skillCategoryRepository.save(category);
+
+        adminRepository.audit(user != null ? user.id() : 0L, "TOGGLE_SKILL_CATEGORY_STATUS", "skill_categories", String.valueOf(id),
+            !newActive, newActive, "Toggled category active status to " + newActive, "127.0.0.1");
+
+        return getSkillCategories().stream().filter(c -> c.id() == id).findFirst().orElseThrow();
+    }
+
+    @Transactional
     public StaffReadDtos.Skill createSkill(SkillDtos.CreateSkillRequest request, AuthenticatedUser user) {
         requireSkillPermission(user);
         String name = request.name().trim();

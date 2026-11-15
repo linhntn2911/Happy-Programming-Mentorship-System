@@ -17,6 +17,7 @@ import {
   mountStaffMentors,
   mountStaffMentees,
   mountStaffList,
+  mountStaffSkills,
   mountStaffPayouts,
   mountStaffReports
 } from './roles/staff/StaffPortal.js';
@@ -523,8 +524,12 @@ function router() {
   } else if (hash === '#/staff/mentees') {
     mountStaffMentees(appEl);
     window.scrollTo({ top: 0, behavior: 'instant' });
-  } else if (hash === '#/staff/requests' || hash === '#/staff/skills') {
-    mountStaffList(appEl, hash.split('/')[2]);
+  } else if (hash === '#/staff/skills' || hash === '#/staff/categories') {
+    mountStaffSkills(appEl, hash === '#/staff/categories' ? 'categories' : 'skills');
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  } else if (hash === '#/staff/requests') {
+    mountStaffList(appEl, 'requests');
+    window.scrollTo({ top: 0, behavior: 'instant' });
   } else if (hash === '#/staff/payouts' || hash === '#/staff/payout-requests') {
     mountStaffPayouts(appEl);
     window.scrollTo({ top: 0, behavior: 'instant' });

@@ -61,6 +61,22 @@ export const staffService = {
     });
   },
 
+  async updateSkillCategory(id, data) {
+    return apiClient(`/api/staff/skill-categories/${id}`, {
+      method: 'PUT',
+      headers: await withCsrf(),
+      body: JSON.stringify(data)
+    });
+  },
+
+  async toggleSkillCategoryStatus(id, active) {
+    return apiClient(`/api/staff/skill-categories/${id}/status`, {
+      method: 'PATCH',
+      headers: await withCsrf(),
+      body: JSON.stringify({ active })
+    });
+  },
+
   async createSkill(data) {
     return apiClient('/api/staff/skills', {
       method: 'POST',

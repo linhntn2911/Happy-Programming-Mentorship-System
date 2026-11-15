@@ -45,4 +45,15 @@ public final class SkillDtos {
         @Size(max = 500, message = "Description must not exceed 500 characters")
         String description
     ) {}
+
+    public record UpdateSkillCategoryRequest(
+        @NotBlank(message = "Category name is required")
+        @Size(max = 100, message = "Category name must not exceed 100 characters")
+        String name,
+
+        @Size(max = 500, message = "Description must not exceed 500 characters")
+        String description,
+
+        Boolean active
+    ) {}
 }

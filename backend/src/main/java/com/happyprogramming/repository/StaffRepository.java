@@ -32,8 +32,20 @@ public class StaffRepository {
             (r,n)->new StaffReadDtos.Skill(r.getLong("id"),r.getString("name"),r.getString("slug"),r.getLong("category_id"),r.getString("category"),r.getString("description"),r.getBoolean("is_active")));
     }
     public List<StaffReadDtos.SkillCategory> skillCategories() {
-        return db.query("SELECT id, name, slug FROM dbo.skill_categories WHERE is_active=1 ORDER BY display_order, id",
-            (r,n)->new StaffReadDtos.SkillCategory(r.getLong("id"),r.getString("name"),r.getString("slug")));
+        return db.query("""
+            SELECT c.id, c.name, c.slug, c.description, c.is_active,
+                   (SELECT COUNT(*) FROM dbo.skills s WHERE s.category_id = c.id) AS skills_count
+            FROM dbo.skill_categories c
+            ORDER BY c.display_order, c.id
+            """,
+            (r,n)->new StaffReadDtos.SkillCategory(
+                r.getLong("id"),
+                r.getString("name"),
+                r.getString("slug"),
+                r.getString("description"),
+                r.getBoolean("is_active"),
+                r.getLong("skills_count")
+            ));
     }
     public List<StaffReadDtos.Request> requests() {
         return db.query("SELECT r.id,me.full_name mentee,m.full_name mentor,r.status,r.learning_goals,r.created_at FROM dbo.mentorship_requests r JOIN dbo.users me ON me.id=r.mentee_id JOIN dbo.users m ON m.id=r.mentor_id ORDER BY r.created_at DESC",
