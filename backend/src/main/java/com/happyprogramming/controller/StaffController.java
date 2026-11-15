@@ -44,6 +44,12 @@ public class StaffController {
     @GetMapping("/mentees") public ApiResponse<?> mentees() { return ApiResponse.ok(service.getMentees()); }
     @GetMapping("/skills") public ApiResponse<?> skills() { return ApiResponse.ok(service.getSkills()); }
     @GetMapping("/skill-categories") public ApiResponse<?> skillCategories() { return ApiResponse.ok(service.getSkillCategories()); }
+    @PostMapping("/skill-categories")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<?> createSkillCategory(@Valid @RequestBody SkillDtos.CreateSkillCategoryRequest body,
+                                              @AuthenticationPrincipal AuthenticatedUser user) {
+        return ApiResponse.ok("Skill category created successfully", service.createSkillCategory(body, user));
+    }
     @GetMapping("/requests") public ApiResponse<?> requests() { return ApiResponse.ok(service.getRequests()); }
 
     @PostMapping("/skills")

@@ -71,4 +71,21 @@ class StaffServiceTest {
         assertEquals(1, activities.size());
         assertEquals("Dispute #1 resolved", activities.get(0).getTitle());
     }
+
+    @Test
+    void shouldCreateSkillCategoryWhenPermitted() {
+        AuthenticatedUser user = new AuthenticatedUser(10L, "Staff User", "staff@test.com", "STAFF");
+        when(access.permissions(user)).thenReturn(Set.of("SKILL_MANAGE"));
+        when(skillCategoryRepository.existsByNameIgnoreCase("Cloud & Security")).thenReturn(false);
+        when(skillCategoryRepository.existsBySlugIgnoreCase("cloud-security")).thenReturn(false);
+        when(skillCategoryRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var req = new com.happyprogramming.dto.SkillDtos.CreateSkillCategoryRequest("Cloud & Security", "Cloud infra");
+        var result = service.createSkillCategory(req, user);
+
+        assertNotNull(result);
+        assertEquals("Cloud & Security", result.name());
+        assertEquals("cloud-security", result.slug());
+        verify(skillCategoryRepository).save(any());
+    }
 }

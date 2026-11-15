@@ -14,10 +14,16 @@ export function StaffSkillsPage(skills = [], categories = [], currentUser = null
         <h1>Technical skills management</h1>
         <p class="text-xs text-muted mt-1">Maintain platform programming skills dictionary, toggle active discovery states, and configure skill categories.</p>
       </div>
-      <button type="button" id="btn-open-add-skill" class="btn btn-primary shrink-0 flex items-center gap-1.5">
-        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        <span>Add new skill</span>
-      </button>
+      <div class="flex items-center gap-2">
+        <button type="button" id="btn-open-add-category" class="btn btn-outline shrink-0 flex items-center gap-1.5">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>Add category</span>
+        </button>
+        <button type="button" id="btn-open-add-skill" class="btn btn-primary shrink-0 flex items-center gap-1.5">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>Add new skill</span>
+        </button>
+      </div>
     </div>
 
     <!-- Summary Metrics -->
@@ -95,13 +101,20 @@ export function StaffSkillsPage(skills = [], categories = [], currentUser = null
             <input type="text" id="skill-name-input" required placeholder="e.g. TypeScript, GraphQL, Docker" maxlength="100" class="w-full mt-1">
           </label>
 
-          <label class="admin-field" for="skill-category-input">
-            Domain Category <span class="text-rose-600">*</span>
-            <select id="skill-category-input" required class="w-full mt-1 p-2 border border-line rounded-lg bg-white text-xs">
+          <div class="admin-field">
+            <div class="flex items-center justify-between mb-1">
+              <label for="skill-category-input" class="text-xs font-semibold text-ink">
+                Domain Category <span class="text-rose-600">*</span>
+              </label>
+              <button type="button" id="btn-quick-add-category" class="text-xs text-brand hover:underline font-medium">
+                + New category
+              </button>
+            </div>
+            <select id="skill-category-input" required class="w-full p-2 border border-line rounded-lg bg-white text-xs">
               <option value="">Select a category...</option>
               ${categories.map(c => `<option value="${e(c.id)}">${e(c.name)}</option>`).join('')}
             </select>
-          </label>
+          </div>
 
           <label class="admin-field" for="skill-description-input">
             Description / Overview (Optional)
@@ -118,6 +131,37 @@ export function StaffSkillsPage(skills = [], categories = [], currentUser = null
           <div class="admin-actions mt-6 pt-4 border-t border-line flex justify-end gap-3">
             <button type="button" id="btn-cancel-skill" class="btn btn-outline">Cancel</button>
             <button type="submit" id="btn-save-skill" class="btn btn-primary">Save skill</button>
+          </div>
+        </form>
+      </div>
+    </dialog>
+
+    <!-- Modal Form: Add Category -->
+    <dialog id="category-form-dialog" class="modal" aria-labelledby="category-modal-title">
+      <div id="category-modal-content" class="w-full max-w-md p-6 bg-white rounded-2xl border border-line shadow-2xl">
+        <button class="modal-close" id="close-category-modal" type="button" aria-label="Close">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 6 12 12M6 18 18 6"/></svg>
+        </button>
+        <p class="eyebrow !pr-8">SKILL DOMAIN CATEGORY</p>
+        <h2 id="category-modal-title" class="mt-2 font-display text-2xl text-ink">Add skill category</h2>
+        <p class="text-xs text-muted mt-1">Create a new domain category to classify technical programming skills.</p>
+
+        <form id="category-modal-form" class="mt-5 space-y-4">
+          <label class="admin-field" for="category-name-input">
+            Category Name <span class="text-rose-600">*</span>
+            <input type="text" id="category-name-input" required placeholder="e.g. Mobile Development, Cloud & DevOps" maxlength="100" class="w-full mt-1">
+          </label>
+
+          <label class="admin-field" for="category-description-input">
+            Description (Optional)
+            <textarea id="category-description-input" rows="3" placeholder="Brief description of the domain category..." maxlength="500" class="w-full mt-1 text-xs"></textarea>
+          </label>
+
+          <p id="category-form-error" class="text-xs text-rose-600 font-semibold hidden" role="alert"></p>
+
+          <div class="admin-actions mt-6 pt-4 border-t border-line flex justify-end gap-3">
+            <button type="button" id="btn-cancel-category" class="btn btn-outline">Cancel</button>
+            <button type="submit" id="btn-save-category" class="btn btn-primary">Save category</button>
           </div>
         </form>
       </div>

@@ -6,4 +6,6 @@ import java.util.List;
 
 public interface SkillCategoryRepository extends JpaRepository<SkillCategory, Long> {
     List<SkillCategory> findAllByActiveTrueOrderByDisplayOrderAscIdAsc();
+    boolean existsByNameIgnoreCase(String name);
+    boolean existsBySlugIgnoreCase(String slug);
 }

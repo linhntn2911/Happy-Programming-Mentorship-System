@@ -53,6 +53,14 @@ export const staffService = {
     });
   },
 
+  async createSkillCategory(data) {
+    return apiClient('/api/staff/skill-categories', {
+      method: 'POST',
+      headers: await withCsrf(),
+      body: JSON.stringify(data)
+    });
+  },
+
   async createSkill(data) {
     return apiClient('/api/staff/skills', {
       method: 'POST',

@@ -74,6 +74,24 @@ class StaffControllerTest {
     }
 
     @Test
+    void shouldCreateSkillCategoryForStaff() throws Exception {
+        when(access.permissions(any())).thenReturn(java.util.Set.of("SKILL_MANAGE"));
+        when(service.createSkillCategory(any(), any()))
+                .thenReturn(new com.happyprogramming.dto.StaffReadDtos.SkillCategory(5L, "Mobile Development", "mobile-development"));
+
+        mockMvc.perform(post("/api/staff/skill-categories")
+                        .with(authentication(staffPrincipal()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Mobile Development","description":"Native and cross-platform mobile apps"}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(5))
+                .andExpect(jsonPath("$.data.name").value("Mobile Development"));
+    }
+
+    @Test
     void shouldReturnPayoutRequestsForStaff() throws Exception {
         AdminPayoutRequest sample = new AdminPayoutRequest(1L, 10L, "Mentor A", "mentor@test.com",
                 new BigDecimal("1500000"), "TPBank", "Nguyen Van A", "1234567890", "REQUESTED", Instant.now());

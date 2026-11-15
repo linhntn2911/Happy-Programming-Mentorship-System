@@ -6,6 +6,7 @@ import com.happyprogramming.dto.StaffMenteeDto;
 import com.happyprogramming.dto.StaffMentorDto;
 import com.happyprogramming.dto.StaffReadDtos;
 import com.happyprogramming.entity.Skill;
+import com.happyprogramming.entity.SkillCategory;
 import com.happyprogramming.repository.AdminRepository;
 import com.happyprogramming.repository.SkillCategoryRepository;
 import com.happyprogramming.repository.SkillRepository;
@@ -51,6 +52,35 @@ public class StaffService {
     public List<StaffReadDtos.Skill> getSkills() { return repository.skills(); }
     public List<StaffReadDtos.SkillCategory> getSkillCategories() { return repository.skillCategories(); }
     public List<StaffReadDtos.Request> getRequests() { return repository.requests(); }
+
+    @Transactional
+    public StaffReadDtos.SkillCategory createSkillCategory(SkillDtos.CreateSkillCategoryRequest request, AuthenticatedUser user) {
+        requireSkillPermission(user);
+        String name = request.name().trim();
+        if (skillCategoryRepository.existsByNameIgnoreCase(name)) {
+            throw new IllegalArgumentException("A skill category with name '" + name + "' already exists.");
+        }
+        String slug = generateSlug(name);
+        if (skillCategoryRepository.existsBySlugIgnoreCase(slug)) {
+            slug = slug + "-" + (System.currentTimeMillis() % 10000);
+        }
+
+        SkillCategory category = new SkillCategory();
+        category.setName(name);
+        category.setSlug(slug);
+        category.setDescription(request.description() != null ? request.description().trim() : null);
+        category.setDisplayOrder(0);
+        category.setActive(true);
+
+        category = skillCategoryRepository.save(category);
+        adminRepository.audit(user != null ? user.id() : 0L, "CREATE_SKILL_CATEGORY", "skill_categories", String.valueOf(category.getId()),
+            null, Map.of("name", name, "slug", slug),
+            "Created skill domain category", "127.0.0.1");
+
+        final long createdId = category.getId();
+        return getSkillCategories().stream().filter(c -> c.id() == createdId).findFirst()
+            .orElse(new StaffReadDtos.SkillCategory(createdId, category.getName(), category.getSlug()));
+    }
 
     @Transactional
     public StaffReadDtos.Skill createSkill(SkillDtos.CreateSkillRequest request, AuthenticatedUser user) {

@@ -641,6 +641,101 @@ export async function mountStaffSkills(root) {
     dialog?.querySelector('#close-skill-modal')?.addEventListener('click', () => dialog.close());
     dialog?.querySelector('#btn-cancel-skill')?.addEventListener('click', () => dialog.close());
 
+    // Category modal handlers
+    const catDialog = root.querySelector('#category-form-dialog');
+    const catForm = root.querySelector('#category-modal-form');
+    const catNameInput = root.querySelector('#category-name-input');
+    const catDescInput = root.querySelector('#category-description-input');
+    const catErrorEl = root.querySelector('#category-form-error');
+    const catSaveBtn = root.querySelector('#btn-save-category');
+
+    let skillDraft = null;
+
+    const openCatModal = (fromSkillForm = false) => {
+      if (!catDialog) return;
+      if (fromSkillForm) {
+        skillDraft = {
+          id: editIdInput?.value || '',
+          name: nameInput?.value || '',
+          desc: descInput?.value || '',
+          active: activeInput?.checked ?? true
+        };
+      } else {
+        skillDraft = null;
+      }
+      if (catErrorEl) catErrorEl.classList.add('hidden');
+      catForm?.reset();
+      catDialog.showModal();
+    };
+
+    root.querySelector('#btn-open-add-category')?.addEventListener('click', () => openCatModal(false));
+    root.querySelector('#btn-quick-add-category')?.addEventListener('click', () => openCatModal(true));
+    catDialog?.querySelector('#close-category-modal')?.addEventListener('click', () => catDialog.close());
+    catDialog?.querySelector('#btn-cancel-category')?.addEventListener('click', () => catDialog.close());
+
+    catForm?.addEventListener('submit', async event => {
+      event.preventDefault();
+      const name = catNameInput.value.trim();
+      const description = catDescInput.value.trim();
+
+      if (!name) {
+        if (catErrorEl) {
+          catErrorEl.textContent = 'Please enter a category name.';
+          catErrorEl.classList.remove('hidden');
+        }
+        return;
+      }
+
+      if (catErrorEl) catErrorEl.classList.add('hidden');
+      catSaveBtn.disabled = true;
+      catSaveBtn.textContent = 'Saving…';
+
+      try {
+        const created = await staffService.createSkillCategory({ name, description });
+        catDialog.close();
+        const pendingDraft = skillDraft;
+        skillDraft = null;
+
+        if (await refreshData()) {
+          render();
+          const targetCatId = created?.id || (categories.find(c => c.name.toLowerCase() === name.toLowerCase())?.id);
+          if (pendingDraft) {
+            const newSkillDialog = root.querySelector('#skill-form-dialog');
+            const newModalTitle = root.querySelector('#skill-modal-title');
+            const newEditId = root.querySelector('#skill-edit-id');
+            const newName = root.querySelector('#skill-name-input');
+            const newCategory = root.querySelector('#skill-category-input');
+            const newDesc = root.querySelector('#skill-description-input');
+            const newActive = root.querySelector('#skill-active-input');
+
+            if (newSkillDialog) {
+              if (pendingDraft.id) {
+                newModalTitle.textContent = `Edit skill: ${pendingDraft.name}`;
+                newEditId.value = pendingDraft.id;
+              } else {
+                newModalTitle.textContent = 'Add new skill';
+                newEditId.value = '';
+              }
+              newName.value = pendingDraft.name || '';
+              newDesc.value = pendingDraft.desc || '';
+              newActive.checked = pendingDraft.active;
+              if (targetCatId && newCategory) {
+                newCategory.value = String(targetCatId);
+              }
+              newSkillDialog.showModal();
+            }
+          }
+        }
+      } catch (err) {
+        catSaveBtn.disabled = false;
+        catSaveBtn.textContent = 'Save category';
+        if (catErrorEl) {
+          catErrorEl.textContent = err.message || 'Failed to create category.';
+          catErrorEl.classList.remove('hidden');
+        }
+      }
+    });
+
     form?.addEventListener('submit', async event => {
       event.preventDefault();
       const id = editIdInput.value;
