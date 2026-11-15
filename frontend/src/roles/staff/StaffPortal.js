@@ -494,20 +494,211 @@ export async function mountStaffList(root, kind) {
   root.innerHTML = '<p role="status">Loading…</p>';
   const user = await checkStaffAccess(root); if (!user || !root.isConnected) return;
   try {
-    const records = await (kind === 'skills' ? staffService.getSkills() : staffService.getRequests());
-    const headings = kind === 'skills' ? ['Name', 'Category', 'Status', 'Description'] : ['ID', 'Mentee', 'Mentor', 'Status', 'Learning goals', 'Created (UTC)'];
+    const rawRecords = await (kind === 'skills' ? staffService.getSkills() : staffService.getRequests());
+    const records = Array.isArray(rawRecords) ? rawRecords : [];
     if (!root.isConnected) return;
+
     let page = 1;
+    let query = '';
+    let statusFilter = 'ALL';
+
     const render = () => {
-      const pagination = paginateItems(records, page);
+      const q = query.trim().toLowerCase();
+      const filtered = records.filter(r => {
+        const matchesQ = !q ||
+          (r.mentee && r.mentee.toLowerCase().includes(q)) ||
+          (r.mentor && r.mentor.toLowerCase().includes(q)) ||
+          (r.learningGoals && r.learningGoals.toLowerCase().includes(q)) ||
+          String(r.id).includes(q);
+        const matchesStatus = statusFilter === 'ALL' || r.status === statusFilter;
+        return matchesQ && matchesStatus;
+      });
+
+      const pagination = paginateItems(filtered, page);
       page = pagination.page;
-      const rows = pagination.items.map(r => kind === 'skills' ? [r.name, r.category, r.active ? 'Active' : 'Inactive', r.description] : [r.id, r.mentee, r.mentor, r.status, r.learningGoals, r.createdAt]);
-      root.innerHTML = StaffLayout(kind, `<div class="admin-page-heading"><div><p class="eyebrow">STAFF WORKSPACE</p><h1>${kind === 'skills' ? 'Technical skills' : 'Mentorship requests'}</h1><p>Read-only directory</p></div></div>
-      <section class="admin-panel"><div class="data-table-scroll"><table class="data-table"><caption class="sr-only">${e(kind)} directory</caption><thead><tr>${headings.map(h => `<th scope="col">${e(h)}</th>`).join('')}</tr></thead><tbody>
-      ${rows.map(row => `<tr>${row.map(v => `<td>${e(v ?? '—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${!rows.length ? '<p class="admin-panel-body">No records found.</p>' : ''}<div data-staff-list-pagination>${renderPagination({ page, totalPages: pagination.totalPages, label: 'Mentorship request pages' })}</div></section>`, user);
+
+      const totalRequests = records.length;
+      const pendingCount = records.filter(r => r.status === 'PENDING').length;
+      const acceptedCount = records.filter(r => r.status === 'ACCEPTED' || r.status === 'ACTIVE').length;
+
+      root.innerHTML = StaffLayout(kind, `
+        <div class="admin-page-heading flex items-center justify-between gap-4">
+          <div>
+            <p class="eyebrow">STAFF WORKSPACE</p>
+            <h1>Mentorship requests</h1>
+            <p class="text-xs text-muted mt-1">Directory of mentorship applications and learning goals submitted by mentees.</p>
+          </div>
+        </div>
+
+        <div class="admin-stats grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <div class="stat-card">
+            <div class="stat-label">
+              <span>Total Requests</span>
+              <svg class="w-4 h-4 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            </div>
+            <div class="stat-value mt-1">${totalRequests}</div>
+            <div class="stat-note">All learning requests</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">
+              <span>Pending Review</span>
+              <svg class="w-4 h-4 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="stat-value mt-1 text-amber-700">${pendingCount}</div>
+            <div class="stat-note">Awaiting mentor acceptance</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">
+              <span>Accepted / Active</span>
+              <svg class="w-4 h-4 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <div class="stat-value mt-1 text-emerald-700">${acceptedCount}</div>
+            <div class="stat-note">In progress or confirmed</div>
+          </div>
+        </div>
+
+        <section class="admin-panel">
+          <div class="admin-toolbar flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-4 border-b border-line">
+            <div class="admin-search flex-1 min-w-[240px]">
+              <input type="search" id="request-search-input" value="${e(query)}" placeholder="Search by mentee, mentor, or goal..." class="admin-field !mb-0 w-full" aria-label="Search requests">
+            </div>
+            <div class="flex items-center gap-3">
+              <label class="admin-field !mb-0 text-xs flex items-center gap-2">
+                Status:
+                <select id="request-status-filter" class="text-xs py-1 px-2.5 rounded-lg border border-line bg-white">
+                  <option value="ALL" ${statusFilter === 'ALL' ? 'selected' : ''}>All Status</option>
+                  <option value="PENDING" ${statusFilter === 'PENDING' ? 'selected' : ''}>Pending</option>
+                  <option value="ACCEPTED" ${statusFilter === 'ACCEPTED' ? 'selected' : ''}>Accepted</option>
+                  <option value="ACTIVE" ${statusFilter === 'ACTIVE' ? 'selected' : ''}>Active</option>
+                  <option value="COMPLETED" ${statusFilter === 'COMPLETED' ? 'selected' : ''}>Completed</option>
+                  <option value="REJECTED" ${statusFilter === 'REJECTED' ? 'selected' : ''}>Rejected</option>
+                  <option value="CANCELLED" ${statusFilter === 'CANCELLED' ? 'selected' : ''}>Cancelled</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="data-table-scroll">
+            <table class="data-table">
+              <caption class="sr-only">Mentorship requests directory</caption>
+              <thead>
+                <tr>
+                  <th scope="col">ID</th>
+                  <th scope="col">Mentee</th>
+                  <th scope="col">Mentor</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Learning goals</th>
+                  <th scope="col">Created (UTC)</th>
+                  <th scope="col">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${pagination.items.map(r => `
+                  <tr>
+                    <td><span class="font-mono text-xs font-semibold text-brand">#${e(r.id)}</span></td>
+                    <td><div class="font-semibold text-ink">${e(r.mentee || '—')}</div></td>
+                    <td><div class="font-semibold text-ink">${e(r.mentor || '—')}</div></td>
+                    <td>${StatusBadge(r.status)}</td>
+                    <td>
+                      <div class="max-w-[260px] truncate text-xs text-muted" title="${e(r.learningGoals || '')}">
+                        ${e(r.learningGoals || '—')}
+                      </div>
+                    </td>
+                    <td><span class="text-xs text-muted whitespace-nowrap">${e(r.createdAt || '—')}</span></td>
+                    <td>
+                      <button type="button" class="btn btn-outline btn-sm" data-view-request="${e(r.id)}">Detail</button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+          ${!pagination.items.length ? '<p class="admin-panel-body text-center text-muted text-xs p-8">No mentorship requests found matching the criteria.</p>' : ''}
+          <div data-staff-list-pagination>${renderPagination({ page, totalPages: pagination.totalPages, label: 'Mentorship request pages' })}</div>
+        </section>
+
+        <!-- Request Detail Modal Dialog -->
+        <dialog id="request-detail-dialog" class="modal" aria-labelledby="request-detail-modal-title">
+          <div id="request-detail-dialog-content"></div>
+        </dialog>
+      `, user);
+
       bindStaffGlobalEvents(root);
       bindPagination(root.querySelector('[data-staff-list-pagination]'), { onChange: nextPage => { page = nextPage; render(); } });
+
+      const searchInput = root.querySelector('#request-search-input');
+      const statusSelect = root.querySelector('#request-status-filter');
+
+      searchInput?.addEventListener('input', (event) => {
+        query = event.target.value;
+        page = 1;
+        render();
+        const newSearch = root.querySelector('#request-search-input');
+        if (newSearch) {
+          newSearch.focus();
+          newSearch.setSelectionRange(query.length, query.length);
+        }
+      });
+
+      statusSelect?.addEventListener('change', (event) => {
+        statusFilter = event.target.value;
+        page = 1;
+        render();
+      });
+
+      root.querySelectorAll('[data-view-request]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const reqId = btn.dataset.viewRequest;
+          const req = records.find(item => String(item.id) === String(reqId));
+          const dialog = root.querySelector('#request-detail-dialog');
+          const content = root.querySelector('#request-detail-dialog-content');
+          if (!req || !dialog || !content) return;
+
+          content.innerHTML = `
+            <button class="modal-close" id="close-request-modal" type="button" aria-label="Close">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 6 12 12M6 18 18 6"/></svg>
+            </button>
+            <p class="eyebrow !pr-8">MENTORSHIP REQUEST DETAILS</p>
+            <h2 id="request-detail-modal-title" class="mt-3 font-display text-2xl text-ink">Request #${e(req.id)}</h2>
+            <p class="text-xs text-muted mt-1">Submitted on ${e(req.createdAt || 'Recent')}</p>
+
+            <div class="mt-5 space-y-3.5 text-xs text-ink/90 border-t border-b border-line py-4">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <span class="text-muted block text-[11px] mb-0.5">Mentee</span>
+                  <span class="font-semibold text-ink text-sm">${e(req.mentee || '—')}</span>
+                </div>
+                <div>
+                  <span class="text-muted block text-[11px] mb-0.5">Mentor</span>
+                  <span class="font-semibold text-ink text-sm">${e(req.mentor || '—')}</span>
+                </div>
+              </div>
+
+              <div>
+                <span class="text-muted block text-[11px] mb-1">Status</span>
+                <div>${StatusBadge(req.status)}</div>
+              </div>
+
+              <div>
+                <span class="text-muted block text-[11px] mb-1">Learning Goals & Study Needs</span>
+                <div class="p-3.5 bg-[#fbf9ff] rounded-xl border border-line text-xs text-ink leading-relaxed whitespace-pre-wrap max-h-60 overflow-y-auto">
+                  ${e(req.learningGoals || 'No detailed learning goals provided.')}
+                </div>
+              </div>
+            </div>
+
+            <div class="admin-actions">
+              <button type="button" id="btn-done-request" class="btn btn-outline">Close</button>
+            </div>
+          `;
+
+          dialog.showModal();
+          dialog.querySelector('#close-request-modal')?.addEventListener('click', () => dialog.close());
+          dialog.querySelector('#btn-done-request')?.addEventListener('click', () => dialog.close());
+        });
+      });
     };
+
     render();
   } catch (err) { staffError(root, err); }
 }

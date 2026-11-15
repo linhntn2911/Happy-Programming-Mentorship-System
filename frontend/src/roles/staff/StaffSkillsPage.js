@@ -85,86 +85,82 @@ export function StaffSkillsPage(skills = [], categories = [], currentUser = null
 
     <!-- Modal Form: Add / Edit Skill -->
     <dialog id="skill-form-dialog" class="modal" aria-labelledby="skill-modal-title">
-      <div id="skill-modal-content" class="w-full max-w-lg p-6 bg-white rounded-2xl border border-line shadow-2xl">
-        <button class="modal-close" id="close-skill-modal" type="button" aria-label="Close">
-          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 6 12 12M6 18 18 6"/></svg>
-        </button>
-        <p class="eyebrow !pr-8">TECHNICAL SKILL CATALOG</p>
-        <h2 id="skill-modal-title" class="mt-2 font-display text-2xl text-ink">Add new skill</h2>
-        <p class="text-xs text-muted mt-1">Configure technical skill metadata for mentor registration and public search filters.</p>
+      <button class="modal-close" id="close-skill-modal" type="button" aria-label="Close">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 6 12 12M6 18 18 6"/></svg>
+      </button>
+      <p class="eyebrow !pr-8">TECHNICAL SKILL CATALOG</p>
+      <h2 id="skill-modal-title" class="mt-3 font-display text-2xl text-ink">Add new skill</h2>
+      <p class="text-xs text-muted mt-1">Configure technical skill metadata for mentor registration and public search filters.</p>
 
-        <form id="skill-modal-form" class="mt-5 space-y-4">
-          <input type="hidden" id="skill-edit-id" value="">
+      <form id="skill-modal-form" class="mt-5 space-y-4">
+        <input type="hidden" id="skill-edit-id" value="">
 
-          <label class="admin-field" for="skill-name-input">
-            Skill Name <span class="text-rose-600">*</span>
-            <input type="text" id="skill-name-input" required placeholder="e.g. TypeScript, GraphQL, Docker" maxlength="100" class="w-full mt-1">
-          </label>
+        <label class="admin-field" for="skill-name-input">
+          Skill Name <span class="text-rose-600">*</span>
+          <input type="text" id="skill-name-input" required placeholder="e.g. TypeScript, GraphQL, Docker" maxlength="100" class="w-full mt-1">
+        </label>
 
-          <div class="admin-field">
-            <div class="flex items-center justify-between mb-1">
-              <label for="skill-category-input" class="text-xs font-semibold text-ink">
-                Domain Category <span class="text-rose-600">*</span>
-              </label>
-              <button type="button" id="btn-quick-add-category" class="text-xs text-brand hover:underline font-medium">
-                + New category
-              </button>
-            </div>
-            <select id="skill-category-input" required class="w-full p-2 border border-line rounded-lg bg-white text-xs">
-              <option value="">Select a category...</option>
-              ${categories.map(c => `<option value="${e(c.id)}">${e(c.name)}</option>`).join('')}
-            </select>
+        <div class="admin-field">
+          <div class="flex items-center justify-between mb-1">
+            <label for="skill-category-input" class="text-xs font-semibold text-ink">
+              Domain Category <span class="text-rose-600">*</span>
+            </label>
+            <button type="button" id="btn-quick-add-category" class="text-xs text-brand hover:underline font-medium">
+              + New category
+            </button>
           </div>
+          <select id="skill-category-input" required class="w-full p-2 border border-line rounded-lg bg-white text-xs">
+            <option value="">Select a category...</option>
+            ${categories.map(c => `<option value="${e(c.id)}">${e(c.name)}</option>`).join('')}
+          </select>
+        </div>
 
-          <label class="admin-field" for="skill-description-input">
-            Description / Overview (Optional)
-            <textarea id="skill-description-input" rows="3" placeholder="Brief description of technology stack or domain applicability..." maxlength="500" class="w-full mt-1 text-xs"></textarea>
-          </label>
+        <label class="admin-field" for="skill-description-input">
+          Description / Overview (Optional)
+          <textarea id="skill-description-input" rows="3" placeholder="Brief description of technology stack or domain applicability..." maxlength="500" class="w-full mt-1 text-xs"></textarea>
+        </label>
 
-          <div class="flex items-center gap-2 pt-1">
-            <input type="checkbox" id="skill-active-input" checked class="h-4 w-4 rounded border-line text-brand focus:ring-brand">
-            <label for="skill-active-input" class="text-xs font-semibold text-ink cursor-pointer">Active for mentor discovery and profile selection</label>
-          </div>
+        <div class="flex items-center gap-2 pt-1">
+          <input type="checkbox" id="skill-active-input" checked class="h-4 w-4 rounded border-line text-brand focus:ring-brand">
+          <label for="skill-active-input" class="text-xs font-semibold text-ink cursor-pointer">Active for mentor discovery and profile selection</label>
+        </div>
 
-          <p id="skill-form-error" class="text-xs text-rose-600 font-semibold hidden" role="alert"></p>
+        <p id="skill-form-error" class="text-xs text-rose-600 font-semibold hidden" role="alert"></p>
 
-          <div class="admin-actions mt-6 pt-4 border-t border-line flex justify-end gap-3">
-            <button type="button" id="btn-cancel-skill" class="btn btn-outline">Cancel</button>
-            <button type="submit" id="btn-save-skill" class="btn btn-primary">Save skill</button>
-          </div>
-        </form>
-      </div>
+        <div class="admin-actions">
+          <button type="button" id="btn-cancel-skill" class="btn btn-outline">Cancel</button>
+          <button type="submit" id="btn-save-skill" class="btn btn-primary">Save skill</button>
+        </div>
+      </form>
     </dialog>
 
     <!-- Modal Form: Add Category -->
     <dialog id="category-form-dialog" class="modal" aria-labelledby="category-modal-title">
-      <div id="category-modal-content" class="w-full max-w-md p-6 bg-white rounded-2xl border border-line shadow-2xl">
-        <button class="modal-close" id="close-category-modal" type="button" aria-label="Close">
-          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 6 12 12M6 18 18 6"/></svg>
-        </button>
-        <p class="eyebrow !pr-8">SKILL DOMAIN CATEGORY</p>
-        <h2 id="category-modal-title" class="mt-2 font-display text-2xl text-ink">Add skill category</h2>
-        <p class="text-xs text-muted mt-1">Create a new domain category to classify technical programming skills.</p>
+      <button class="modal-close" id="close-category-modal" type="button" aria-label="Close">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 6 12 12M6 18 18 6"/></svg>
+      </button>
+      <p class="eyebrow !pr-8">SKILL DOMAIN CATEGORY</p>
+      <h2 id="category-modal-title" class="mt-3 font-display text-2xl text-ink">Add skill category</h2>
+      <p class="text-xs text-muted mt-1">Create a new domain category to classify technical programming skills.</p>
 
-        <form id="category-modal-form" class="mt-5 space-y-4">
-          <label class="admin-field" for="category-name-input">
-            Category Name <span class="text-rose-600">*</span>
-            <input type="text" id="category-name-input" required placeholder="e.g. Mobile Development, Cloud & DevOps" maxlength="100" class="w-full mt-1">
-          </label>
+      <form id="category-modal-form" class="mt-5 space-y-4">
+        <label class="admin-field" for="category-name-input">
+          Category Name <span class="text-rose-600">*</span>
+          <input type="text" id="category-name-input" required placeholder="e.g. Mobile Development, Cloud & DevOps" maxlength="100" class="w-full mt-1">
+        </label>
 
-          <label class="admin-field" for="category-description-input">
-            Description (Optional)
-            <textarea id="category-description-input" rows="3" placeholder="Brief description of the domain category..." maxlength="500" class="w-full mt-1 text-xs"></textarea>
-          </label>
+        <label class="admin-field" for="category-description-input">
+          Description (Optional)
+          <textarea id="category-description-input" rows="3" placeholder="Brief description of the domain category..." maxlength="500" class="w-full mt-1 text-xs"></textarea>
+        </label>
 
-          <p id="category-form-error" class="text-xs text-rose-600 font-semibold hidden" role="alert"></p>
+        <p id="category-form-error" class="text-xs text-rose-600 font-semibold hidden" role="alert"></p>
 
-          <div class="admin-actions mt-6 pt-4 border-t border-line flex justify-end gap-3">
-            <button type="button" id="btn-cancel-category" class="btn btn-outline">Cancel</button>
-            <button type="submit" id="btn-save-category" class="btn btn-primary">Save category</button>
-          </div>
-        </form>
-      </div>
+        <div class="admin-actions">
+          <button type="button" id="btn-cancel-category" class="btn btn-outline">Cancel</button>
+          <button type="submit" id="btn-save-category" class="btn btn-primary">Save category</button>
+        </div>
+      </form>
     </dialog>
   `;
 
