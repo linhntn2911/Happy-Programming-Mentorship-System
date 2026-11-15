@@ -25,10 +25,6 @@ export function StaffSkillsPage(skills = [], categories = [], currentUser = null
             <span>Add category</span>
           </button>
         ` : `
-          <button type="button" id="btn-open-add-category" class="btn btn-outline shrink-0 flex items-center gap-1.5">
-            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            <span>Add category</span>
-          </button>
           <button type="button" id="btn-open-add-skill" class="btn btn-primary shrink-0 flex items-center gap-1.5">
             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             <span>Add new skill</span>
@@ -145,20 +141,13 @@ export function StaffSkillsPage(skills = [], categories = [], currentUser = null
           <input type="text" id="skill-name-input" required placeholder="e.g. TypeScript, GraphQL, Docker" maxlength="100" class="w-full mt-1">
         </label>
 
-        <div class="admin-field">
-          <div class="flex items-center justify-between mb-1">
-            <label for="skill-category-input" class="text-xs font-semibold text-ink">
-              Domain Category <span class="text-rose-600">*</span>
-            </label>
-            <button type="button" id="btn-quick-add-category" class="text-xs text-brand hover:underline font-medium">
-              + New category
-            </button>
-          </div>
-          <select id="skill-category-input" required class="w-full p-2 border border-line rounded-lg bg-white text-xs">
+        <label class="admin-field" for="skill-category-input">
+          Domain Category <span class="text-rose-600">*</span>
+          <select id="skill-category-input" required class="w-full mt-1 p-2 border border-line rounded-lg bg-white text-xs">
             <option value="">Select a category...</option>
             ${categories.map(c => `<option value="${e(c.id)}">${e(c.name)}</option>`).join('')}
           </select>
-        </div>
+        </label>
 
         <label class="admin-field" for="skill-description-input">
           Description / Overview (Optional)
