@@ -77,7 +77,11 @@ public interface MentorDashboardRepository extends JpaRepository<MentorshipReque
                 CAST(NULL AS DATETIME2(3)) AS startAt,
                 CAST(NULL AS DATETIME2(3)) AS endAt,
                 CAST(NULL AS INT) AS numberOfSessions,
-                CAST(NULL AS INT) AS numberOfParticipants
+                CAST(NULL AS INT) AS numberOfParticipants,
+                request_row.experience_level AS experienceLevel,
+                request_row.background AS background,
+                request_row.expectations AS expectations,
+                mentee.email AS menteeEmail
             FROM dbo.mentorship_requests request_row
             JOIN dbo.users mentee ON mentee.id = request_row.mentee_id
             LEFT JOIN dbo.service_offerings offering
@@ -136,7 +140,11 @@ public interface MentorDashboardRepository extends JpaRepository<MentorshipReque
                 COALESCE(booking_summary.startAt, TRY_CONVERT(DATETIME2(3), JSON_VALUE(request_row.offer_snapshot, '$.startAt'), 127)) AS startAt,
                 COALESCE(booking_summary.endAt, TRY_CONVERT(DATETIME2(3), JSON_VALUE(request_row.offer_snapshot, '$.endAt'), 127)) AS endAt,
                 COALESCE(booking_summary.bookingCount, TRY_CONVERT(INT, JSON_VALUE(request_row.offer_snapshot, '$.numberOfSessions')), 1) AS numberOfSessions,
-                COALESCE(TRY_CONVERT(INT, JSON_VALUE(request_row.offer_snapshot, '$.numberOfParticipants')), 1) AS numberOfParticipants
+                COALESCE(TRY_CONVERT(INT, JSON_VALUE(request_row.offer_snapshot, '$.numberOfParticipants')), 1) AS numberOfParticipants,
+                request_row.experience_level AS experienceLevel,
+                request_row.background AS background,
+                request_row.expectations AS expectations,
+                mentee.email AS menteeEmail
             FROM dbo.mentorship_requests request_row
             JOIN dbo.users mentee ON mentee.id = request_row.mentee_id
             LEFT JOIN dbo.service_offerings offering

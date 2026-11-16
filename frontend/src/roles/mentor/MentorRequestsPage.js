@@ -12,6 +12,13 @@ const normalize = value => String(value ?? '').normalize('NFD').replace(/[\u0300
 
 const REQUESTS_PAGE_SIZE = 8;
 
+const EXPERIENCE_LABELS = {
+  BEGINNER: 'Beginner — just starting out',
+  JUNIOR: 'Junior — some experience',
+  MID: 'Mid-level — working professionally',
+  SENIOR: 'Senior — deep experience'
+};
+
 export function filterMentorBookings(requests, { query = '', status = 'ALL', type = 'ALL' } = {}) {
   const normalizedQuery = normalize(query);
   return (Array.isArray(requests) ? requests : []).filter(request => {
@@ -119,7 +126,10 @@ export function MentorRequestsPage() {
         <div><dt class="text-sm font-semibold text-ink">Booking type</dt><dd id="request-dialog-type" class="mt-1 text-sm text-muted"></dd></div>
         <div><dt class="text-sm font-semibold text-ink">Current status</dt><dd id="request-dialog-status" class="mt-1 text-sm text-muted"></dd></div>
         <div><dt class="text-sm font-semibold text-ink">Submitted</dt><dd id="request-dialog-submitted" class="mt-1 text-sm text-muted"></dd></div>
-        <div class="sm:col-span-2"><dt class="text-sm font-semibold text-ink">Agenda / learning goals</dt><dd id="request-dialog-goals" class="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-muted"></dd></div>
+        <div id="request-dialog-experience-wrap"><dt class="text-sm font-semibold text-ink">Experience level</dt><dd id="request-dialog-experience" class="mt-1 text-sm text-muted"></dd></div>
+        <div id="request-dialog-goal-wrap" class="sm:col-span-2 hidden"><dt class="text-sm font-semibold text-ink">Mentorship goal</dt><dd id="request-dialog-goal" class="mt-1 text-sm text-muted"></dd></div>
+        <div id="request-dialog-timeline-wrap" class="sm:col-span-2 hidden"><dt class="text-sm font-semibold text-ink">Target timeline</dt><dd id="request-dialog-timeline" class="mt-1 text-sm text-muted"></dd></div>
+        <div class="sm:col-span-2"><dt id="request-dialog-goals-label" class="text-sm font-semibold text-ink">Agenda / learning goals</dt><dd id="request-dialog-goals" class="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-muted"></dd></div>
         <div><dt id="request-dialog-date-label" class="text-sm font-semibold text-ink">Schedule / deadline</dt><dd id="request-dialog-deadline" class="mt-1 text-sm text-muted"></dd></div>
         <div id="request-dialog-attendees-wrap"><dt class="text-sm font-semibold text-ink">Sessions and participants</dt><dd id="request-dialog-attendees" class="mt-1 text-sm text-muted"></dd></div>
         <div id="request-dialog-reason-wrap" class="sm:col-span-2 hidden rounded-xl border border-rose-200 bg-rose-50 p-4">
@@ -457,7 +467,12 @@ export function initializeMentorRequestsPage() {
 
   function openDetails(request) {
     activeRequestId = String(request.id);
-    root.querySelector('#request-dialog-mentee').textContent = request.menteeName || 'Mentee unavailable';
+    const menteeEl = root.querySelector('#request-dialog-mentee');
+    if (menteeEl) {
+      menteeEl.textContent = request.menteeEmail
+        ? `${request.menteeName || 'Mentee'} (${request.menteeEmail})`
+        : request.menteeName || 'Mentee unavailable';
+    }
     root.querySelector('#request-dialog-package').textContent = request.packageName || 'Offering unavailable';
     root.querySelector('#request-dialog-type').textContent = requestTypeLabel(request.serviceType);
     root.querySelector('#request-dialog-goals').textContent = request.learningGoals || 'No goals provided.';
@@ -465,6 +480,45 @@ export function initializeMentorRequestsPage() {
     root.querySelector('#request-dialog-status').textContent = REQUEST_STATUS_LABELS[lifecycleStatus] || lifecycleStatus || 'Unknown';
     root.querySelector('#request-dialog-submitted').textContent = formatUtcDate(request.submittedAt);
     const oneOff = request.serviceType === 'ONE_OFF';
+
+    const expEl = root.querySelector('#request-dialog-experience');
+    const expWrap = root.querySelector('#request-dialog-experience-wrap');
+    if (expEl && expWrap) {
+      if (request.experienceLevel) {
+        expEl.textContent = EXPERIENCE_LABELS[request.experienceLevel] || request.experienceLevel;
+        expWrap.hidden = false;
+      } else {
+        expWrap.hidden = true;
+      }
+    }
+
+    const goalWrap = root.querySelector('#request-dialog-goal-wrap');
+    const goalEl = root.querySelector('#request-dialog-goal');
+    if (goalWrap && goalEl) {
+      if (request.background) {
+        goalEl.textContent = request.background;
+        goalWrap.classList.remove('hidden');
+      } else {
+        goalWrap.classList.add('hidden');
+      }
+    }
+
+    const timelineWrap = root.querySelector('#request-dialog-timeline-wrap');
+    const timelineEl = root.querySelector('#request-dialog-timeline');
+    if (timelineWrap && timelineEl) {
+      if (request.expectations) {
+        timelineEl.textContent = request.expectations;
+        timelineWrap.classList.remove('hidden');
+      } else {
+        timelineWrap.classList.add('hidden');
+      }
+    }
+
+    const goalsLabel = root.querySelector('#request-dialog-goals-label');
+    if (goalsLabel) {
+      goalsLabel.textContent = oneOff ? 'Discussion agenda' : 'Message / learning goals';
+    }
+
     root.querySelector('#request-dialog-date-label').textContent = oneOff ? 'Session schedule' : 'Response deadline';
     root.querySelector('#request-dialog-deadline').textContent = oneOff
       ? formatSchedule(request)

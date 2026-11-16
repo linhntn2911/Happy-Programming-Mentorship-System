@@ -355,6 +355,7 @@ public class MentorshipRequestService {
                     SELECT r.id, r.mentor_id, mentor.full_name AS mentor_name,
                            COALESCE(JSON_VALUE(r.offer_snapshot, '$.name'), offering.name, 'Monthly Mentorship') AS package_name,
                            r.learning_goals,
+                           r.experience_level,
                            CASE
                                WHEN r.status IN ('REJECTED','EXPIRED','CANCELLED') THEN r.status
                                WHEN r.status = 'PENDING' AND r.response_deadline IS NOT NULL AND r.response_deadline <= SYSUTCDATETIME()
@@ -436,7 +437,7 @@ public class MentorshipRequestService {
         String sql = cte + """
                  SELECT id, mentor_id, mentor_name, package_name, learning_goals, status,
                         submitted_at, responded_at, response_deadline, funded_at,
-                        rejection_reason, payment_status, payment_expires_at
+                        rejection_reason, payment_status, payment_expires_at, experience_level
                  FROM app_rows
                 """ + filterPredicate + " ORDER BY submitted_at DESC, id DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY";
 
@@ -459,7 +460,8 @@ public class MentorshipRequestService {
                 toInstant(rs.getTimestamp("funded_at")),
                 rs.getString("rejection_reason"),
                 rs.getString("payment_status"),
-                toInstant(rs.getTimestamp("payment_expires_at"))), listArgs);
+                toInstant(rs.getTimestamp("payment_expires_at")),
+                rs.getString("experience_level")), listArgs);
         return new MenteeApplicationPageDto(applications, totalElements, totalPages, page, size);
     }
 
@@ -600,6 +602,7 @@ public class MentorshipRequestService {
 
         String sql = """
             SELECT r.id, r.mentee_id, r.mentor_id, r.service_id, r.service_type, r.status, r.learning_goals,
+                   r.experience_level, r.background, r.expectations,
                    r.offer_snapshot, r.funded_at, r.submitted_at,
                    mu.full_name AS mentor_name,
                    mp.job_title AS mentor_title,
@@ -736,7 +739,8 @@ public class MentorshipRequestService {
                         ? Math.max(0L, remaining.longValue())
                         : null,
                 (String) row.get("mentor_slug"),
-                row.get("service_id") == null ? null : ((Number) row.get("service_id")).longValue()
+                row.get("service_id") == null ? null : ((Number) row.get("service_id")).longValue(),
+                (String) row.get("experience_level")
         );
     }
 

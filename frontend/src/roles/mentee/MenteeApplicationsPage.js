@@ -26,6 +26,12 @@ const STATUS_LABELS = {
   CANCELLED: 'Cancelled',
   DISPUTED: 'Disputed'
 };
+const EXPERIENCE_LABELS = {
+  BEGINNER: 'Beginner — just starting out',
+  JUNIOR: 'Junior — some experience',
+  MID: 'Mid-level — working professionally',
+  SENIOR: 'Senior — deep experience'
+};
 const dateLabel = value => {
   if (!value) return '—';
   const str = String(value).trim();
@@ -444,7 +450,10 @@ export async function mountMenteeApplications(root) {
       const rejectionReasonBlock = (status === 'REJECTED' || booking.rejectionReason)
         ? `<div class="p-4 text-sm bg-rose-50/80"><span class="font-semibold text-rose-900">Reason for declining</span><p class="mt-1 whitespace-pre-wrap text-rose-800">${esc(booking.rejectionReason || 'No reason specified by mentor.')}</p></div>`
         : '';
-      dialog.innerHTML = `<button class="modal-close" type="button" aria-label="Close"><span aria-hidden="true">×</span></button><p class="eyebrow mt-4">BOOKING DETAILS</p><h2 class="mt-2 font-display text-3xl text-ink">${esc(booking.packageName || 'Mentorship')}</h2><p class="mt-2 text-sm text-muted">with ${esc(booking.mentorName || 'Mentor')}</p><div class="mt-6 divide-y divide-line rounded-xl border border-line bg-cream"><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Status</span><span class="status-badge ${badgeClass}">${esc(STATUS_LABELS[status] || status)}</span></div><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Submitted</span><strong>${esc(dateLabel(booking.submittedAt))}</strong></div><div class="p-4 text-sm"><span class="text-muted">Learning goals</span><p class="mt-2 whitespace-pre-wrap text-ink">${esc(booking.learningGoals || 'No learning goals provided.')}</p></div>${rejectionReasonBlock}<div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Payment</span><strong>${esc(booking.latestPaymentStatus || 'Not started')}</strong></div></div><div class="mt-6 flex flex-wrap justify-end gap-3">${cancel}${action}</div>`;
+      const expBlock = booking.experienceLevel
+        ? `<div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Experience level</span><strong>${esc(EXPERIENCE_LABELS[booking.experienceLevel] || booking.experienceLevel)}</strong></div>`
+        : '';
+      dialog.innerHTML = `<button class="modal-close" type="button" aria-label="Close"><span aria-hidden="true">×</span></button><p class="eyebrow mt-4">BOOKING DETAILS</p><h2 class="mt-2 font-display text-3xl text-ink">${esc(booking.packageName || 'Mentorship')}</h2><p class="mt-2 text-sm text-muted">with ${esc(booking.mentorName || 'Mentor')}</p><div class="mt-6 divide-y divide-line rounded-xl border border-line bg-cream"><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Status</span><span class="status-badge ${badgeClass}">${esc(STATUS_LABELS[status] || status)}</span></div><div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Submitted</span><strong>${esc(dateLabel(booking.submittedAt))}</strong></div>${expBlock}<div class="p-4 text-sm"><span class="text-muted">Learning goals</span><p class="mt-2 whitespace-pre-wrap text-ink">${esc(booking.learningGoals || 'No learning goals provided.')}</p></div>${rejectionReasonBlock}<div class="flex justify-between gap-4 p-4 text-sm"><span class="text-muted">Payment</span><strong>${esc(booking.latestPaymentStatus || 'Not started')}</strong></div></div><div class="mt-6 flex flex-wrap justify-end gap-3">${cancel}${action}</div>`;
       results.append(dialog);
       const close = () => { if (dialog.open) dialog.close(); dialog.remove(); };
       dialog.querySelector('.modal-close').addEventListener('click', close);

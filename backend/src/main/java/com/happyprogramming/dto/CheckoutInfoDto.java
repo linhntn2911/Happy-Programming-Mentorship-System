@@ -33,7 +33,8 @@ public record CheckoutInfoDto(
         Instant serverNow,
         Long paymentRemainingSeconds,
         String mentorSlug,
-        Long serviceOfferingId
+        Long serviceOfferingId,
+        String experienceLevel
 ) {
     public CheckoutInfoDto(Long requestId, Long mentorId, String mentorName, String mentorTitle,
                            String mentorAvatarUrl, String packageName, String serviceType, BigDecimal amount, String currency,
@@ -43,6 +44,6 @@ public record CheckoutInfoDto(
         this(requestId, mentorId, mentorName, mentorTitle, mentorAvatarUrl, packageName, serviceType, amount, currency,
                 sessionDurationMinutes, callsPerPeriod, learningGoals, status, isPaid, paymentStatus,
                 paymentExpiresAt, paymentReference, priceAvailable, null, null, null, null,
-                null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null);
     }
 }

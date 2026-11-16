@@ -57,7 +57,15 @@ function headerHtml(user) {
   `;
 }
 
+const EXPERIENCE_LABELS = {
+  BEGINNER: 'Beginner — just starting out',
+  JUNIOR: 'Junior — some experience',
+  MID: 'Mid-level — working professionally',
+  SENIOR: 'Senior — deep experience'
+};
+
 export function checkoutFacts(info, isOneOff) {
+  const expLabel = info.experienceLevel ? (EXPERIENCE_LABELS[info.experienceLevel] || info.experienceLevel) : '';
   if (isOneOff) {
     const start = info.sessionStartAt ? formatDate(info.sessionStartAt) : 'Reserved time';
     const schedule = info.sessionEndAt ? `${start} – ${formatDate(info.sessionEndAt)}` : start;
@@ -69,6 +77,7 @@ export function checkoutFacts(info, isOneOff) {
       <div><dt class="text-xs text-muted">Session length</dt><dd class="mt-1 font-semibold text-ink">${duration} minutes</dd></div>
       <div><dt class="text-xs text-muted">Sessions booked</dt><dd class="mt-1 font-semibold text-ink">${sessions}</dd></div>
       <div><dt class="text-xs text-muted">Participants</dt><dd class="mt-1 font-semibold text-ink">${participants}</dd></div>
+      ${expLabel ? `<div><dt class="text-xs text-muted">Experience level</dt><dd class="mt-1 font-semibold text-ink">${esc(expLabel)}</dd></div>` : ''}
       <div><dt class="text-xs text-muted">Booking</dt><dd class="mt-1 font-semibold text-ink">#${esc(info.requestId)}</dd></div>
     </dl>`;
   }
@@ -76,6 +85,7 @@ export function checkoutFacts(info, isOneOff) {
     <div><dt class="text-xs text-muted">Mentor sessions</dt><dd class="mt-1 font-semibold text-ink">${Number(info.callsPerPeriod) || 4} calls / month</dd></div>
     <div><dt class="text-xs text-muted">Session length</dt><dd class="mt-1 font-semibold text-ink">${Number(info.sessionDurationMinutes) || 45} minutes</dd></div>
     <div><dt class="text-xs text-muted">Billing period</dt><dd class="mt-1 font-semibold text-ink">Monthly</dd></div>
+    ${expLabel ? `<div><dt class="text-xs text-muted">Experience level</dt><dd class="mt-1 font-semibold text-ink">${esc(expLabel)}</dd></div>` : ''}
     <div><dt class="text-xs text-muted">Application</dt><dd class="mt-1 font-semibold text-ink">#${esc(info.requestId)}</dd></div>
   </dl>`;
 }

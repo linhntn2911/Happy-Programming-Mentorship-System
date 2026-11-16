@@ -181,7 +181,11 @@ public class MentorDashboardService {
                 toInstant(request.getEndAt()),
                 request.getNumberOfSessions(),
                 request.getNumberOfParticipants(),
-                request.getRejectionReason());
+                request.getRejectionReason(),
+                request.getExperienceLevel(),
+                request.getBackground(),
+                request.getExpectations(),
+                request.getMenteeEmail());
     }
 
     private static MentorSystemNotice toNotice(MentorSystemNoticeProjection notice) {

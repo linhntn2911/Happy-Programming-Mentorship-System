@@ -34,4 +34,20 @@ public interface MentorDashboardRequestProjection {
     Integer getNumberOfSessions();
 
     Integer getNumberOfParticipants();
+
+    default String getExperienceLevel() {
+        return null;
+    }
+
+    default String getBackground() {
+        return null;
+    }
+
+    default String getExpectations() {
+        return null;
+    }
+
+    default String getMenteeEmail() {
+        return null;
+    }
 }
