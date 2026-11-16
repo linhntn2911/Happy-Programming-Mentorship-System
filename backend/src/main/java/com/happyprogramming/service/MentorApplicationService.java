@@ -144,6 +144,11 @@ public class MentorApplicationService {
         a.submit(now);
         if ("INACTIVE".equals(user.getStatus()) && user.getEmailVerifiedAt() == null) user.activateEmail(now);
         user.recordLogin(now);
+        try {
+            notifications.notifyRole("STAFF", "New Mentor Application",
+                    "A new mentor application has been submitted by " + user.getFullName() + ". Please review it in Mentor Applications.",
+                    "MENTOR_APPLICATION", "#/staff/mentor-applications");
+        } catch (Exception ignored) {}
         return new Verification(response(a,user), AuthenticatedUser.from(user), null);
     }
     @Transactional

@@ -6,6 +6,8 @@ import com.happyprogramming.repository.NotificationRepository;
 
 import com.happyprogramming.dto.NotificationDto.NotificationListResponse;
 import com.happyprogramming.dto.NotificationDto.NotificationHistoryResponse;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -19,11 +21,33 @@ import java.util.List;
 public class NotificationService {
 
     private final NotificationRepository notifications;
+    private final JdbcTemplate jdbc;
     private final Clock clock;
 
     public NotificationService(NotificationRepository notifications, Clock clock) {
+        this(notifications, null, clock);
+    }
+
+    @Autowired
+    public NotificationService(NotificationRepository notifications, @Autowired(required = false) JdbcTemplate jdbc, Clock clock) {
         this.notifications = notifications;
+        this.jdbc = jdbc;
         this.clock = clock;
+    }
+
+    @Transactional
+    public void notifyRole(String role, String title, String message, String type, String actionUrl) {
+        if (role == null || role.isBlank() || jdbc == null) return;
+        try {
+            List<Long> userIds = jdbc.queryForList("""
+                    SELECT u.id FROM dbo.users u
+                    WHERE u.status = 'ACTIVE'
+                      AND (u.role_code = ? OR EXISTS (SELECT 1 FROM dbo.user_roles r WHERE r.user_id = u.id AND r.role_code = ?))
+                    """, Long.class, role.toUpperCase(), role.toUpperCase());
+            for (Long uid : userIds) {
+                create(uid, title, message, type, actionUrl);
+            }
+        } catch (Exception ignored) {}
     }
 
     @Transactional

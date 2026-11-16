@@ -219,6 +219,53 @@ public class DisputeService {
         int changed = jdbc.update("UPDATE dbo." + ("ONE_OFF".equals(finalType) ? "bookings" : "subscriptions")
                 + " SET status='DISPUTED',updated_at=SYSUTCDATETIME() WHERE id=? AND status=?", finalTargetId, target.status());
         if (changed != 1) throw new ResponseStatusException(HttpStatus.CONFLICT, "The service changed while the dispute was being submitted.");
+
+        // In-app notifications for Mentee, Mentor, and Staff
+        try {
+            jdbc.update("""
+                    INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
+                    VALUES (?, 'Dispute Submitted', ?, 'DISPUTE', '#/disputes', 0, SYSUTCDATETIME())
+                    """, menteeId, "Your dispute ticket #" + ticket + " has been submitted. Platform staff will review your case.");
+
+            jdbc.update("""
+                    INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
+                    VALUES (?, 'New Dispute Filed', ?, 'DISPUTE', '#/mentor/disputes', 0, SYSUTCDATETIME())
+                    """, target.mentorId(), "A mentee has submitted a dispute (Ticket #" + ticket + ") regarding your session. Please review and provide your statement.");
+
+            List<Long> staffIds = jdbc.queryForList("""
+                    SELECT u.id FROM dbo.users u
+                    WHERE u.status = 'ACTIVE'
+                      AND (u.role_code = 'STAFF' OR EXISTS (SELECT 1 FROM dbo.user_roles r WHERE r.user_id = u.id AND r.role_code = 'STAFF'))
+                    """, Long.class);
+            for (Long sId : staffIds) {
+                jdbc.update("""
+                        INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
+                        VALUES (?, 'New Dispute Ticket #' + ?, ?, 'DISPUTE', '#/staff/reports', 0, SYSUTCDATETIME())
+                        """, sId, ticket, "A new dispute case #" + ticket + " (" + normalizedCategory + ") has been submitted and is awaiting staff review.");
+            }
+        } catch (Exception ignored) {}
+
+        // Email notification to mentor
+        if (emailService != null) {
+            try {
+                var mentorRows = jdbc.queryForList("SELECT email, full_name FROM dbo.users WHERE id = ?", target.mentorId());
+                if (!mentorRows.isEmpty()) {
+                    String mentorEmail = (String) mentorRows.get(0).get("email");
+                    String mentorName = (String) mentorRows.get(0).get("full_name");
+                    if (mentorEmail != null && !mentorEmail.isBlank()) {
+                        String subject = "[HappyProgramming] New Dispute Filed · Case #" + ticket;
+                        String emailBody = "Hello " + (mentorName != null ? mentorName : "Mentor") + ",\n\n"
+                                + "A mentee has submitted a dispute case #" + ticket + " regarding your mentorship session.\n"
+                                + "Category: " + normalizedCategory + "\n\n"
+                                + "Please visit your Mentor Workspace to review details and provide your explanation / counter-evidence:\n"
+                                + "https://happyprogramming-web.onrender.com/#/mentor/disputes\n\n"
+                                + "Best regards,\nHappyProgramming Support Team";
+                        emailService.sendNotification(mentorEmail, subject, emailBody);
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
         return detail(disputeId);
     }
 

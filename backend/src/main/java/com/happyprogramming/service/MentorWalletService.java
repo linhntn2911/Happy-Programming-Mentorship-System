@@ -259,6 +259,41 @@ public class MentorWalletService {
         audit(db, mentorId, "MENTOR_PAYOUT_REQUESTED", key.id(), null,
                 "{\"status\":\"REQUESTED\",\"amount\":\"" + amount.toPlainString() + "\"}",
                 "Mentor requested a wallet payout.", remoteAddress);
+
+        try {
+            String mentorName = db.queryForObject("SELECT full_name FROM dbo.users WHERE id=?", String.class, mentorId);
+            String displayMentor = mentorName != null && !mentorName.isBlank() ? mentorName : "A mentor";
+
+            List<Long> adminIds = db.queryForList("""
+                    SELECT u.id FROM dbo.users u
+                    WHERE u.status = 'ACTIVE'
+                      AND (u.role_code = 'ADMIN' OR EXISTS (SELECT 1 FROM dbo.user_roles r WHERE r.user_id = u.id AND r.role_code = 'ADMIN'))
+                    """, Long.class);
+            for (Long aId : adminIds) {
+                db.update("""
+                        INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
+                        VALUES (?, 'New Payout Request', ?, 'PAYOUT', '#/admin/payouts', 0, SYSUTCDATETIME())
+                        """, aId, displayMentor + " has requested a payout of " + amount.toPlainString() + " VND. Please review and process the transfer.");
+            }
+
+            List<Long> staffIds = db.queryForList("""
+                    SELECT u.id FROM dbo.users u
+                    WHERE u.status = 'ACTIVE'
+                      AND (u.role_code = 'STAFF' OR EXISTS (SELECT 1 FROM dbo.user_roles r WHERE r.user_id = u.id AND r.role_code = 'STAFF'))
+                    """, Long.class);
+            for (Long sId : staffIds) {
+                db.update("""
+                        INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
+                        VALUES (?, 'New Payout Request', ?, 'PAYOUT', '#/staff/payouts', 0, SYSUTCDATETIME())
+                        """, sId, displayMentor + " has requested a payout of " + amount.toPlainString() + " VND.");
+            }
+
+            db.update("""
+                    INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
+                    VALUES (?, 'Payout Request Submitted', ?, 'PAYOUT', '#/mentor/wallet', 0, SYSUTCDATETIME())
+                    """, mentorId, "Your payout request of " + amount.toPlainString() + " VND has been submitted and is awaiting administrator processing.");
+        } catch (Exception ignored) {}
+
         return db.queryForObject(
                 """
                         SELECT id,amount,fee_amount,bank_name,account_name,account_last4,status,transfer_reference,
