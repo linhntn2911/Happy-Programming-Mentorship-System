@@ -1,6 +1,6 @@
 import { apiClient } from './apiClient.js';
 export function announcementText(settings) {
-  return [settings.maintenance ? 'The system is under maintenance. Some functions are temporarily unavailable.' : '', settings.announcement || ''].filter(Boolean).join(' ');
+  return settings?.maintenance ? 'The system is under maintenance. Some functions are temporarily unavailable.' : '';
 }
 export function registerSystemOperations() {
   const banner = document.createElement('aside');

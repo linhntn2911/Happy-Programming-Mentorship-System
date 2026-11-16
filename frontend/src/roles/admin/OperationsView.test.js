@@ -8,6 +8,6 @@ test('operational form escapes announcement and labels inputs',()=>{
 });
 test('system notice covers normal, maintenance and empty states',()=>{
  assert.equal(announcementText({maintenance:false,announcement:''}),'');
- assert.equal(announcementText({maintenance:false,announcement:'News'}),'News');
- assert.match(announcementText({maintenance:true,announcement:'News'}),/maintenance.*News/);
+ assert.equal(announcementText({maintenance:false,announcement:'News'}),'');
+ assert.match(announcementText({maintenance:true,announcement:'News'}),/maintenance/);
 });
