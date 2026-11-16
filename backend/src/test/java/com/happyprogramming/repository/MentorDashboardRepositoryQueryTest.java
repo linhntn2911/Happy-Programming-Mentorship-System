@@ -56,7 +56,7 @@ class MentorDashboardRepositoryQueryTest {
     @Test
     void decisionQueryIsOneOwnerAndDeadlineGuardedTransition() throws Exception {
         Method method = MentorshipRequestRepository.class.getMethod(
-                "transitionPendingRequest", Long.class, Long.class, String.class);
+                "transitionPendingRequest", Long.class, Long.class, String.class, String.class);
         String query = method.getAnnotation(Query.class).value().toLowerCase(java.util.Locale.ROOT);
 
         assertTrue(query.contains("where id = :requestid"));

@@ -166,7 +166,7 @@ public interface MentorDashboardRepository extends JpaRepository<MentorshipReque
             OUTER APPLY (
                 SELECT TOP (1) d.id AS dispute_id
                 FROM dbo.disputes d
-                WHERE (d.mentor_id = request_row.mentor_id
+                WHERE (d.respondent_id = request_row.mentor_id
                    AND (d.subscription_id IN (SELECT s.id FROM dbo.subscriptions s WHERE s.request_id = request_row.id)
                      OR d.booking_id IN (SELECT b.id FROM dbo.bookings b WHERE TRY_CONVERT(BIGINT, JSON_VALUE(b.terms_snapshot, '$.requestId')) = request_row.id)
                      OR d.payment_id IN (SELECT p.id FROM dbo.payments p WHERE p.request_id = request_row.id))

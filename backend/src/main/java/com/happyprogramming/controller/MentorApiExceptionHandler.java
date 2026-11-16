@@ -25,7 +25,7 @@ public class MentorApiExceptionHandler {
 
     @ExceptionHandler({DataAccessException.class, TransactionSystemException.class})
     public ResponseEntity<ApiResponse<Void>> handlePersistenceFailure(Exception exception) {
-        LOGGER.warn("Mentor API persistence operation failed.");
+        LOGGER.warn("Mentor API persistence operation failed: {}", exception.getMessage(), exception);
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(ApiResponse.error(
                         "Mentor data is temporarily unavailable. Please try again."));
