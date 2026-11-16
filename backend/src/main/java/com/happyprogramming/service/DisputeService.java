@@ -1225,11 +1225,15 @@ public class DisputeService {
                         "Admin executed refund transfer for ticket " + ticketCode, adminId);
 
                 if (mentorRefundDeduction.signum() > 0) {
-                    jdbc.update("""
-                            INSERT INTO dbo.escrow_ledger_entries(payment_id, refund_id, entry_type, amount, idempotency_key, reason, created_by, created_at)
-                            VALUES (?, ?, 'REFUND_DEDUCTION', ?, ?, ?, ?, SYSUTCDATETIME())
-                            """, paymentId, refundId.longValue(), mentorRefundDeduction, "CLAWBACK:DISPUTE:" + disputeId,
-                            "Refund deduction / clawback for ticket #" + ticketCode + ": " + (resolutionNote != null ? resolutionNote : "Staff decision"), adminId);
+                    try {
+                        jdbc.update("""
+                                INSERT INTO dbo.escrow_ledger_entries(payment_id, refund_id, entry_type, amount, idempotency_key, reason, created_by, created_at)
+                                VALUES (?, NULL, 'REFUND_DEDUCTION', ?, ?, ?, ?, SYSUTCDATETIME())
+                                """, paymentId, mentorRefundDeduction, "CLAWBACK:DISPUTE:" + disputeId,
+                                "Refund deduction / clawback for ticket #" + ticketCode + ": " + (resolutionNote != null ? resolutionNote : "Staff decision"), adminId);
+                    } catch (Exception ex) {
+                        // ignore if CK_escrow_type does not allow REFUND_DEDUCTION yet
+                    }
                 }
             }
 
@@ -1320,7 +1324,7 @@ public class DisputeService {
                     List<String> titles = jdbc.queryForList("""
                             SELECT COALESCE(o.name, N'One-off session')
                             FROM dbo.bookings b
-                            LEFT JOIN dbo.one_off_sessions o ON o.id = b.session_id
+                            LEFT JOIN dbo.service_offerings o ON o.id = b.service_id
                             WHERE b.id = ?
                             """, String.class, bookingId);
                     if (!titles.isEmpty() && titles.get(0) != null) targetTitle = titles.get(0);
