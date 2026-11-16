@@ -356,6 +356,8 @@ public class MentorshipRequestService {
                            COALESCE(JSON_VALUE(r.offer_snapshot, '$.name'), offering.name, 'Monthly Mentorship') AS package_name,
                            r.learning_goals,
                            r.experience_level,
+                           r.background,
+                           r.expectations,
                            CASE
                                WHEN r.status IN ('REJECTED','EXPIRED','CANCELLED') THEN r.status
                                WHEN r.status = 'PENDING' AND r.response_deadline IS NOT NULL AND r.response_deadline <= SYSUTCDATETIME()
@@ -437,7 +439,8 @@ public class MentorshipRequestService {
         String sql = cte + """
                  SELECT id, mentor_id, mentor_name, package_name, learning_goals, status,
                         submitted_at, responded_at, response_deadline, funded_at,
-                        rejection_reason, payment_status, payment_expires_at, experience_level
+                        rejection_reason, payment_status, payment_expires_at, experience_level,
+                        background, expectations
                  FROM app_rows
                 """ + filterPredicate + " ORDER BY submitted_at DESC, id DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY";
 
@@ -461,7 +464,9 @@ public class MentorshipRequestService {
                 rs.getString("rejection_reason"),
                 rs.getString("payment_status"),
                 toInstant(rs.getTimestamp("payment_expires_at")),
-                rs.getString("experience_level")), listArgs);
+                rs.getString("experience_level"),
+                rs.getString("background"),
+                rs.getString("expectations")), listArgs);
         return new MenteeApplicationPageDto(applications, totalElements, totalPages, page, size);
     }
 

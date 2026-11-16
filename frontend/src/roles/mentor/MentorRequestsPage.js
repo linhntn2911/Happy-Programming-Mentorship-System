@@ -484,19 +484,18 @@ export function initializeMentorRequestsPage() {
     const expEl = root.querySelector('#request-dialog-experience');
     const expWrap = root.querySelector('#request-dialog-experience-wrap');
     if (expEl && expWrap) {
-      if (request.experienceLevel) {
-        expEl.textContent = EXPERIENCE_LABELS[request.experienceLevel] || request.experienceLevel;
-        expWrap.hidden = false;
-      } else {
-        expWrap.hidden = true;
-      }
+      expEl.textContent = request.experienceLevel
+        ? (EXPERIENCE_LABELS[request.experienceLevel] || request.experienceLevel)
+        : 'Not specified';
+      expWrap.hidden = false;
     }
 
+    const isMonthly = request.serviceType === 'MONTHLY';
     const goalWrap = root.querySelector('#request-dialog-goal-wrap');
     const goalEl = root.querySelector('#request-dialog-goal');
     if (goalWrap && goalEl) {
-      if (request.background) {
-        goalEl.textContent = request.background;
+      if (isMonthly || request.background) {
+        goalEl.textContent = request.background || 'Not specified';
         goalWrap.classList.remove('hidden');
       } else {
         goalWrap.classList.add('hidden');
@@ -506,8 +505,8 @@ export function initializeMentorRequestsPage() {
     const timelineWrap = root.querySelector('#request-dialog-timeline-wrap');
     const timelineEl = root.querySelector('#request-dialog-timeline');
     if (timelineWrap && timelineEl) {
-      if (request.expectations) {
-        timelineEl.textContent = request.expectations;
+      if (isMonthly || request.expectations) {
+        timelineEl.textContent = request.expectations || 'Not specified';
         timelineWrap.classList.remove('hidden');
       } else {
         timelineWrap.classList.add('hidden');

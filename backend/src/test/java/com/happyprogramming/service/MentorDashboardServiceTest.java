@@ -311,6 +311,11 @@ class MentorDashboardServiceTest {
         @Override public LocalDateTime getEndAt() { return endAt; }
         @Override public Integer getNumberOfSessions() { return numberOfSessions; }
         @Override public Integer getNumberOfParticipants() { return numberOfParticipants; }
+        @Override public String getRejectionReason() { return null; }
+        @Override public String getExperienceLevel() { return "BEGINNER"; }
+        @Override public String getBackground() { return null; }
+        @Override public String getExpectations() { return null; }
+        @Override public String getMenteeEmail() { return null; }
     }
 
     private record DecisionProjection(Long id, String status, LocalDateTime respondedAt)

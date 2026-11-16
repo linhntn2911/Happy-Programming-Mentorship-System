@@ -19,9 +19,7 @@ public interface MentorDashboardRequestProjection {
 
     String getLifecycleStatus();
 
-    default String getRejectionReason() {
-        return null;
-    }
+    String getRejectionReason();
 
     LocalDateTime getSubmittedAt();
 
@@ -35,19 +33,11 @@ public interface MentorDashboardRequestProjection {
 
     Integer getNumberOfParticipants();
 
-    default String getExperienceLevel() {
-        return null;
-    }
+    String getExperienceLevel();
 
-    default String getBackground() {
-        return null;
-    }
+    String getBackground();
 
-    default String getExpectations() {
-        return null;
-    }
+    String getExpectations();
 
-    default String getMenteeEmail() {
-        return null;
-    }
+    String getMenteeEmail();
 }
