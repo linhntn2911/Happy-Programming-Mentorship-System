@@ -298,7 +298,7 @@ export function mountAdmin(root, section = 'overview') {
   }
   function exportCsv() {
     const quote = value => '"' + String(value).replace(/^[=+@-]/, char => "'" + char).replaceAll('"', '""') + '"';
-    const rows = [['Reference', 'Paid at (UTC)', 'Gross VND', 'Commission VND', 'Rate %'], ...revenue(data.payments, state.from, state.to).payments.map(p => [p.reference, p.paidAt, p.amount, paymentCommission(p), p.commissionRate])];
+    const rows = [['Reference', 'Paid at', 'Gross VND', 'Commission VND', 'Rate %'], ...revenue(data.payments, state.from, state.to).payments.map(p => [p.reference, p.paidAt, p.amount, paymentCommission(p), p.commissionRate])];
     const url = URL.createObjectURL(new Blob(['\uFEFF' + rows.map(row => row.map(quote).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a'); link.href = url; link.download = 'happyprogramming-revenue.csv'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }

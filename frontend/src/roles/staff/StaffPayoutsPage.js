@@ -90,7 +90,7 @@ export function StaffPayoutsPage(requests = [], user = null, notice = null, page
       <div id="staff-payouts-table-container">
         ${DataTable({
           caption: 'Pending mentor payout requests',
-          headings: ['Mentor', 'Amount', 'Bank destination', 'Requested (UTC)', 'Actions'],
+          headings: ['Mentor', 'Amount', 'Bank destination', 'Requested', 'Actions'],
           rows,
           empty
         })}

@@ -5,7 +5,19 @@ export const PERMISSIONS = {
   SKILL_MANAGE: 'Manage technical skills',
 };
 export const money = value => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(Number(value) || 0);
-export const dateTime = value => value ? new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }).format(new Date(value)) + ' UTC' : 'Not available';
+export const dateTime = value => {
+  if (!value) return 'Not available';
+  const str = String(value).trim();
+  const utcStr = (str.includes('T') && !str.endsWith('Z') && !/[+-]\d{2}(:\d{2})?$/.test(str))
+    ? str + 'Z'
+    : (str.includes(' ') && !str.includes('T') && !str.endsWith('Z'))
+      ? str.replace(' ', 'T') + 'Z'
+      : str;
+  const date = new Date(utcStr);
+  return Number.isNaN(date.getTime())
+    ? 'Not available'
+    : new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+};
 export function filterUsers(users, { query = '', role = '', status = '' } = {}) {
   const normalize = text => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLowerCase();
   const words = normalize(query.trim()).split(/\s+/).filter(Boolean);

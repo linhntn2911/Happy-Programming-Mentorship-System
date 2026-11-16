@@ -602,7 +602,7 @@ export async function mountStaffList(root, kind) {
                   <th scope="col">Mentor</th>
                   <th scope="col">Status</th>
                   <th scope="col">Learning goals</th>
-                  <th scope="col">Created (UTC)</th>
+                  <th scope="col">Created</th>
                   <th scope="col">Action</th>
                 </tr>
               </thead>

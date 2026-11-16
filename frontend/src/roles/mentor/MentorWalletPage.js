@@ -8,7 +8,19 @@ import { StatusBadge } from '../admin/AdminPrimitives.js';
 import { renderBankSelectOptions, findMatchingBank } from '../../shared/vietnamBanks.js';
 
 const money = value => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Number(value || 0)) + ' VND';
-const dateTime = value => value ? new Date(value).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }) + ' UTC' : '—';
+const dateTime = value => {
+  if (!value) return '—';
+  const str = String(value).trim();
+  const utcStr = (str.includes('T') && !str.endsWith('Z') && !/[+-]\d{2}(:\d{2})?$/.test(str))
+    ? str + 'Z'
+    : (str.includes(' ') && !str.includes('T') && !str.endsWith('Z'))
+      ? str.replace(' ', 'T') + 'Z'
+      : str;
+  const date = new Date(utcStr);
+  return Number.isNaN(date.getTime())
+    ? '—'
+    : date.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+};
 const TABLE_PAGE_SIZE = 8;
 
 function walletContent() {
@@ -114,7 +126,7 @@ function renderStats(wallet) {
 
 function renderEntries(entries = []) {
   if (!entries.length) return '<p class="text-sm text-muted">No released earnings or payout activity yet.</p>';
-  return `<div class="data-table-scroll"><table class="data-table"><thead><tr><th>Activity</th><th>Amount</th><th>Reference</th><th>Date (UTC)</th></tr></thead><tbody>${entries.map(entry => `<tr><td>${e(entry.type.replaceAll('_', ' '))}</td><td>${money(entry.amount)}</td><td>${e(entry.reference)}</td><td>${e(dateTime(entry.createdAt))}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<div class="data-table-scroll"><table class="data-table"><thead><tr><th>Activity</th><th>Amount</th><th>Reference</th><th>Date</th></tr></thead><tbody>${entries.map(entry => `<tr><td>${e(entry.type.replaceAll('_', ' '))}</td><td>${money(entry.amount)}</td><td>${e(entry.reference)}</td><td>${e(dateTime(entry.createdAt))}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 const PAYOUT_STATUS_LABELS = { REQUESTED: 'Pending review', APPROVED: 'Approved', PAID: 'Paid', REJECTED: 'Rejected' };

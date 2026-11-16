@@ -4,9 +4,19 @@ import { mentorDisputeService } from './mentorDisputeService.js';
 import { renderPagination, bindPagination } from '../../shared/pagination.js';
 import { escapeHtml as e } from '../../shared/html.js';
 
-const dateTime = value => value
-  ? new Date(value).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }) + ' UTC'
-  : '—';
+const dateTime = value => {
+  if (!value) return '—';
+  const str = String(value).trim();
+  const utcStr = (str.includes('T') && !str.endsWith('Z') && !/[+-]\d{2}(:\d{2})?$/.test(str))
+    ? str + 'Z'
+    : (str.includes(' ') && !str.includes('T') && !str.endsWith('Z'))
+      ? str.replace(' ', 'T') + 'Z'
+      : str;
+  const date = new Date(utcStr);
+  return Number.isNaN(date.getTime())
+    ? '—'
+    : date.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+};
 const PAGE_SIZE = 5;
 
 const STATUS_LABELS = { SUBMITTED: 'Submitted', IN_MEDIATION: 'In mediation', RESOLVED: 'Resolved', REJECTED: 'Rejected' };
