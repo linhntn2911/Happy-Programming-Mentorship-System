@@ -332,7 +332,9 @@ public class DisputeService {
                 FROM dbo.disputes d
                 JOIN dbo.files f ON f.id = d.receipt_file_id
                 WHERE d.id = ? AND (d.complainant_id = ? OR d.respondent_id = ? OR EXISTS (
-                    SELECT 1 FROM dbo.user_roles ur WHERE ur.user_id = ? AND ur.role_code IN ('ADMIN', 'STAFF')
+                    SELECT 1 FROM dbo.users u WHERE u.id = ? AND (u.role_code IN ('ADMIN', 'STAFF') OR EXISTS (
+                        SELECT 1 FROM dbo.user_roles ur WHERE ur.user_id = u.id AND ur.role_code IN ('ADMIN', 'STAFF')
+                    ))
                 ))
                 """, (rs, row) -> new DisputeFileDownload(rs.getString("original_name"), rs.getString("mime_type"),
                 rs.getLong("size_bytes"), rs.getBytes("file_content")), disputeId, userId, userId, userId);
@@ -921,15 +923,15 @@ public class DisputeService {
                     // 1. Notify Mentee
                     jdbc.update("""
                             INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
-                            VALUES (?, 'Khiếu nại #' + ? + ' đã bị từ chối', ?, 'DISPUTE', '#/disputes', 0, SYSUTCDATETIME())
-                            """, complainantId, ticketCode, "Staff đã xem xét và quyết định từ chối khiếu nại #" + ticketCode + " (Lý do: " + note + "). Khóa học được giữ nguyên trạng thái hoạt động bình thường.");
+                            VALUES (?, 'Dispute #' + ? + ' Rejected', ?, 'DISPUTE', '#/disputes', 0, SYSUTCDATETIME())
+                            """, complainantId, ticketCode, "Staff reviewed and decided to reject dispute #" + ticketCode + " (Reason: " + note + "). The mentorship continues in normal active status.");
 
                     // 2. Notify Mentor
                     if (mentorId != null) {
                         jdbc.update("""
                                 INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
-                                VALUES (?, 'Khiếu nại #' + ? + ' đã được bác bỏ (Tiếp tục khóa học)', ?, 'DISPUTE', '#/workspace', 0, SYSUTCDATETIME())
-                                """, mentorId, ticketCode, "Khiếu nại #" + ticketCode + " của học viên đã được Staff bác bỏ/từ chối (Lý do: " + note + "). Khóa học tiếp tục bình thường và các khoản đóng băng số dư đã được gỡ bỏ.");
+                                VALUES (?, 'Dispute #' + ? + ' Dismissed (Mentorship Continues)', ?, 'DISPUTE', '#/workspace', 0, SYSUTCDATETIME())
+                                """, mentorId, ticketCode, "Dispute #" + ticketCode + " filed by mentee has been dismissed by Staff (Reason: " + note + "). Mentorship continues normally and related balance holds have been released.");
                     }
 
                     // 3. Post to mediation chat
@@ -937,11 +939,11 @@ public class DisputeService {
                     if (!convRows.isEmpty()) {
                         long convId = convRows.get(0);
                         String staffNotice = String.format(
-                                "⚖ [KẾT QUẢ XỬ LÝ KHIẾU NẠI - CASE #%s]\n" +
-                                "Operational Staff (%s) đã hoàn tất đánh giá và quyết định:\n" +
-                                "• Quyết định: Bác bỏ yêu cầu khiếu nại (REJECTED / Không hoàn tiền)\n" +
-                                "• Lý do: %s\n" +
-                                "• Trạng thái khóa học: Đã khôi phục trạng thái hoạt động bình thường. Mọi hạn chế số dư liên quan đã được giải phóng.",
+                                "⚖ [DISPUTE RESOLUTION RESULT - CASE #%s]\n" +
+                                "Operational Staff (%s) has completed the review:\n" +
+                                "• Decision: Reject dispute request (REJECTED / No refund)\n" +
+                                "• Reason: %s\n" +
+                                "• Course Status: Restored to normal operation. All related balance holds have been released.",
                                 ticketCode, staffUser.name(), note);
                         String clientKey = "STAFF_REJECT_" + ticketCode + "_" + System.currentTimeMillis();
                         jdbc.update("INSERT INTO dbo.messages (conversation_id, sender_id, client_message_key, message_type, body, moderation_status, sent_at, delivered_at) VALUES (?, ?, ?, 'TEXT', ?, 'ALLOWED', SYSUTCDATETIME(), SYSUTCDATETIME())",
@@ -957,13 +959,13 @@ public class DisputeService {
                                 String email = (String) mUsers.get(0).get("email");
                                 String name = (String) mUsers.get(0).get("full_name");
                                 emailService.sendNotification(email,
-                                        "[HappyProgramming] Kết quả xử lý khiếu nại #" + ticketCode + " - Bác bỏ khiếu nại",
-                                        "Xin chào " + (name != null ? name : "Mentee") + ",\n\n"
-                                        + "Staff đã hoàn tất xem xét khiếu nại #" + ticketCode + " và quyết định từ chối yêu cầu hoàn tiền.\n\n"
-                                        + "• Lý do: " + note + "\n"
-                                        + "• Trạng thái khóa học: Được khôi phục hoạt động bình thường để tiếp tục quá trình học tập.\n\n"
-                                        + "Bạn có thể xem chi tiết hồ sơ khiếu nại tại: #/disputes\n\n"
-                                        + "Trân trọng,\nHappyProgramming Support Team");
+                                        "[HappyProgramming] Dispute #" + ticketCode + " Resolution - Rejected",
+                                        "Hello " + (name != null ? name : "Mentee") + ",\n\n"
+                                        + "Staff has completed the review of dispute #" + ticketCode + " and decided to reject the refund request.\n\n"
+                                        + "• Reason: " + note + "\n"
+                                        + "• Course Status: Restored to normal operation to continue learning.\n\n"
+                                        + "You can view full dispute details at: #/disputes\n\n"
+                                        + "Best regards,\nHappyProgramming Support Team");
                             }
                         } catch (Exception ignored) {}
 
@@ -974,14 +976,14 @@ public class DisputeService {
                                     String email = (String) mentorUsers.get(0).get("email");
                                     String name = (String) mentorUsers.get(0).get("full_name");
                                     emailService.sendNotification(email,
-                                            "[HappyProgramming] Khiếu nại #" + ticketCode + " đã được bác bỏ - Tiếp tục khóa học",
-                                            "Xin chào " + (name != null ? name : "Mentor") + ",\n\n"
-                                            + "Staff đã hoàn tất hòa giải và quyết định bác bỏ khiếu nại #" + ticketCode + " của học viên.\n\n"
-                                            + "• Kết luận: Không hoàn tiền (REJECTED)\n"
-                                            + "• Lý do: " + note + "\n"
-                                            + "• Khóa học tiếp tục trạng thái hoạt động bình thường và các khoản đóng băng số dư đã được mở khóa.\n\n"
-                                            + "Bạn có thể theo dõi tại Mentor Workspace: #/workspace\n\n"
-                                            + "Trân trọng,\nHappyProgramming Support Team");
+                                            "[HappyProgramming] Dispute #" + ticketCode + " Dismissed - Mentorship Continues",
+                                            "Hello " + (name != null ? name : "Mentor") + ",\n\n"
+                                            + "Staff has completed mediation and decided to dismiss dispute #" + ticketCode + " filed by the mentee.\n\n"
+                                            + "• Conclusion: No refund (REJECTED)\n"
+                                            + "• Reason: " + note + "\n"
+                                            + "• Mentorship status: Normal active. Balance holds have been released.\n\n"
+                                            + "You can check your Mentor Workspace at: #/workspace\n\n"
+                                            + "Best regards,\nHappyProgramming Support Team");
                                 }
                             }
                         } catch (Exception ignored) {}
@@ -989,23 +991,23 @@ public class DisputeService {
                 } else if ("RESCHEDULE".equals(request.resolutionType())) {
                     jdbc.update("""
                             INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
-                            VALUES (?, 'Khiếu nại #' + ? + ' đã được giải quyết (Đổi lịch học)', ?, 'DISPUTE', '#/applications', 0, SYSUTCDATETIME())
-                            """, complainantId, ticketCode, "Staff đã giải quyết khiếu nại #" + ticketCode + " theo phương án sắp xếp lại lịch học (Lý do: " + note + "). Buổi học đã được chuyển về trạng thái Xác nhận.");
+                            VALUES (?, 'Dispute #' + ? + ' Resolved (Rescheduled)', ?, 'DISPUTE', '#/applications', 0, SYSUTCDATETIME())
+                            """, complainantId, ticketCode, "Staff resolved dispute #" + ticketCode + " with a reschedule option (Reason: " + note + "). The session has been restored to Confirmed status.");
                     if (mentorId != null) {
                         jdbc.update("""
                                 INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
-                                VALUES (?, 'Khiếu nại #' + ? + ' đã được giải quyết (Đổi lịch học)', ?, 'DISPUTE', '#/workspace', 0, SYSUTCDATETIME())
-                                """, mentorId, ticketCode, "Staff đã giải quyết khiếu nại #" + ticketCode + " theo phương án sắp xếp lại lịch học (Lý do: " + note + "). Buổi học đã được khôi phục trạng thái hoạt động.");
+                                VALUES (?, 'Dispute #' + ? + ' Resolved (Rescheduled)', ?, 'DISPUTE', '#/workspace', 0, SYSUTCDATETIME())
+                                """, mentorId, ticketCode, "Staff resolved dispute #" + ticketCode + " with a reschedule option (Reason: " + note + "). The session has been restored to active status.");
                     }
                     List<Long> convRows = jdbc.queryForList("SELECT id FROM dbo.conversations WHERE dispute_id = ? AND conversation_type = 'MEDIATION'", Long.class, disputeId);
                     if (!convRows.isEmpty()) {
                         long convId = convRows.get(0);
                         String staffNotice = String.format(
-                                "⚖ [KẾT QUẢ XỬ LÝ KHIẾU NẠI - CASE #%s]\n" +
-                                "Operational Staff (%s) đã hoàn tất đánh giá và quyết định:\n" +
-                                "• Quyết định: Sắp xếp lại lịch học (RESCHEDULE)\n" +
-                                "• Hướng dẫn: %s\n" +
-                                "• Trạng thái: Buổi học đã được khôi phục trạng thái Xác nhận (CONFIRMED) để hai bên tiến hành học tập.",
+                                "⚖ [DISPUTE RESOLUTION RESULT - CASE #%s]\n" +
+                                "Operational Staff (%s) has completed the review:\n" +
+                                "• Decision: Reschedule session (RESCHEDULE)\n" +
+                                "• Instructions: %s\n" +
+                                "• Status: The session has been restored to CONFIRMED for both parties to proceed.",
                                 ticketCode, staffUser.name(), note);
                         String clientKey = "STAFF_RESCHEDULE_" + ticketCode + "_" + System.currentTimeMillis();
                         jdbc.update("INSERT INTO dbo.messages (conversation_id, sender_id, client_message_key, message_type, body, moderation_status, sent_at, delivered_at) VALUES (?, ?, ?, 'TEXT', ?, 'ALLOWED', SYSUTCDATETIME(), SYSUTCDATETIME())",
@@ -1350,15 +1352,15 @@ public class DisputeService {
                 if (mentorId != null) {
                     if (mentorRefundDeduction.signum() > 0) {
                         String formattedDeduction = mentorRefundDeduction.toPlainString();
-                        String mentorTitle = "[Cấn trừ số dư ví] Khiếu nại #" + ticketCode;
+                        String mentorTitle = "[Wallet Deduction] Dispute #" + ticketCode;
                         String reasonStr = resolutionNote != null && !resolutionNote.isBlank()
                                 ? resolutionNote.trim()
-                                : "Hoàn tiền cho học viên theo quyết định xử lý khiếu nại của Staff/Admin";
+                                : "Mentee refund per Staff/Admin dispute resolution";
                         String mentorMsg = String.format(
-                                "Hệ thống đã ghi nhận cấn trừ %s VND từ ví của bạn cho khiếu nại #%s.\n" +
-                                "• Khóa/Gói học: %s\n" +
-                                "• Lý do: %s\n" +
-                                "(Nếu số dư ví hiện tại chưa đủ bù trừ, khoản nợ sẽ tự động được cấn trừ khi bạn có doanh thu mới).",
+                                "The system recorded a deduction of %s VND from your wallet for dispute #%s.\n" +
+                                "• Course/Package: %s\n" +
+                                "• Reason: %s\n" +
+                                "(If current available balance is insufficient, deduction will apply to future earnings).",
                                 formattedDeduction, ticketCode, targetTitle, reasonStr);
                         jdbc.update("""
                                 INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
@@ -1408,18 +1410,18 @@ public class DisputeService {
                                 String formattedDeduction = mentorRefundDeduction.toPlainString();
                                 String reasonStr = resolutionNote != null && !resolutionNote.isBlank()
                                         ? resolutionNote.trim()
-                                        : "Hoàn tiền cho học viên theo kết luận giải quyết khiếu nại của Staff/Admin";
-                                String subject = "[HappyProgramming] Thông báo cấn trừ số dư ví - Khiếu nại #" + ticketCode;
-                                String body = "Xin chào " + (fullName != null ? fullName : "Mentor") + ",\n\n"
-                                        + "Ban Quản trị HappyProgramming xin thông báo về việc cấn trừ số dư ví liên quan đến phán quyết khiếu nại #" + ticketCode + ":\n\n"
-                                        + "• Khóa / Gói dịch vụ: " + targetTitle + "\n"
-                                        + "• Mã khiếu nại: #" + ticketCode + "\n"
-                                        + "• Số tiền cấn trừ (khấu trừ hoàn tiền): " + formattedDeduction + " VND\n"
-                                        + "• Lý do cấn trừ: " + reasonStr + "\n"
-                                        + "• Tham chiếu chuyển khoản hoàn học viên: " + transferReference + "\n\n"
-                                        + "Khoản tiền trên đã được ghi nhận giảm trừ vào số dư ví của bạn (bút toán REFUND_DEDUCTION). Nếu số dư khả dụng hiện tại chưa đủ bù trừ, hệ thống sẽ tự động trừ dần khi bạn có thêm các khoản doanh thu tiếp theo.\n\n"
-                                        + "Bạn có thể kiểm tra chi tiết biến động số dư ví tại: #/mentor/wallet\n\n"
-                                        + "Trân trọng,\nHappyProgramming Support Team";
+                                        : "Mentee refund per Staff/Admin dispute resolution";
+                                String subject = "[HappyProgramming] Wallet Deduction Notice - Dispute #" + ticketCode;
+                                String body = "Hello " + (fullName != null ? fullName : "Mentor") + ",\n\n"
+                                        + "HappyProgramming Administration is notifying you regarding a wallet balance deduction for dispute case #" + ticketCode + ":\n\n"
+                                        + "• Course / Offering: " + targetTitle + "\n"
+                                        + "• Dispute Ticket: #" + ticketCode + "\n"
+                                        + "• Deduction Amount: " + formattedDeduction + " VND\n"
+                                        + "• Reason: " + reasonStr + "\n"
+                                        + "• Bank Transfer Reference: " + transferReference + "\n\n"
+                                        + "This amount has been recorded as a wallet debit (REFUND_DEDUCTION). If your current available balance is insufficient to cover the deduction, it will be offset against future earnings.\n\n"
+                                        + "You can review your wallet transaction ledger at: #/mentor/wallet\n\n"
+                                        + "Best regards,\nHappyProgramming Support Team";
                                 emailService.sendNotification(email, subject, body);
                             } else {
                                 String subject = "[HappyProgramming] Dispute #" + ticketCode + " Resolved - Refund Completed";

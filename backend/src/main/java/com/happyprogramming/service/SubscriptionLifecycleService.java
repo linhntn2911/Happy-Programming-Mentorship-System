@@ -40,12 +40,12 @@ public class SubscriptionLifecycleService {
         int sent = 0;
         for (var target : targets) {
             try {
-                String title = "[Bảo đảm quyền lợi học tập] Khóa mentorship " + target.packageName() + " sắp hết 7 ngày bảo đảm";
+                String title = "[Learning Assurance Reminder] Mentorship package " + target.packageName() + " 7-day assurance ending soon";
                 String msg = String.format(
-                        "Gói mentorship \"%s\" cùng Mentor %s của bạn đã bước sang ngày thứ 5. " +
-                        "Trong 7 ngày đầu kể từ khi bắt đầu khóa học, toàn bộ học phí vẫn được hệ thống bảo đảm an toàn. " +
-                        "Nếu bạn gặp bất kỳ vấn đề gì về chất lượng hoặc Mentor vắng mặt, không phản hồi đúng cam kết, " +
-                        "hãy gửi Khiếu nại/Báo cáo trước thời hạn 7 ngày để được giải quyết nhanh nhất và dễ xử lý nhất.",
+                        "Your mentorship package \"%s\" with Mentor %s is on day 5. " +
+                        "During the first 7 days, your payment is held securely in escrow. " +
+                        "If you experience any quality issues or mentor inactivity, " +
+                        "please file a Dispute report before day 7 for immediate review.",
                         target.packageName(), target.mentorName());
                 String actionUrl = "#/applications?requestId=" + target.requestId();
 
@@ -57,18 +57,18 @@ public class SubscriptionLifecycleService {
                 }
 
                 if (emailService != null && target.menteeEmail() != null && !target.menteeEmail().isBlank()) {
-                    String subject = "[HappyProgramming] Nhắc nhở bảo đảm quyền lợi - 7 ngày an toàn gói Mentorship";
+                    String subject = "[HappyProgramming] Learning Assurance Reminder - 7-Day Protection Window";
                     String emailBody = String.format(
-                            "Xin chào %s,\n\n" +
-                            "Khóa mentorship \"%s\" của bạn cùng Mentor %s đã bước sang ngày thứ 5.\n\n" +
-                            "HappyProgramming muốn nhắc nhở bạn về chính sách Bảo vệ quyền lợi học viên trong 7 ngày đầu:\n" +
-                            "• Trong vòng 7 ngày kể từ khi bắt đầu khóa học, học phí vẫn được tạm giữ an toàn trên hệ thống.\n" +
-                            "• Nếu bạn gặp bất kỳ vấn đề gì (Mentor không phản hồi, không hướng dẫn đúng cam kết, bỏ buổi), " +
-                            "việc gửi Khiếu nại (Report/Dispute) trong 7 ngày đầu sẽ được Đội ngũ Vận hành hỗ trợ xử lý và hoàn tiền nhanh nhất và thuận lợi nhất.\n\n" +
-                            "Nếu bạn cần gửi khiếu nại hoặc xem thông tin khóa học, vui lòng truy cập:\n" +
+                            "Hello %s,\n\n" +
+                            "Your mentorship package \"%s\" with Mentor %s has reached day 5.\n\n" +
+                            "HappyProgramming reminds you of our 7-Day Mentee Protection policy:\n" +
+                            "• During the first 7 days, tuition is held securely in escrow.\n" +
+                            "• If you experience any issues (mentor absence, failure to meet commitments), " +
+                            "submitting a dispute report within the 7-day window enables prompt review and refund processing.\n\n" +
+                            "To inspect your package or submit a dispute, please visit:\n" +
                             "#/applications?requestId=%d\n\n" +
-                            "Chúc bạn có trải nghiệm học tập hiệu quả cùng HappyProgramming!\n\n" +
-                            "Trân trọng,\nHappyProgramming Support Team",
+                            "Have a great learning journey with HappyProgramming!\n\n" +
+                            "Best regards,\nHappyProgramming Support Team",
                             target.menteeName() != null ? target.menteeName() : "Mentee",
                             target.packageName(),
                             target.mentorName() != null ? target.mentorName() : "Mentor",
