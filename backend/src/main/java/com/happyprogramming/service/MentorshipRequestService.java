@@ -153,8 +153,7 @@ public class MentorshipRequestService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You cannot request mentorship from yourself.");
         }
 
-        List<Map<String, Object>> offerings =
-                template.queryForList(SELECT_ACTIVE_MONTHLY_OFFERINGS, mentorId);
+        List<Map<String, Object>> offerings = template.queryForList(SELECT_ACTIVE_MONTHLY_OFFERINGS, mentorId);
         if (offerings.isEmpty()) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT, "This mentor has not published a monthly mentorship package yet.");
@@ -186,7 +185,7 @@ public class MentorshipRequestService {
 
         KeyHolder keyHolder = new GeneratedKeyHolder();
         template.update(connection -> {
-            PreparedStatement ps = connection.prepareStatement(INSERT_REQUEST, new String[] {"id"});
+            PreparedStatement ps = connection.prepareStatement(INSERT_REQUEST, new String[] { "id" });
             ps.setLong(1, menteeId);
             ps.setLong(2, mentorId);
             ps.setLong(3, serviceId);
@@ -215,7 +214,8 @@ public class MentorshipRequestService {
         notificationService.create(
                 menteeId,
                 "Mentorship request submitted",
-                "Your request to " + mentorName + " was sent. They have 48 hours to respond. Track its status in My applications.",
+                "Your request to " + mentorName
+                        + " was sent. They have 48 hours to respond. Track its status in My applications.",
                 "MENTORSHIP_REQUEST_SUBMITTED",
                 "#/applications");
 
@@ -248,8 +248,8 @@ public class MentorshipRequestService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You cannot book a session with yourself.");
         }
 
-        List<Map<String, Object>> offerings =
-                template.queryForList(SELECT_ONE_OFF_OFFERING, payload.serviceOfferingId(), mentorId);
+        List<Map<String, Object>> offerings = template.queryForList(SELECT_ONE_OFF_OFFERING,
+                payload.serviceOfferingId(), mentorId);
         if (offerings.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "The selected session is no longer available. Refresh the mentor profile and choose an active session.");
@@ -287,7 +287,7 @@ public class MentorshipRequestService {
 
         KeyHolder keyHolder = new GeneratedKeyHolder();
         template.update(connection -> {
-            PreparedStatement ps = connection.prepareStatement(INSERT_ONE_OFF_REQUEST, new String[] {"id"});
+            PreparedStatement ps = connection.prepareStatement(INSERT_ONE_OFF_REQUEST, new String[] { "id" });
             ps.setLong(1, menteeId);
             ps.setLong(2, mentorId);
             ps.setLong(3, serviceId);
@@ -329,7 +329,8 @@ public class MentorshipRequestService {
         if (page < 0 || size < 1 || size > 50) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid application page or size.");
         }
-        String normalizedStatus = status == null || status.isBlank() ? null : status.trim().toUpperCase(java.util.Locale.ROOT);
+        String normalizedStatus = status == null || status.isBlank() ? null
+                : status.trim().toUpperCase(java.util.Locale.ROOT);
         if (normalizedStatus != null && !APPLICATION_STATUSES.contains(normalizedStatus)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid mentorship application status.");
         }
@@ -546,11 +547,13 @@ public class MentorshipRequestService {
         }
         Map<String, Object> row = rows.get(0);
         if (((Number) row.get("mentee_id")).longValue() != user.id()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not authorized to cancel this application.");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "You are not authorized to cancel this application.");
         }
         String status = String.valueOf(row.get("status"));
         if (!("PENDING".equals(status) || "ACCEPTED".equals(status)) || row.get("funded_at") != null) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only pending or accepted unpaid applications can be cancelled.");
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Only pending or accepted unpaid applications can be cancelled.");
         }
         Integer completedPayments = template.queryForObject("""
                 SELECT COUNT(1) FROM dbo.payments
@@ -596,8 +599,10 @@ public class MentorshipRequestService {
     @Transactional(readOnly = true)
     public CheckoutInfoDto getCheckoutInfo(Long requestId) {
         JdbcTemplate template = jdbc();
-        // The payment expiry is written with SQL Server's clock. Return that same clock so
-        // a browser with a different local time does not show a freshly-created QR as expired.
+        // The payment expiry is written with SQL Server's clock. Return that same clock
+        // so
+        // a browser with a different local time does not show a freshly-created QR as
+        // expired.
         java.sql.Timestamp databaseNow = template.queryForObject("SELECT SYSUTCDATETIME()", java.sql.Timestamp.class);
         AuthenticatedUser user = currentUser();
         if (user == null || user.id() == null) {
@@ -606,36 +611,36 @@ public class MentorshipRequestService {
         long menteeId = user.id();
 
         String sql = """
-            SELECT r.id, r.mentee_id, r.mentor_id, r.service_id, r.service_type, r.status, r.learning_goals,
-                   r.experience_level, r.background, r.expectations,
-                   r.offer_snapshot, r.funded_at, r.submitted_at,
-                   mu.full_name AS mentor_name,
-                   mp.job_title AS mentor_title,
-                   mp.slug AS mentor_slug,
-                   so.name AS package_name,
-                   so.price,
-                   so.currency,
-                   so.session_duration_minutes,
-                   so.calls_per_period,
-                   so.status AS offering_status,
-                   so.updated_at AS offering_updated_at,
-                   latest_payment.payment_status,
-                   latest_payment.payment_expires_at,
-                   latest_payment.payment_reference,
-                   CASE WHEN latest_payment.payment_expires_at IS NULL THEN NULL
-                        ELSE DATEDIFF_BIG(SECOND, SYSUTCDATETIME(), latest_payment.payment_expires_at)
-                   END AS payment_remaining_seconds
-            FROM dbo.mentorship_requests r
-            JOIN dbo.users mu ON mu.id = r.mentor_id
-            LEFT JOIN dbo.mentor_profiles mp ON mp.user_id = r.mentor_id
-            LEFT JOIN dbo.service_offerings so ON so.id = r.service_id
-            OUTER APPLY (
-                SELECT TOP (1) p.status AS payment_status, p.expires_at AS payment_expires_at,
-                       CASE WHEN p.status='PENDING' THEN p.merchant_reference END AS payment_reference
-                FROM dbo.payments p WHERE p.request_id = r.id ORDER BY p.attempt_no DESC
-            ) latest_payment
-            WHERE r.id = ?
-        """;
+                    SELECT r.id, r.mentee_id, r.mentor_id, r.service_id, r.service_type, r.status, r.learning_goals,
+                           r.experience_level, r.background, r.expectations,
+                           r.offer_snapshot, r.funded_at, r.submitted_at,
+                           mu.full_name AS mentor_name,
+                           mp.job_title AS mentor_title,
+                           mp.slug AS mentor_slug,
+                           so.name AS package_name,
+                           so.price,
+                           so.currency,
+                           so.session_duration_minutes,
+                           so.calls_per_period,
+                           so.status AS offering_status,
+                           so.updated_at AS offering_updated_at,
+                           latest_payment.payment_status,
+                           latest_payment.payment_expires_at,
+                           latest_payment.payment_reference,
+                           CASE WHEN latest_payment.payment_expires_at IS NULL THEN NULL
+                                ELSE DATEDIFF_BIG(SECOND, SYSUTCDATETIME(), latest_payment.payment_expires_at)
+                           END AS payment_remaining_seconds
+                    FROM dbo.mentorship_requests r
+                    JOIN dbo.users mu ON mu.id = r.mentor_id
+                    LEFT JOIN dbo.mentor_profiles mp ON mp.user_id = r.mentor_id
+                    LEFT JOIN dbo.service_offerings so ON so.id = r.service_id
+                    OUTER APPLY (
+                        SELECT TOP (1) p.status AS payment_status, p.expires_at AS payment_expires_at,
+                               CASE WHEN p.status='PENDING' THEN p.merchant_reference END AS payment_reference
+                        FROM dbo.payments p WHERE p.request_id = r.id ORDER BY p.attempt_no DESC
+                    ) latest_payment
+                    WHERE r.id = ?
+                """;
 
         List<Map<String, Object>> rows = template.queryForList(sql, requestId);
         if (rows.isEmpty()) {
@@ -653,7 +658,9 @@ public class MentorshipRequestService {
 
         BigDecimal amount = null;
         String currency = "VND";
-        Integer duration = row.get("session_duration_minutes") != null ? ((Number) row.get("session_duration_minutes")).intValue() : 45;
+        Integer duration = row.get("session_duration_minutes") != null
+                ? ((Number) row.get("session_duration_minutes")).intValue()
+                : 45;
         Integer calls = row.get("calls_per_period") != null ? ((Number) row.get("calls_per_period")).intValue() : 4;
         String packageName = row.get("package_name") != null ? (String) row.get("package_name") : "Monthly Mentorship";
         Integer numberOfSessions = null;
@@ -667,7 +674,8 @@ public class MentorshipRequestService {
             try {
                 var json = objectMapper.readTree(offerSnapshot);
                 var amountNode = "ONE_OFF".equals(row.get("service_type"))
-                        ? json.get("totalPrice") : json.get("price");
+                        ? json.get("totalPrice")
+                        : json.get("price");
                 if (amountNode != null && !amountNode.isNull()) {
                     BigDecimal snapshotPrice = new BigDecimal(amountNode.asText());
                     if (snapshotPrice.compareTo(BigDecimal.ZERO) > 0 && snapshotPrice.scale() <= 2) {
@@ -675,17 +683,22 @@ public class MentorshipRequestService {
                         priceAvailable = true;
                     }
                 }
-                if (json.has("currency")) currency = json.get("currency").asText();
-                if (json.has("sessionDurationMinutes")) duration = json.get("sessionDurationMinutes").asInt();
-                if (json.has("callsPerPeriod")) calls = json.get("callsPerPeriod").asInt();
-                if (json.has("name")) packageName = json.get("name").asText();
+                if (json.has("currency"))
+                    currency = json.get("currency").asText();
+                if (json.has("sessionDurationMinutes"))
+                    duration = json.get("sessionDurationMinutes").asInt();
+                if (json.has("callsPerPeriod"))
+                    calls = json.get("callsPerPeriod").asInt();
+                if (json.has("name"))
+                    packageName = json.get("name").asText();
                 if ("ONE_OFF".equals(row.get("service_type"))) {
                     numberOfSessions = json.path("numberOfSessions").asInt(1);
                     numberOfParticipants = json.path("numberOfParticipants").asInt(1);
                     sessionStartAt = instantFromSnapshot(json.path("startAt").asText(null));
                     sessionEndAt = instantFromSnapshot(json.path("endAt").asText(null));
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         } else if (SepayPaymentService.isOfferingUnchangedSinceRequest(
                 (java.sql.Timestamp) row.get("submitted_at"),
                 (java.sql.Timestamp) row.get("offering_updated_at"))
@@ -745,12 +758,12 @@ public class MentorshipRequestService {
                         : null,
                 (String) row.get("mentor_slug"),
                 row.get("service_id") == null ? null : ((Number) row.get("service_id")).longValue(),
-                (String) row.get("experience_level")
-        );
+                (String) row.get("experience_level"));
     }
 
     private static Instant instantFromSnapshot(String value) {
-        if (value == null || value.isBlank()) return null;
+        if (value == null || value.isBlank())
+            return null;
         try {
             return Instant.parse(value);
         } catch (Exception ignored) {
@@ -815,7 +828,8 @@ public class MentorshipRequestService {
 
     private static String offeringDisplayName(Map<String, Object> offering) {
         Object tier = offering.get("plan_tier");
-        if (tier == null) return String.valueOf(offering.get("name"));
+        if (tier == null)
+            return String.valueOf(offering.get("name"));
         return switch (String.valueOf(tier).toUpperCase(java.util.Locale.ROOT)) {
             case "LITE" -> "Lite";
             case "STANDARD" -> "Standard";
