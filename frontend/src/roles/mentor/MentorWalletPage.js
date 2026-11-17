@@ -306,7 +306,7 @@ export function initializeMentorWalletPage(root) {
     const ready = Boolean(savedBank?.saved) && available > Number(operations?.withdrawalThreshold ?? 10000);
     payoutForm.elements.amount.max = String(available);
     payoutForm.elements.amount.min = String(Number(operations?.withdrawalThreshold ?? 10000) + 1);
-    payoutForm.elements.amount.placeholder = `Up to ${money(available)}`;
+    payoutForm.elements.amount.placeholder = '';
     payoutSubmit.disabled = !ready;
   }
 
