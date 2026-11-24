@@ -228,6 +228,11 @@ public class SepayPaymentService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Payload is required.");
         }
 
+        // Support SePay test webhook ping (SePay sends id=0 for test pings)
+        if (payload.id() != null && payload.id() == 0L) {
+            return new SepayWebhookResponse(true, "SePay test webhook ping received successfully.");
+        }
+
         if (payload.transferType() == null || payload.transferType().isBlank()
                 || payload.accountNumber() == null || payload.accountNumber().isBlank()
                 || payload.id() == null || payload.id() <= 0) {
