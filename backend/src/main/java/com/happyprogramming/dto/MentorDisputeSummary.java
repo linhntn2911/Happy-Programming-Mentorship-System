@@ -15,4 +15,5 @@ public record MentorDisputeSummary(
         int responseCount,
         boolean responded,
         Instant createdAt,
-        Instant updatedAt) { }
+        Instant updatedAt,
+        Instant responseDeadlineAt) { }

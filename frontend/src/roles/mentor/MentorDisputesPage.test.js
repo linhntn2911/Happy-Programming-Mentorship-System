@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MentorDisputesPage, renderDisputeDetail, statusLabel, reasonLabel, resolutionLabel } from './MentorDisputesPage.js';
+import { MentorDisputesPage, renderDisputeDetail, statusLabel, reasonLabel, resolutionLabel, isResponseWindowOpen } from './MentorDisputesPage.js';
 
 test('mentor disputes page renders a searchable table with status filter and empty state', () => {
   const html = MentorDisputesPage();
@@ -49,6 +49,7 @@ test('open dispute detail offers a response form and never a refund or close act
     id: 7, status: 'SUBMITTED', reasonCode: 'NO_SHOW', targetLabel: 'BK-1001',
     complainantName: 'Mentee A', description: 'Mentor never joined the session.',
     createdAt: '2026-11-01T02:00:00Z',
+    responseDeadlineAt: '2099-11-02T02:00:00Z',
     evidence: [{ id: 31, fileName: 'screenshot.png', sizeBytes: 2048, uploadedSide: 'MENTEE' }],
     responses: [],
   });
@@ -80,11 +81,26 @@ test('closed dispute detail hides the response form and shows the staff decision
   assert.match(html, />You</);
 });
 
+test('expired response deadline hides the mentor response form', () => {
+  const detail = {
+    id: 10, status: 'IN_MEDIATION', reasonCode: 'COMMUNICATION', targetLabel: 'Monthly plan',
+    complainantName: 'Mentee C', description: 'No response was received.',
+    createdAt: '2026-10-30T02:00:00Z', responseDeadlineAt: '2026-10-31T02:00:00Z',
+    evidence: [], responses: [],
+  };
+  const html = renderDisputeDetail(detail);
+
+  assert.equal(isResponseWindowOpen(detail), false);
+  assert.doesNotMatch(html, /id="dispute-response-form"/);
+  assert.match(html, /The 24-hour response deadline has passed/);
+});
+
 test('dispute detail escapes user supplied text', () => {
   const html = renderDisputeDetail({
     id: 11, status: 'SUBMITTED', reasonCode: 'OTHER', targetLabel: '<script>alert(1)</script>',
     complainantName: 'Mentee <b>C</b>', description: '<img src=x onerror=alert(1)>',
     createdAt: null, evidence: [], responses: [],
+    responseDeadlineAt: '2099-01-01T00:00:00Z',
   });
   assert.doesNotMatch(html, /<script>alert\(1\)<\/script>/);
   assert.doesNotMatch(html, /<img src=x onerror=alert\(1\)>/);

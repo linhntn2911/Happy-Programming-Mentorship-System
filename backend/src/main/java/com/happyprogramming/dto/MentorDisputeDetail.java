@@ -17,6 +17,7 @@ public record MentorDisputeDetail(
         Instant resolvedAt,
         Instant createdAt,
         boolean responded,
+        Instant responseDeadlineAt,
         List<Evidence> evidence,
         List<Response> responses) {
 

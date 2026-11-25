@@ -65,4 +65,17 @@ class MentorDisputeServiceTest {
         assertEquals(503, assertThrows(ResponseStatusException.class, () -> service.list("SUBMITTED")).getStatusCode().value());
         assertEquals(503, assertThrows(ResponseStatusException.class, () -> service.detail(5L)).getStatusCode().value());
     }
+
+    @Test
+    void mentorCannotRespondAfterTheTwentyFourHourDeadline() {
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+                () -> MentorDisputeService.validateResponseTiming(false));
+
+        assertEquals(409, error.getStatusCode().value());
+    }
+
+    @Test
+    void mentorCanRespondWhileTheResponseWindowIsOpen() {
+        MentorDisputeService.validateResponseTiming(true);
+    }
 }

@@ -211,8 +211,11 @@ public class DisputeService {
                     """
                             INSERT INTO dbo.disputes(ticket_code,complainant_id,respondent_id,booking_id,subscription_id,
                                 payment_id,target_type,previous_target_status,category,description,disputed_amount,currency,
-                                status,terms_accepted_at,bank_name,account_number,account_name,created_at,updated_at)
-                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'SUBMITTED',SYSUTCDATETIME(),?,?,?,SYSUTCDATETIME(),SYSUTCDATETIME())
+                                status,terms_accepted_at,bank_name,account_number,account_name,response_deadline_at,
+                                resolution_deadline_at,created_at,updated_at)
+                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'SUBMITTED',SYSUTCDATETIME(),?,?,?,
+                                DATEADD(HOUR,24,SYSUTCDATETIME()),DATEADD(HOUR,48,SYSUTCDATETIME()),
+                                SYSUTCDATETIME(),SYSUTCDATETIME())
                             """,
                     new String[] { "id" });
             ps.setString(1, ticket);
@@ -262,7 +265,7 @@ public class DisputeService {
                     INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
                     VALUES (?, 'New Dispute Filed', ?, 'DISPUTE', '#/mentor/disputes', 0, SYSUTCDATETIME())
                     """, target.mentorId(), "A mentee has submitted a dispute (Ticket #" + ticket
-                    + ") regarding your session. Please review and provide your statement.");
+                    + ") regarding your session. You have 24 hours from the filing time to review the case and submit your statement and evidence.");
 
             List<Long> staffIds = jdbc.queryForList(
                     """
@@ -276,7 +279,7 @@ public class DisputeService {
                         INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
                         VALUES (?, 'New Dispute Ticket #' + ?, ?, 'DISPUTE', '#/staff/reports', 0, SYSUTCDATETIME())
                         """, sId, ticket, "A new dispute case #" + ticket + " (" + normalizedCategory
-                        + ") has been submitted and is awaiting staff review.");
+                        + ") has been submitted. The mentor has 24 hours to respond and Staff has a 48-hour resolution SLA, both counted from the filing time.");
             }
         } catch (Exception ignored) {
         }
@@ -295,6 +298,7 @@ public class DisputeService {
                                 + "A mentee has submitted a dispute case #" + ticket
                                 + " regarding your mentorship session.\n"
                                 + "Category: " + normalizedCategory + "\n\n"
+                                + "You have 24 hours from the dispute filing time to submit your explanation and counter-evidence. After that deadline, Staff may decide using the available evidence.\n\n"
                                 + "Please visit your Mentor Workspace to review details and provide your explanation / counter-evidence:\n"
                                 + "https://happyprogramming-web.onrender.com/#/mentor/disputes\n\n"
                                 + "Best regards,\nHappyProgramming Support Team";
@@ -772,9 +776,7 @@ public class DisputeService {
         String staffName = staffUser != null && staffUser.name() != null ? staffUser.name() : "Operational Staff";
         int updated = jdbc.update("""
                 UPDATE dbo.disputes
-                SET status = 'IN_MEDIATION', assigned_staff_id = ?,
-                    response_deadline_at = DATEADD(HOUR, 24, SYSUTCDATETIME()),
-                    updated_at = SYSUTCDATETIME()
+                SET status = 'IN_MEDIATION', assigned_staff_id = ?, updated_at = SYSUTCDATETIME()
                 WHERE id = ? AND status = 'SUBMITTED'
                 """, staffId, disputeId);
         if (updated != 1) {
@@ -864,7 +866,8 @@ public class DisputeService {
                                         INSERT INTO dbo.notifications (user_id, title, message, type, action_url, is_read, created_at)
                                         VALUES (?, 'Dispute Mediation Opened', ?, 'DISPUTE', '#/workspace', 0, SYSUTCDATETIME())
                                         """,
-                                mentorId, "Dispute case #" + ticketCode + " has been opened for 3-party mediation.");
+                                mentorId, "Dispute case #" + ticketCode
+                                        + " has been opened for 3-party mediation. Your original 24-hour response deadline is still counted from the filing time.");
                     } catch (Exception notifEx) {
                         // ignore if notification table schema mismatch
                     }
@@ -904,9 +907,16 @@ public class DisputeService {
             AuthenticatedUser staffUser, String ip) {
         long staffId = staffUser != null && staffUser.id() != null ? staffUser.id() : 1L;
         List<Map<String, Object>> rows = jdbc.queryForList("""
-                SELECT id, ticket_code, complainant_id, respondent_id, status, disputed_amount,
-                       previous_target_status, target_type, booking_id, subscription_id, payment_id
-                FROM dbo.disputes WITH (UPDLOCK, HOLDLOCK) WHERE id = ?
+                SELECT d.id, d.ticket_code, d.complainant_id, d.respondent_id, d.status, d.disputed_amount,
+                       d.previous_target_status, d.target_type, d.booking_id, d.subscription_id, d.payment_id,
+                       CASE WHEN EXISTS (
+                           SELECT 1 FROM dbo.dispute_responses r
+                           WHERE r.dispute_id = d.id AND r.author_id = d.respondent_id
+                       ) THEN 1 ELSE 0 END AS mentor_responded,
+                       CASE WHEN d.response_deadline_at IS NOT NULL
+                                  AND d.response_deadline_at > SYSUTCDATETIME()
+                            THEN 1 ELSE 0 END AS response_window_open
+                FROM dbo.disputes d WITH (UPDLOCK, HOLDLOCK) WHERE d.id = ?
                 """, disputeId);
         if (rows.isEmpty())
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Dispute was not found.");
@@ -915,6 +925,10 @@ public class DisputeService {
         if ("APPROVED".equals(currentStatus) || "RESOLVED".equals(currentStatus) || "REJECTED".equals(currentStatus)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Dispute has already been processed or finalized.");
         }
+        validateStaffDecisionTiming(
+                currentStatus,
+                ((Number) dispute.get("mentor_responded")).intValue() == 1,
+                ((Number) dispute.get("response_window_open")).intValue() == 1);
         String ticketCode = (String) dispute.get("ticket_code");
         long complainantId = ((Number) dispute.get("complainant_id")).longValue();
         Long mentorId = dispute.get("respondent_id") != null ? ((Number) dispute.get("respondent_id")).longValue()
@@ -1171,6 +1185,17 @@ public class DisputeService {
         }
 
         return staffDisputeDetail(disputeId);
+    }
+
+    static void validateStaffDecisionTiming(String status, boolean mentorResponded, boolean responseWindowOpen) {
+        if (!"IN_MEDIATION".equals(status)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Staff must intake the dispute before recording a decision.");
+        }
+        if (!mentorResponded && responseWindowOpen) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "The mentor still has time to respond. Wait until the response deadline or until a response is submitted.");
+        }
     }
 
     @Transactional(readOnly = true)

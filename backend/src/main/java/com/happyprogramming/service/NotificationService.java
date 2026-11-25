@@ -51,11 +51,39 @@ public class NotificationService {
     }
 
     @Transactional
+    public int notifyRoleOnce(String role, String title, String message, String type, String actionUrl) {
+        if (role == null || role.isBlank() || jdbc == null) return 0;
+        try {
+            List<Long> userIds = jdbc.queryForList("""
+                    SELECT u.id FROM dbo.users u
+                    WHERE u.status = 'ACTIVE'
+                      AND (u.role_code = ? OR EXISTS (SELECT 1 FROM dbo.user_roles r WHERE r.user_id = u.id AND r.role_code = ?))
+                    """, Long.class, role.toUpperCase(), role.toUpperCase());
+            int created = 0;
+            for (Long uid : userIds) {
+                if (createOnce(uid, title, message, type, actionUrl)) created++;
+            }
+            return created;
+        } catch (Exception ignored) {
+            return 0;
+        }
+    }
+
+    @Transactional
     public NotificationDto create(Long userId, String title, String message, String type, String actionUrl) {
         if (userId == null) return null;
         var entity = new Notification(userId, title, message, type, actionUrl, LocalDateTime.now(clock));
         var saved = notifications.save(entity);
         return toDto(saved);
+    }
+
+    @Transactional
+    public boolean createOnce(Long userId, String title, String message, String type, String actionUrl) {
+        if (userId == null || notifications.existsByUserIdAndTypeAndTitle(userId, type, title)) {
+            return false;
+        }
+        create(userId, title, message, type, actionUrl);
+        return true;
     }
 
     @Transactional(readOnly = true)

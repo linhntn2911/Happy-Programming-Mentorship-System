@@ -85,6 +85,28 @@ class DisputeServiceTest {
         assertEquals(400, error.getStatusCode().value());
     }
 
+    @Test
+    void staffMustIntakeBeforeRecordingADecision() {
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+                () -> DisputeService.validateStaffDecisionTiming("SUBMITTED", true, false));
+
+        assertEquals(409, error.getStatusCode().value());
+    }
+
+    @Test
+    void staffMustWaitWhileMentorStillHasTimeToRespond() {
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+                () -> DisputeService.validateStaffDecisionTiming("IN_MEDIATION", false, true));
+
+        assertEquals(409, error.getStatusCode().value());
+    }
+
+    @Test
+    void staffCanDecideAfterMentorRespondsOrResponseDeadlinePasses() {
+        DisputeService.validateStaffDecisionTiming("IN_MEDIATION", true, true);
+        DisputeService.validateStaffDecisionTiming("IN_MEDIATION", false, false);
+    }
+
     private void authenticate(String role) {
         var user = new AuthenticatedUser(5L, "User", "user@example.test", role);
         SecurityContextHolder.getContext().setAuthentication(

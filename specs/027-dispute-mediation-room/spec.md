@@ -193,7 +193,7 @@ This feature establishes a formal **Dispute & Mediation Framework** focusing on:
 1. Staff clicks **"Open Mediation Room"**:
    - Staff user is assigned as `assigned_staff_id`.
    - Dispute transitions to `IN_MEDIATION`.
-   - Sets `response_deadline_at = NOW() + 24 hours` (configurable up to 48 hours).
+   - Keeps the deadlines created when the Mentee filed the dispute; Staff intake must not restart either clock.
    - Generates automated system greeting in the room:
      > *"Welcome to HappyProgramming Dispute Mediation. Staff Member [Name] has been assigned as your arbitrator. Mentor [Name] has 24 hours to provide their statement and counter-evidence. Please maintain professional and respectful communication."*
    - System dispatches notifications & emails to Mentee and Mentor.
@@ -210,6 +210,17 @@ This feature establishes a formal **Dispute & Mediation Framework** focusing on:
 2. Pin an **Official Notice / Directive** to the top of the chat (e.g., *"Staff requested Mentor to provide the external meeting link, relevant workspace messages, and timestamped attendance evidence by 15:00"*).
 3. If the Mentor's response countdown expires without any message or evidence:
    - System displays a prominent warning to Staff: `[!] Respondent failed to submit evidence within 24h. Default resolution enabled.`
+
+#### Deadline Policy and Alerts
+
+- Filing creates `response_deadline_at = created_at + 24 hours` and `resolution_deadline_at = created_at + 48 hours`. Both clocks begin when the Mentee submits the dispute, not when Staff performs intake.
+- The Mentor may respond while the dispute is `SUBMITTED` or `IN_MEDIATION`, but only before `response_deadline_at`.
+- Staff must intake the dispute before recording a decision. Staff may decide after the Mentor responds, or after the 24-hour response deadline passes if no response was submitted.
+- The system sends an in-app warning to the Mentor and Staff when the 24-hour Mentor response deadline is approaching. If no Staff member is assigned yet, all active Staff receive the Staff warning. The default warning threshold is 6 hours before the deadline.
+- If the Mentor response deadline passes, the system sends one overdue warning to the Mentor and Staff. Missing this deadline does not automatically refund or close the dispute; Staff decides from the available evidence.
+- The system sends an in-app warning to Staff when the 48-hour resolution SLA is approaching. If the case is assigned, the assigned Staff member receives it; otherwise all active Staff receive it. The default warning threshold is 12 hours before the SLA deadline.
+- If the 48-hour SLA passes, the system sends one overdue warning only to Staff. It does not notify Admin, reassign the case, or change permissions. The dispute remains open until Staff records a decision.
+- Scheduled scans must be idempotent: repeated scans do not create duplicate warnings for the same user, dispute, and deadline stage.
    - Staff can proceed directly to resolve without further delay.
 
 ---
@@ -348,6 +359,6 @@ $$\text{Platform Revenue} = P_{\text{paid}} \times \frac{C_{\text{rate}}}{100}$$
 ## 8. Success Metrics & Non-Functional Criteria
 
 - **Time to First Mediation (TTM)**: Staff opens 3-party room within **12 business hours** of dispute filing.
-- **Resolution Turnaround (TTR)**: Disputes resolved within **48 hours** from room opening.
+- **Resolution Turnaround (TTR)**: Disputes resolved within **48 hours** from dispute filing.
 - **Evidence Integrity**: 100% of filed disputes possess at least 1 verified photographic proof artifact.
 - **Zero Double-Spend**: Absolute zero duplicate refund or duplicate escrow releases on disputed sessions.

@@ -30,3 +30,16 @@ This increment implements only the mentee-facing intake and tracking flow from U
 - Focused backend service/controller tests cover role checks, duplicate/eligibility validation, file validation, ownership, and submission.
 - Frontend unit tests cover form validation and status filtering.
 - Run backend tests and frontend build/test because the change spans schema, security-sensitive APIs, routing, and UI.
+
+## Deadline alert increment
+
+- Persist the 24-hour Mentor response deadline and 48-hour Staff resolution deadline when the Mentee files the dispute.
+- Keep both deadlines unchanged when Staff performs intake.
+- Add a scheduled backend scan for submitted and open mediation disputes.
+- Warn the Mentor and Staff six hours before the 24-hour response deadline and once after it is missed; before assignment, notify the active Staff role.
+- Warn Staff twelve hours before the 48-hour resolution SLA and once after it is missed; before assignment, notify the active Staff role.
+- Deadline warnings remain within the assigned Staff workflow; they do not notify Admin or reassign the dispute.
+- Reuse the notification history and bell UI; no new frontend route is required.
+- Deduplicate each alert by recipient, notification type, and ticket-specific title.
+- Enforce response and decision timing in backend services, and mirror the restrictions in Mentor and Staff UI.
+- Alerts never resolve a dispute or execute a refund automatically.

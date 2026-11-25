@@ -22,6 +22,13 @@ import { buildVietQrUrl } from './vietQrHelper.js';
 import { bindPagination, paginateItems, renderPagination } from '../../shared/pagination.js';
 import { renderBankSelectOptions, findMatchingBank } from '../../shared/vietnamBanks.js';
 
+export function canStaffResolveDispute(detail = {}, now = Date.now()) {
+  if (detail.status !== 'IN_MEDIATION') return false;
+  if (String(detail.mentorStatement || '').trim()) return true;
+  const deadline = new Date(detail.responseDeadlineAt).getTime();
+  return Number.isFinite(deadline) && deadline <= now;
+}
+
 async function checkStaffAccess(root) {
   try {
     const { user, permissions } = await staffService.access();
@@ -1396,6 +1403,7 @@ export async function mountStaffReportDetail(root, reportId) {
   const isResolved = detail.status === 'RESOLVED' || detail.status === 'REJECTED';
   const isApproved = detail.status === 'APPROVED';
   const isSubmitted = detail.status === 'SUBMITTED';
+  const canResolve = canStaffResolveDispute(detail);
 
   const allEvidences = (detail.evidences && detail.evidences.length > 0 ? detail.evidences : detail.evidence) || [];
   const menteeInitialEvidences = allEvidences.filter(ev => ev.uploadedSide === 'MENTEE' || !ev.uploadedSide);
@@ -1570,7 +1578,10 @@ export async function mountStaffReportDetail(root, reportId) {
 
           <div>
             <h4 class="text-xs font-bold text-ink uppercase tracking-wider mb-2">Step 2: Adjudicate & Finalize</h4>
-            <form id="dispute-resolve-form" class="space-y-3">
+            ${!canResolve ? `<div class="admin-notice mb-3" role="status">${isSubmitted
+              ? 'Intake this case before recording a decision.'
+              : 'The mentor still has time to respond. You can decide after the response arrives or the 24-hour deadline passes.'}</div>` : ''}
+            <form id="dispute-resolve-form" class="space-y-3 ${canResolve ? '' : 'hidden'}">
               <div id="dispute-resolve-error" class="hidden"></div>
               <label class="admin-field" for="resolve-outcome">
                 Settlement Outcome
@@ -1944,6 +1955,7 @@ export async function mountStaffReports(root) {
       const isResolved = detail.status === 'RESOLVED' || detail.status === 'REJECTED';
       const isApproved = detail.status === 'APPROVED';
       const isSubmitted = detail.status === 'SUBMITTED';
+      const canResolve = canStaffResolveDispute(detail);
 
       const evidences = (detail.evidences && detail.evidences.length > 0 ? detail.evidences : detail.evidence) || [];
       const evidencesHtml = evidences.length > 0
@@ -2040,7 +2052,10 @@ export async function mountStaffReports(root) {
 
             <div>
               <h4 class="text-xs font-bold text-ink uppercase tracking-wider mb-2">Step 2: Adjudicate & Finalize Resolution</h4>
-              <form id="dispute-resolve-form" class="space-y-3">
+              ${!canResolve ? `<div class="admin-notice mb-3" role="status">${isSubmitted
+                ? 'Intake this case before recording a decision.'
+                : 'The mentor still has time to respond. You can decide after the response arrives or the 24-hour deadline passes.'}</div>` : ''}
+              <form id="dispute-resolve-form" class="space-y-3 ${canResolve ? '' : 'hidden'}">
                 <div id="dispute-resolve-error" class="hidden"></div>
                 <label class="admin-field" for="resolve-outcome">
                   Settlement Outcome

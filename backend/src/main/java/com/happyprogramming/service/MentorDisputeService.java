@@ -63,7 +63,7 @@ public class MentorDisputeService {
                     d.description,d.booking_id,d.subscription_id,
                     b.booking_code,u.full_name AS complainant_name,
                     COALESCE(d.resolution, d.resolution_type) AS resolution,
-                    d.created_at,d.updated_at,
+                    d.created_at,d.updated_at,d.response_deadline_at,
                     (SELECT COUNT(*) FROM dbo.dispute_responses r WHERE r.dispute_id=d.id) AS response_count,
                     CASE WHEN EXISTS(SELECT 1 FROM dbo.dispute_responses r
                         WHERE r.dispute_id=d.id AND r.author_id=d.respondent_id) THEN 1 ELSE 0 END AS responded
@@ -83,7 +83,8 @@ public class MentorDisputeService {
                 rs.getLong("id"), rs.getString("status"), rs.getString("reason_code"), rs.getString("description"),
                 targetType(rs), targetId(rs), targetLabel(rs), rs.getString("complainant_name"),
                 rs.getString("resolution"), rs.getInt("response_count"), rs.getInt("responded") == 1,
-                rs.getTimestamp("created_at").toInstant(), rs.getTimestamp("updated_at").toInstant()),
+                rs.getTimestamp("created_at").toInstant(), rs.getTimestamp("updated_at").toInstant(),
+                instant(rs.getTimestamp("response_deadline_at"))),
                 args.toArray());
     }
 
@@ -98,9 +99,13 @@ public class MentorDisputeService {
         long mentorId = requireMentor();
         JdbcTemplate db = db();
         Map<String, Object> dispute = db.query("""
-                SELECT id,respondent_id,status FROM dbo.disputes WITH (UPDLOCK,HOLDLOCK) WHERE id=?
+                SELECT id,respondent_id,status,
+                    CASE WHEN response_deadline_at IS NOT NULL AND response_deadline_at > SYSUTCDATETIME()
+                         THEN 1 ELSE 0 END AS response_window_open
+                FROM dbo.disputes WITH (UPDLOCK,HOLDLOCK) WHERE id=?
                 """, (rs, n) -> Map.<String, Object>of("id", rs.getLong("id"),
-                "respondentId", rs.getLong("respondent_id"), "status", rs.getString("status")), disputeId)
+                "respondentId", rs.getLong("respondent_id"), "status", rs.getString("status"),
+                "responseWindowOpen", rs.getInt("response_window_open") == 1), disputeId)
                 .stream().findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Dispute not found."));
         if (((Number) dispute.get("respondentId")).longValue() != mentorId)
@@ -108,6 +113,7 @@ public class MentorDisputeService {
         String status = (String) dispute.get("status");
         if (!"SUBMITTED".equals(status) && !"IN_MEDIATION".equals(status))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "This dispute is closed and no longer accepts responses.");
+        validateResponseTiming((Boolean) dispute.get("responseWindowOpen"));
 
         String body = message == null ? "" : message.trim();
         if (body.length() < 5 || body.length() > 2000)
@@ -160,7 +166,7 @@ public class MentorDisputeService {
                     b.booking_code,u.full_name AS complainant_name,
                     COALESCE(d.resolution, d.resolution_type) AS resolution,
                     COALESCE(d.resolution_note, '') AS resolution_note,
-                    d.resolved_at,d.created_at,
+                    d.resolved_at,d.created_at,d.response_deadline_at,
                     CASE WHEN EXISTS(SELECT 1 FROM dbo.dispute_responses r
                         WHERE r.dispute_id=d.id AND r.author_id=d.respondent_id) THEN 1 ELSE 0 END AS responded
                 FROM dbo.disputes d
@@ -171,7 +177,7 @@ public class MentorDisputeService {
                 rs.getString("description"), targetType(rs), targetId(rs), targetLabel(rs),
                 rs.getString("complainant_name"), rs.getString("resolution"), rs.getString("resolution_note"),
                 instant(rs.getTimestamp("resolved_at")), rs.getTimestamp("created_at").toInstant(),
-                rs.getInt("responded") == 1), disputeId, mentorId)
+                rs.getInt("responded") == 1, instant(rs.getTimestamp("response_deadline_at"))), disputeId, mentorId)
                 .stream().findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Dispute not found."));
 
@@ -203,8 +209,15 @@ public class MentorDisputeService {
                 List.copyOf(perResponse.getOrDefault(rs.getLong("id"), List.of()))), disputeId);
         return new MentorDisputeDetail(head.id(), head.status(), head.reasonCode(), head.description(),
                 head.targetType(), head.targetId(), head.targetLabel(), head.complainantName(), head.resolution(),
-                head.resolutionNote(), head.resolvedAt(), head.createdAt(), head.responded(),
+                head.resolutionNote(), head.resolvedAt(), head.createdAt(), head.responded(), head.responseDeadlineAt(),
                 List.copyOf(submissionEvidence), responses);
+    }
+
+    static void validateResponseTiming(boolean responseWindowOpen) {
+        if (!responseWindowOpen) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "The 24-hour response deadline has passed. Staff will decide from the available evidence.");
+        }
     }
 
     private static PreparedEvidence prepare(MultipartFile file) {
@@ -301,7 +314,8 @@ public class MentorDisputeService {
 
     private record DetailHead(long id, String status, String reasonCode, String description, String targetType,
                               Long targetId, String targetLabel, String complainantName, String resolution,
-                              String resolutionNote, Instant resolvedAt, Instant createdAt, boolean responded) { }
+                              String resolutionNote, Instant resolvedAt, Instant createdAt, boolean responded,
+                              Instant responseDeadlineAt) { }
 
     private record EvidenceRow(long id, Long responseId, long fileId, String uploadedSide, Instant createdAt,
                                String fileName, String mimeType, long sizeBytes) { }

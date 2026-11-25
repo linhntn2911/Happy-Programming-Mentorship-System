@@ -115,6 +115,7 @@
                         <copy file="${project.basedir}/../docs/database/migration/038_20261105_add_payout_transfer_receipt.sql" tofile="${project.build.outputDirectory}/db/migration/V29__add_payout_transfer_receipt.sql" overwrite="true"/>
                         <copy file="${project.basedir}/../docs/database/migration/039_20261105_add_payout_receipt_url.sql" tofile="${project.build.outputDirectory}/db/migration/V30__add_payout_receipt_url.sql" overwrite="true"/>
                         <copy file="${project.basedir}/../docs/database/migration/040_20261105_add_mentor_dispute_response_tables.sql" tofile="${project.build.outputDirectory}/db/migration/V31__add_mentor_dispute_response_tables.sql" overwrite="true"/>
+                        <copy file="${project.basedir}/../docs/database/migration/045_20261125_add_dispute_resolution_deadline.sql" tofile="${project.build.outputDirectory}/db/migration/V32__add_dispute_resolution_deadline.sql" overwrite="true"/>
                     </target></configuration>
                 </execution></executions>
             </plugin>

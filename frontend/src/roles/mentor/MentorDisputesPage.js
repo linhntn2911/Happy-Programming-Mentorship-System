@@ -49,6 +49,19 @@ export function reasonLabel(reasonCode) {
   return REASON_LABELS[reasonCode] || String(reasonCode).replaceAll('_', ' ').replace(/\b\w/g, char => char.toUpperCase());
 }
 
+export function isResponseWindowOpen(item = {}, now = Date.now()) {
+  if (item.status !== 'SUBMITTED' && item.status !== 'IN_MEDIATION') return false;
+  const deadline = new Date(item.responseDeadlineAt).getTime();
+  return Number.isFinite(deadline) && deadline > now;
+}
+
+function responseStateLabel(item) {
+  if (item.responded) return 'Response sent';
+  if (isResponseWindowOpen(item)) return 'Response needed';
+  if (item.status === 'SUBMITTED' || item.status === 'IN_MEDIATION') return 'Response deadline passed';
+  return 'Closed by staff';
+}
+
 function statusBadge(item) {
   const tone = STATUS_TONES[item.status] || 'neutral';
   return `<span class="status-badge status-${tone}"><span aria-hidden="true">●</span> ${e(statusLabel(item))}</span>`;
@@ -91,7 +104,8 @@ function evidenceList(disputeId, items = []) {
 }
 
 function renderDisputeCard(item) {
-  const needsResponse = item.status === 'SUBMITTED' || item.status === 'IN_MEDIATION';
+  const needsResponse = isResponseWindowOpen(item);
+  const responseLabel = responseStateLabel(item);
   return `<article class="rounded-xl border border-line bg-white p-4">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div class="min-w-0">
@@ -103,9 +117,7 @@ function renderDisputeCard(item) {
         <p class="mt-2 line-clamp-2 text-sm leading-6 text-muted">${e(item.description || '')}</p>
       </div>
       <div class="flex shrink-0 flex-col items-end gap-2">
-        ${needsResponse
-          ? `<span class="text-xs ${item.responded ? 'text-muted' : 'font-semibold text-brand'}">${item.responded ? 'Response sent' : 'Response needed'}</span>`
-          : `<span class="text-xs text-muted">Closed by staff</span>`}
+        <span class="text-xs ${needsResponse && !item.responded ? 'font-semibold text-brand' : 'text-muted'}">${e(responseLabel)}</span>
         <button class="btn btn-outline btn-sm" type="button" data-dispute-id="${e(String(item.id))}">View details</button>
       </div>
     </div>
@@ -113,13 +125,14 @@ function renderDisputeCard(item) {
 }
 
 function renderDisputeRow(item) {
-  const needsResponse = item.status === 'SUBMITTED' || item.status === 'IN_MEDIATION';
+  const needsResponse = isResponseWindowOpen(item);
+  const responseLabel = responseStateLabel(item);
   return `<tr>
     <td class="px-4 py-4"><p class="font-semibold text-ink">#${e(String(item.id))}</p><p class="mt-1 text-xs text-muted">${e(dateTime(item.createdAt))}</p></td>
     <td class="px-4 py-4"><p class="text-sm font-semibold text-ink">${e(item.targetLabel || 'Mentorship')}</p><p class="mt-1 text-xs text-muted">${e(reasonLabel(item.reasonCode))}</p></td>
     <td class="px-4 py-4 text-sm text-ink">${e(item.complainantName || 'A mentee')}</td>
     <td class="max-w-md px-4 py-4"><p class="line-clamp-2 text-sm leading-6 text-muted" title="${e(item.description || '')}">${e(item.description || '—')}</p></td>
-    <td class="px-4 py-4">${statusBadge(item)}<p class="mt-2 text-xs ${needsResponse && !item.responded ? 'font-semibold text-brand' : 'text-muted'}">${needsResponse ? (item.responded ? 'Response sent' : 'Response needed') : 'Closed by staff'}</p></td>
+    <td class="px-4 py-4">${statusBadge(item)}<p class="mt-2 text-xs ${needsResponse && !item.responded ? 'font-semibold text-brand' : 'text-muted'}">${e(responseLabel)}</p></td>
     <td class="px-4 py-4 text-right"><button class="btn btn-outline btn-sm whitespace-nowrap" type="button" data-dispute-id="${e(String(item.id))}">View details</button></td>
   </tr>`;
 }
@@ -152,7 +165,8 @@ function renderResponseThread(detail) {
 }
 
 export function renderDisputeDetail(detail) {
-  const open = detail.status === 'SUBMITTED' || detail.status === 'IN_MEDIATION';
+  const open = isResponseWindowOpen(detail);
+  const expired = (detail.status === 'SUBMITTED' || detail.status === 'IN_MEDIATION') && !open;
   return `
     <button id="dispute-back" class="btn btn-outline btn-sm mb-5" type="button">← Back to disputes</button>
     <div class="admin-page-heading"><div>
@@ -192,7 +206,9 @@ export function renderDisputeDetail(detail) {
           </div>
         </form>
       </div>
-    </section>` : `<div class="admin-notice" role="status">This dispute is closed. Responses are no longer accepted.</div>`}`;
+    </section>` : `<div class="admin-notice" role="status">${expired
+      ? 'The 24-hour response deadline has passed. Staff will decide from the available evidence.'
+      : 'This dispute is closed. Responses are no longer accepted.'}</div>`}`;
 }
 
 function disputesContent() {

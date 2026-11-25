@@ -1,7 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { staffService } from '../src/roles/staff/staffService.js';
-import { mountStaffDashboard, mountStaffApplications, mountStaffMentors, mountStaffMentees, mountStaffList, mountStaffPayouts } from '../src/roles/staff/StaffPortal.js';
+import { canStaffResolveDispute, mountStaffDashboard, mountStaffApplications, mountStaffMentors, mountStaffMentees, mountStaffList, mountStaffPayouts } from '../src/roles/staff/StaffPortal.js';
+
+test('Staff can decide only after intake and mentor response or response timeout', () => {
+  const future = '2099-01-01T00:00:00Z';
+  const past = '2020-01-01T00:00:00Z';
+
+  assert.equal(canStaffResolveDispute({ status: 'SUBMITTED', mentorStatement: 'Responded', responseDeadlineAt: past }), false);
+  assert.equal(canStaffResolveDispute({ status: 'IN_MEDIATION', mentorStatement: '', responseDeadlineAt: future }), false);
+  assert.equal(canStaffResolveDispute({ status: 'IN_MEDIATION', mentorStatement: 'Mentor evidence', responseDeadlineAt: future }), true);
+  assert.equal(canStaffResolveDispute({ status: 'IN_MEDIATION', mentorStatement: '', responseDeadlineAt: past }), true);
+});
 
 test('Staff pages render request failures as alerts, never as empty successful lists', async () => {
   const originals = { ...staffService };
